@@ -162,8 +162,9 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
 
 ## Bible data/feature shape (for when that work starts)
 
-- `/Bible/<TRANSLATION>/bible.dat` + `index.bin` (byte offsets per book/chapter/verse) + `meta.json`.
-  Seek directly to a chapter; don't load a whole translation. JSON-on-SD is an OK first prototype.
+- SD layout: `/Bible/<ABBREV>/<abbrev>.json` — the raw getBible file, verified working (see below), not
+  the byte-offset `bible.dat`/`index.bin` scheme once sketched here; that remains a possible later
+  optimization, not the current design.
 - Search: sequential scan for the prototype; word→verse-ID index once proven. Tens of thousands of
   verses total — no SQLite/search engine needed.
 - Offline-first: reading never needs WiFi. **A translation pre-dropped on the SD card just works with
@@ -187,22 +188,16 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
     `distribution_about` states "The rights to the base text are held by the Crown of England" — public
     domain in the US, but the UK Crown holds a perpetual printing-rights patent there. Separately, this
     specific getBible distribution (Strong's/morphology edition) is tagged `distribution_license: GPL`
-    by the source. Not a blocker (GPL-3 already decided acceptable to ship under, D-006 in history), but
-    **check `distribution_license` per translation programmatically before treating any as freely
-    distributable** — the catalog conveniently exposes this per entry; don't assume any translation's
-    status without reading that field.
+    by the source. Not a blocker (GPL-3 already decided acceptable to ship under — see "Decisions made"
+    above), but **check `distribution_license` per translation programmatically before treating any as
+    freely distributable** — the catalog conveniently exposes this per entry; don't assume any
+    translation's status without reading that field.
   - OpenBible2 stores `<abbrev>.json` and re-downloads on SHA-checksum change (from the catalog). Same
     pattern works for CrossLight.
-- **SD-first, download-optional (decided 2026-09-09):** a translation pre-dropped on the SD card at
-  `/Bible/<ABBREV>/` works with zero network — that's the primary path. The getBible downloader is only
-  a convenience for fetching new ones into the same folder. KJV is the default translation (imperfect
-  but least-encumbered option available; see license note above). Not bundled inside the firmware image
-  (keeps flash lean) — document "drop a translation file on the card" instead.
-- File format on SD: **start with raw getBible JSON**, no transcoding — simplest to implement, and lets
-  a user (or us, in the simulator) literally drop a fetched `<abbrev>.json` onto the card and have it
-  work. A byte-offset index / compact `bible.dat` is a later optimization once JSON parsing proves too
-  slow or memory-heavy on device (ArduinoJson's DOM parsing an 8.9MB file is very likely a problem on
-  ESP32 RAM even with 8MB PSRAM — needs a streaming parser or the index approach; unverified until
-  tried).
+- File format on SD: **raw getBible JSON, verified working, not just planned.** `BibleChapterLoader`
+  streams it through `StreamingJsonParser` (SAX, no DOM) rather than loading the whole ~9MB file at
+  once — confirmed necessary and sufficient against a real KJV file. A byte-offset index / compact
+  `bible.dat` remains a possible later optimization if streaming-and-rescanning per navigation proves
+  too slow on-device, but isn't needed yet and hasn't been shown to be.
 - Standard Ebooks (https://standardebooks.org/) and Project Gutenberg for public-domain EPUB reading
   generally — the normal reading workflow this device is for.
