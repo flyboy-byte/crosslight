@@ -135,8 +135,12 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
   Seek directly to a chapter; don't load a whole translation. JSON-on-SD is an OK first prototype.
 - Search: sequential scan for the prototype; word→verse-ID index once proven. Tens of thousands of
   verses total — no SQLite/search engine needed.
-- Offline-first: reading never needs WiFi. Network only for installing/updating translations. `getBible`
-  (https://getbible.net/) is a plausible source — check per-translation licensing; ship no copyrighted
-  text in the firmware image.
+- Offline-first: reading never needs WiFi. Network only for installing/updating translations.
+- Translation source = **getBible v2 API** (what OpenBible2 uses; a front end for Crosswire SWORD
+  modules). Catalog: `https://api.getbible.life/v2/translations.json`; one translation:
+  `https://api.getbible.life/v2/<abbrev>.json` (single JSON, `books[]→chapters[]→verses[]`, 66 books
+  for a full Bible). OpenBible2 stores `<abbrev>.json` and re-downloads on SHA-checksum change. CrossLight
+  would fetch the same, then either keep JSON + build a byte-offset index, or transcode to `bible.dat`.
+  Check per-translation licensing; ship no copyrighted text in the firmware image.
 - Standard Ebooks (https://standardebooks.org/) and Project Gutenberg for public-domain EPUB reading
   generally — the normal reading workflow this device is for.
