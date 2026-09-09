@@ -150,13 +150,13 @@ TEST(StreamingJsonParser, StringEscapes) {
   EXPECT_EQ(events[2].value, std::string("a\"b\\c/d\ne\tf"));
 }
 
-TEST(StreamingJsonParser, UnicodeEscapePassthrough) {
+TEST(StreamingJsonParser, UnicodeEscapeDecoded) {
+  // \u0041\u0042 decodes to "AB" (RFC 8259 requires \uXXXX decoding).
   auto events = parse(R"({"u": "\u0041\u0042"})");
 
   ASSERT_EQ(events.size(), 4u);
   EXPECT_EQ(events[2].type, EventType::STRING);
-  // \uXXXX passed through as literal \u followed by the hex digits
-  EXPECT_EQ(events[2].value, "\\u0041\\u0042");
+  EXPECT_EQ(events[2].value, "AB");
 }
 
 TEST(StreamingJsonParser, Numbers) {
@@ -503,4 +503,64 @@ TEST(StreamingJsonParser, NullCallbacksNoCrash) {
   const char* json = R"({"key": "value", "num": 42, "b": true, "n": null, "a": [1]})";
   parser.feed(json, strlen(json));
   EXPECT_FALSE(parser.hasError());
+}
+
+TEST(StreamingJsonParser, UnicodeEscapeAsciiRange) {
+  // \u0041\u0042\u0043 decodes to "ABC" -- within the ASCII range, single UTF-8 byte each.
+  auto events = parse(R"({"k": "\u0041\u0042\u0043"})");
+  ASSERT_EQ(events.size(), 4u);  // OBJECT_START, KEY, STRING, OBJECT_END
+  EXPECT_EQ(events[2].type, EventType::STRING);
+  EXPECT_EQ(events[2].value, "ABC");
+}
+
+TEST(StreamingJsonParser, UnicodeEscapeTwoByteUtf8) {
+  // \u2019 (RIGHT SINGLE QUOTATION MARK / curly apostrophe) is the exact
+  // escape found in real getBible KJV verse text (e.g. Genesis 3:20,
+  // "Adam's" with a curly apostrophe). UTF-8: E2 80 99.
+  auto events = parse(R"({"k": "Adam\u2019s"})");
+  ASSERT_EQ(events.size(), 4u);
+  EXPECT_EQ(events[2].type, EventType::STRING);
+  std::string expected = "Adam";
+  expected += static_cast<char>(0xE2);
+  expected += static_cast<char>(0x80);
+  expected += static_cast<char>(0x99);
+  expected += "s";
+  EXPECT_EQ(events[2].value, expected);
+}
+
+TEST(StreamingJsonParser, UnicodeEscapeSurrogatePair) {
+  // \uD83D\uDE00 is the UTF-16 surrogate pair for U+1F600 (GRINNING
+  // FACE) -- above the BMP, requires surrogate-pair combining.
+  // UTF-8: F0 9F 98 80.
+  auto events = parse(R"({"k": "\uD83D\uDE00"})");
+  ASSERT_EQ(events.size(), 4u);
+  EXPECT_EQ(events[2].type, EventType::STRING);
+  std::string expected;
+  expected += static_cast<char>(0xF0);
+  expected += static_cast<char>(0x9F);
+  expected += static_cast<char>(0x98);
+  expected += static_cast<char>(0x80);
+  EXPECT_EQ(events[2].value, expected);
+}
+
+TEST(StreamingJsonParser, UnicodeEscapeChunkedMidEscape) {
+  // The exact scenario a file-read loop will hit: a \uXXXX escape split
+  // across two feed() calls.
+  const char* json = R"({"k": "Adam\u2019s"})";
+  auto reference = parse(json);
+
+  const char* u = strchr(json, 'u');
+  ASSERT_NE(u, nullptr);
+  size_t splitAt = static_cast<size_t>(u - json) + 2;  // mid hex-digits, after "\u2"
+
+  TestContext ctx;
+  StreamingJsonParser parser(makeCallbacks(&ctx));
+  parser.feed(json, splitAt);
+  parser.feed(json + splitAt, strlen(json) - splitAt);
+
+  ASSERT_EQ(ctx.events.size(), reference.size());
+  for (size_t i = 0; i < reference.size(); ++i) {
+    EXPECT_EQ(ctx.events[i].type, reference[i].type);
+    EXPECT_EQ(ctx.events[i].value, reference[i].value);
+  }
 }

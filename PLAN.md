@@ -1,6 +1,6 @@
 # PLAN.md
 
-Status: architecture + freeink-sdk mapped from source; device not in hand yet (2026-09-09)
+Status: first working Bible screen (real KJV data, verified in simulator); device not in hand yet (2026-09-09)
 
 Personal fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) for an
 Xteink X4 Pro. Fork name **CrossLight**, repo `flyboy-byte/crosslight`. Remotes: `origin` = upstream,
@@ -114,20 +114,51 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
 
 ## Next steps
 
-**No hardware needed:**
+**Done:**
 1. ~~Inspect `freeink-sdk/`~~ — done (findings above).
-2. Read 1-2 full `UiListActivity` subclasses + `crosspoint-reader-apps`'s `App`/`AppRegistry` end-to-end
-   to settle the Bible module's directory shape and menu-registration approach.
-3. Prove the host-render loop: minimal desktop build that renders a `FreeInkUIDisplayTarget` screen to a
-   PNG, so Bible UI can be iterated without the device. (Offered; not yet built.)
-4. Sketch the Bible data format against `HalStorage`'s read/seek API (shape below).
+2. ~~Prove the desktop dev loop~~ — done: CrossPoint Simulator wired in, X4 Pro window renders and
+   screenshots (see "Desktop dev loop" below).
+3. ~~Smallest possible Bible menu entry~~ — done: `BibleActivity` reachable from Home, renders real
+   parsed scripture (not placeholder text).
+4. ~~Sketch the Bible data format~~ — superseded by actually building it: `BibleChapterLoader`
+   (`src/bible/`) streams a getBible-format JSON file from SD via the shared `StreamingJsonParser` (no
+   DOM-load of the ~9MB file) and extracts one book/chapter's verses. Verified against a real fetched
+   KJV file in the simulator's SD sandbox (`fs_/Bible/KJV/kjv.json`, gitignored test data) — correct
+   verse text and numbering for all of Genesis 1, confirmed against an independent Python-side parse of
+   the same file.
+5. Fixed a real, data-confirmed bug in the shared `StreamingJsonParser` while building this: it passed
+   `\uXXXX` Unicode escapes through as 6 literal characters instead of decoding them (RFC 8259 requires
+   decoding). Verified against live KJV data that this wasn't hypothetical — 2,380 of 31,102 verses
+   (7.6%) contain `’`/`–` etc. directly in verse text (e.g. Genesis 3:20's "Adam's" with a
+   curly apostrophe). Added proper UTF-8 encoding with surrogate-pair support, plus 4 new host gtest
+   cases (ASCII escape, 2-byte curly-quote matching the real KJV case, a surrogate-pair emoji, and a
+   chunked-mid-escape split) — all 195 host tests pass, no regressions in the one other real consumer
+   (`ReleaseJsonParser`/GitHub release parsing, which contains no `\u` escapes to begin with).
+6. Fixed two rendering bugs found by actually running the screen in the simulator (not caught by
+   compiling alone): text drawing past the bottom of the screen (`GfxRenderer::getOrientedViewableTRBL`
+   returns bezel *insets*, not absolute coordinates — a real mix-up worth remembering) and past the
+   right edge (now uses `GfxRenderer::truncatedText`, the existing UTF-8-safe helper other activities
+   already use, rather than hand-rolling truncation).
+
+**Known limitations, not yet fixed (flagged, not hidden):**
+- `StreamingJsonParser`'s fixed 512-byte token buffer still *drops* (not truncates) any string over that
+  length. One verse in all of KJV exceeds it (Esther 8:9, 528 chars) — its text is currently lost
+  silently. Needs either a larger buffer (check other consumers first) or a dedicated overflow path.
+- `BibleActivity` is hardcoded to Genesis 1 of one fixed path (`/Bible/KJV/kjv.json`). No book/chapter
+  picker, no translation selection, no pagination beyond "truncate at the screen edge" yet.
+
+**No hardware needed, next up:**
+7. Read 1-2 full `UiListActivity` subclasses + `crosspoint-reader-apps`'s `App`/`AppRegistry` end-to-end
+   to design a real book/chapter picker (replacing the hardcoded Genesis 1) and settle whether the
+   hand-rolled `HomeMenuItem` pattern should be refactored once the Bible module needs its own sub-menu.
+8. Real line-wrapping/pagination for verse text (currently one truncated line per verse).
+9. Fix the Esther 8:9 token-overflow gap above.
 
 **Blocked on device arrival:**
-5. Run stock firmware briefly, document hardware/display-controller batch (SSD1677 vs UC8179).
-6. Flash unmodified CrossPoint (`x4pro`); verify display, touch, SD, WiFi, frontlight, sleep/wake, Home
-   key, EPUB reading. Confirm a self-built unmodified image matches stock before any code changes.
-7. Smallest possible Bible menu entry rendering a static test chapter, then book/chapter picker →
-   pagination → search → bookmarks/history. Translation downloader after the MVP is stable.
+10. Run stock firmware briefly, document hardware/display-controller batch (SSD1677 vs UC8179).
+11. Flash unmodified CrossPoint (`x4pro`); verify display, touch, SD, WiFi, frontlight, sleep/wake, Home
+    key, EPUB reading. Confirm a self-built unmodified image matches stock before any code changes.
+12. Then: search, bookmarks/history. Translation downloader after the MVP is stable.
 
 ## Bible data/feature shape (for when that work starts)
 
@@ -135,12 +166,43 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
   Seek directly to a chapter; don't load a whole translation. JSON-on-SD is an OK first prototype.
 - Search: sequential scan for the prototype; word→verse-ID index once proven. Tens of thousands of
   verses total — no SQLite/search engine needed.
-- Offline-first: reading never needs WiFi. Network only for installing/updating translations.
+- Offline-first: reading never needs WiFi. **A translation pre-dropped on the SD card just works with
+  zero download** — the SD-read path is primary and now built (see below); the getBible downloader is
+  only a convenience for fetching new ones into the same `/Bible/<ABBREV>/` folder. KJV is the default
+  (imperfect but least-encumbered available option — see the corrected license note further down, it is
+  NOT simply public domain). Not bundled inside the firmware image (keeps flash lean); document "drop a
+  translation file on the card" instead.
 - Translation source = **getBible v2 API** (what OpenBible2 uses; a front end for Crosswire SWORD
-  modules). Catalog: `https://api.getbible.life/v2/translations.json`; one translation:
-  `https://api.getbible.life/v2/<abbrev>.json` (single JSON, `books[]→chapters[]→verses[]`, 66 books
-  for a full Bible). OpenBible2 stores `<abbrev>.json` and re-downloads on SHA-checksum change. CrossLight
-  would fetch the same, then either keep JSON + build a byte-offset index, or transcode to `bible.dat`.
-  Check per-translation licensing; ship no copyrighted text in the firmware image.
+  modules). **Verified live 2026-09-09 by fetching the real files** (not assumed from OpenBible2's
+  source): the host `api.getbible.life` (what OpenBible2 uses) now 301-redirects to
+  **`api.getbible.net`** — point the loader at `api.getbible.net` directly.
+  - Catalog: `GET /v2/translations.json` → dict keyed by abbreviation, 117 translations. Each entry
+    carries a `distribution_license` field (verified KJV's is `"GPL"`, not public domain — see below).
+  - One translation: `GET /v2/<abbrev>.json` → `{ translation, abbreviation, distribution_license, ...,
+    "books": [ { nr, name, "chapters": [ { chapter, name, "verses": [ { chapter, verse, name, "text" }
+    ] } ] } ] }`. Confirmed via real KJV fetch: 66 books, 31,102 verses, `text` is clean plain text (no
+    embedded Strong's/morphology markup despite the translation including that data elsewhere). File
+    size ~8.9MB; actual verse text is only ~4.0MB of that — rest is metadata/JSON structural overhead.
+  - **License reality, corrected:** KJV is NOT simply "public domain, freely bundleable." Its own
+    `distribution_about` states "The rights to the base text are held by the Crown of England" — public
+    domain in the US, but the UK Crown holds a perpetual printing-rights patent there. Separately, this
+    specific getBible distribution (Strong's/morphology edition) is tagged `distribution_license: GPL`
+    by the source. Not a blocker (GPL-3 already decided acceptable to ship under, D-006 in history), but
+    **check `distribution_license` per translation programmatically before treating any as freely
+    distributable** — the catalog conveniently exposes this per entry; don't assume any translation's
+    status without reading that field.
+  - OpenBible2 stores `<abbrev>.json` and re-downloads on SHA-checksum change (from the catalog). Same
+    pattern works for CrossLight.
+- **SD-first, download-optional (decided 2026-09-09):** a translation pre-dropped on the SD card at
+  `/Bible/<ABBREV>/` works with zero network — that's the primary path. The getBible downloader is only
+  a convenience for fetching new ones into the same folder. KJV is the default translation (imperfect
+  but least-encumbered option available; see license note above). Not bundled inside the firmware image
+  (keeps flash lean) — document "drop a translation file on the card" instead.
+- File format on SD: **start with raw getBible JSON**, no transcoding — simplest to implement, and lets
+  a user (or us, in the simulator) literally drop a fetched `<abbrev>.json` onto the card and have it
+  work. A byte-offset index / compact `bible.dat` is a later optimization once JSON parsing proves too
+  slow or memory-heavy on device (ArduinoJson's DOM parsing an 8.9MB file is very likely a problem on
+  ESP32 RAM even with 8MB PSRAM — needs a streaming parser or the index approach; unverified until
+  tried).
 - Standard Ebooks (https://standardebooks.org/) and Project Gutenberg for public-domain EPUB reading
   generally — the normal reading workflow this device is for.

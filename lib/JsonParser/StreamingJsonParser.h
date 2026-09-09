@@ -49,6 +49,8 @@ class StreamingJsonParser {
   void handleNumber(char c);
   void handleLiteral(char c);
   void handleSkipString(char c);
+  void handleUnicodeEscapeDigit(char c);
+  void appendUtf8(uint32_t codepoint);
 
   void appendToken(char c);
   void emitToken();
@@ -70,4 +72,13 @@ class StreamingJsonParser {
   char literalExpected[6];
   uint8_t literalLen;
   uint8_t literalPos;
+
+  // \uXXXX decoding state (RFC 8259). Surrogate pairs (\uD800-\uDBFF followed
+  // by \uDC00-\uDFFF) combine into one codepoint above U+FFFF; a lone/unpaired
+  // surrogate is emitted as its raw 16-bit value UTF-8-encoded (a documented,
+  // lossy best-effort fallback for malformed input, not a valid encoding).
+  bool unicodeEscapeActive;
+  uint8_t unicodeEscapeDigitCount;
+  uint16_t unicodeEscapeValue;
+  uint16_t pendingHighSurrogate;
 };
