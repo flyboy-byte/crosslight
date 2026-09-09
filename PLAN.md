@@ -92,16 +92,25 @@ one big drift-merge.
   (newer) — auto-detected at boot; both drivers + touch + frontlight caps auto-enable. Display confirmed
   working on hardware with the stock X4 waveform.
 
-### Emulation reality (ChatGPT suggested "good X4 Pro emulation" — verified, it's nuanced)
+### Desktop dev loop — CrossPoint Simulator (the real answer)
 
-- **No full device emulator exists** (no QEMU/Wokwi project in repo or SDK; README has no simulator).
-- Generic S3 MCU emulation (Wokwi, Espressif QEMU) exists but models neither the e-ink panel, GT911
-  touch, PSRAM, nor FreeInk peripherals — a boot log, not a rendered page. Not useful here.
-- **The real path is host-building.** `FreeInkUIDisplayTarget` renders FreeInkUI to a raw 1-bit
-  framebuffer with zero graphics-lib dependency — "the same drawing code runs in host unit tests."
-  `FreeInkBook` is host-buildable too. So: iterate the Bible UI on the Linux desktop and dump screens to
-  image files (faster/scriptable vs an emulator); the `test/` gtest harness covers logic. No virtual
-  touchscreen device — "feel the whole thing" still needs real hardware.
+A full desktop simulator exists: `crosspoint-reader/crosspoint-simulator` (MIT, separate repo). It
+compiles the firmware natively and renders an 800×480 X4 Pro **SDL2 window** — `SIMULATOR_DEVICE_X4_PRO`
+profile with touch/swipe, capacitive Home key, RTC, display inversion, frontlight state, a simulated SD
+filesystem, host-backed networking, scripted TAP/SWIPE/HOME input, screenshot capture, and simulated
+heap limits. Far more useful than dumping framebuffers to PNG. (An earlier note here wrongly said no
+simulator existed — corrected.) Not cycle-accurate: no real e-ink waveform/ghosting timing, PSRAM
+behavior, or power sequencing — and **no radio**, so BLE and WiFi promiscuous sniffing (Biscuit/Flock)
+can't be exercised here; those need hardware.
+
+**CrossLight integration (done):** `[env:simulator_x4_pro]` in gitignored `platformio.local.ini` (Linux
+flags; `pio run -e simulator_x4_pro`). Points at a fork **`flyboy-byte/crosslight-simulator`** rather
+than upstream, because the simulator (separate repo, v1.0.0) lags fast upstream firmware: develop's tip
+(`1f3d7458`) added `HalDisplay::supportsAsyncGrayscaleBase()`, which the stock simulator lacked, so
+`GfxRenderer` failed to link. The fork stubs it (`return false;`, no async e-ink in sim). Expect a small
+stub occasionally whenever upstream adds a HAL method — the cost of tracking develop's tip on the sim.
+Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (AnimatedGIF) and `-std=gnu17`
+(QRCode's `typedef ... bool` collides with this GCC's default C23).
 
 ## Next steps
 
