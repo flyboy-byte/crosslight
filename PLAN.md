@@ -1,6 +1,6 @@
 # PLAN.md
 
-Status: first working Bible screen (real KJV data, verified in simulator); device not in hand yet (2026-09-09)
+Status: Bible reader with a real book/chapter picker (real KJV data, verified in simulator); device not in hand yet (2026-09-09)
 
 Personal fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) for an
 Xteink X4 Pro. Fork name **CrossLight**, repo `flyboy-byte/crosslight`. Remotes: `origin` = upstream,
@@ -139,18 +139,27 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
    returns bezel *insets*, not absolute coordinates — a real mix-up worth remembering) and past the
    right edge (now uses `GfxRenderer::truncatedText`, the existing UTF-8-safe helper other activities
    already use, rather than hand-rolling truncation).
+7. Real book/chapter picker: `BibleActivity`'s Confirm button opens `BibleBookSelectionActivity` ->
+   `BibleChapterSelectionActivity` (plain `UiListActivity` subclasses, modeled directly on
+   `EpubReaderChapterSelectionActivity`'s `startActivityForResult`/`ActivityResult` pattern — no need to
+   touch the hand-rolled `HomeMenuItem` pattern for this, since the Bible module doesn't need its own
+   home sub-menu, just in-activity pickers). `BibleChapterLoader::loadBookIndex()` adds a second SAX scan
+   (book names + chapter counts, no verse text) over the same getBible JSON. Found and fixed a real bug
+   while verifying this in the simulator: `loadChapter()` never cleared its output vector, so switching
+   books/chapters silently kept showing the *previous* chapter's text while the header updated correctly
+   — caught by actually reading the rendered verse text against real KJV data, not just checking the
+   title line or that it compiled. Verified end-to-end (Home -> Bible -> book picker -> chapter picker ->
+   Leviticus 5, correct text) via a scripted `CROSSPOINT_SIM_INPUT_SCRIPT` run with screenshots; all 195
+   host tests still pass.
 
 **Known limitations, not yet fixed (flagged, not hidden):**
 - `StreamingJsonParser`'s fixed 512-byte token buffer still *drops* (not truncates) any string over that
   length. One verse in all of KJV exceeds it (Esther 8:9, 528 chars) — its text is currently lost
   silently. Needs either a larger buffer (check other consumers first) or a dedicated overflow path.
-- `BibleActivity` is hardcoded to Genesis 1 of one fixed path (`/Bible/KJV/kjv.json`). No book/chapter
-  picker, no translation selection, no pagination beyond "truncate at the screen edge" yet.
+- Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection — and no
+  pagination beyond "truncate at the screen edge" (verses are single-line-truncated, not wrapped).
 
 **No hardware needed, next up:**
-7. Read 1-2 full `UiListActivity` subclasses + `crosspoint-reader-apps`'s `App`/`AppRegistry` end-to-end
-   to design a real book/chapter picker (replacing the hardcoded Genesis 1) and settle whether the
-   hand-rolled `HomeMenuItem` pattern should be refactored once the Bible module needs its own sub-menu.
 8. Real line-wrapping/pagination for verse text (currently one truncated line per verse).
 9. Fix the Esther 8:9 token-overflow gap above.
 
