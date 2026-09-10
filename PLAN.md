@@ -374,11 +374,12 @@ The hub makes those actions the Bible landing instead of a while-reading afterth
 - Bookmarks are position-only — no label, note, or verse-text preview, so the picker shows
   `Genesis 1  p4` and nothing about what's on that page. Page-number disambiguation is the stopgap.
 - Verse-reference jump (item 12) covers the *known-reference* case ("take me to John 3:16"). Full-text
-  search — "find the verse that says X" — is still absent, and it's an open question whether it belongs
-  on this device at all: a naive query is a full streaming pass over ~8.9MB from SD, and the simulator
-  **cannot** answer the perf question (it reads from host SSD, so it measures parse cost while hiding
-  SD read cost — the likely dominant term). Measure on hardware before designing an index. Scoping
-  search to the current book is the obvious middle ground if full-text disappoints.
+  content search — "find the verse that says X" — is still absent, and is a candidate for a Bible-leaning
+  build rather than a definite. Perf is the blocker and the simulator can't measure it. Fully scoped
+  under "Bible full-text search — scoping" below (approaches, match semantics, UI reuse, and the
+  hardware micro-benchmark that gates the whole thing). Note on verse-ref itself: on an e-ink keyboard,
+  typing a reference may well be slower than scroll-picking book+chapter — kept through the first
+  hardware run specifically to feel that out, a drop candidate in the post-hardware cut pass if so.
 - Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection or downloader.
   **Priority note (2026-09-09):** low personal priority — one translation is enough for actual use — but
   raised anyway because no other open-source e-ink Bible app exists to defer this to (confirmed, see
@@ -422,12 +423,20 @@ The hub makes those actions the Bible landing instead of a while-reading afterth
     - **A bookmark whose saved page no longer exists** (bookmark a late page, change font size, jump
       back). `goTo()`'s clamp handles it; this is the path most likely to be wrong on hardware, since
       pagination depends on real font metrics.
+    - **Verse-ref jump speed on the real keyboard** (item 12). The whole question of whether verse-ref
+      earns its keep: is typing `John 3:16` letter-by-letter on e-ink actually faster than scroll-picking
+      book+chapter? It feels fast on the sim only because that's a host keyboard. If it's slow here, it's
+      a drop candidate in the cut pass.
+    - **The full-text-search micro-benchmark** (no feature yet — just the measurement that gates it).
+      Time a bare `StreamingJsonParser` pass over `kjv.json` from the real SD card, no search logic. That
+      one number decides whether whole-Bible search (approach A), current-book-only (B), or an index (C)
+      is the viable design — see "Bible full-text search — scoping" below. Cheap to run, needs only the
+      hardware, and blocks nothing else.
 17. If anything in 14/15/16 regresses vs. #13's CrossPoint-unmodified baseline, that narrows the cause
     to CrossLight's changes specifically (Bible app or fork strip) rather than upstream/build/hardware —
     the point of doing 12/13 first instead of jumping straight to the fork build.
-18. Only after 12-17 hold: search (see the open question under "Known limitations" — measure a
-    full-file pass on real SD *before* designing it) and verse-reference jump; the translation
-    downloader (scoped below) after that.
+18. Only after 12-17 hold: full-text search (design chosen from #16's micro-benchmark number, not
+    guessed — see scoping below); the translation downloader (scoped below) after that.
 
 ## Bible data/feature shape (for when that work starts)
 
@@ -511,3 +520,55 @@ browser. This is reuse, not new infrastructure — the only genuinely new piece 
   isn't blocked technically (everything it needs already exists and works on the simulator, no hardware
   required to build or test the download flow), just deliberately ordered behind get-the-MVP-solid on
   real hardware first.
+
+### Bible full-text search — scoping (2026-09-10, not built, perf-gated on hardware)
+
+Distinct from the verse-*reference* jump already shipped (item 12, "go to John 3:16"). This is content
+search — "find the verse that says *X*" — the one search pickers can't replace. Scoped now, at Logan's
+request, as a candidate feature for a **Bible-leaning build** (see "Build strategy"): if a given image
+spends less on wireless tooling, this is one of the things the freed attention goes into.
+
+**The one blocking unknown is perf, and the simulator cannot answer it.** A naive search is a full
+streaming pass over the ~8.9MB `kjv.json` from SD per query. On the sim that file is on host SSD, so a
+sim timing measures parse cost while hiding the SD-read cost — and on a 1-bit SDMMC card the read is
+likely the dominant term. So **the first actual step is a micro-benchmark on the device, not code**:
+time a bare `StreamingJsonParser` pass over `kjv.json` on real hardware with no search logic at all.
+That number is the floor for every approach below and decides which is viable. Don't design an index
+before knowing it. [[verify-dont-assume]].
+
+**Approaches, cheapest-first:**
+- **A — naive per-query streaming scan.** Reuse `StreamingJsonParser`; test each verse's `text` against
+  the query as it streams; collect matches into a bounded results vector (cap it, e.g. first 100 hits,
+  so RAM stays flat regardless of query). Zero new storage, ~no new flash beyond the match/UI glue.
+  Viable *iff* the micro-benchmark says a full pass is a tolerable wait on e-ink (e-ink redraws are
+  already ~1s, so a few seconds with a progress indicator may be fine; 10s+ is not). This is the one to
+  try first.
+- **B — scope to the current book.** Same scan, one book instead of 66 → roughly 50x less data for an
+  average book. The obvious fallback if A's whole-Bible pass is too slow, and often what you actually
+  want ("find this phrase in John"). `loadBookIndex()` already gives the per-book structure to bound it.
+- **C — prebuilt inverted index** (word → verse refs), built once and stored on SD, queried at search
+  time. Fast queries, but real complexity: index build cost (precompute on desktop and ship it, or
+  build on-device once — minutes, and a translation-download would have to trigger a rebuild), and index
+  size (an inverted index over the whole KJV is likely multi-MB — fine on SD, but a lot of moving
+  parts). Almost certainly overkill for personal use; only revisit if both A and B are too slow *and*
+  search turns out to be used constantly.
+
+**Match semantics:** start with case-insensitive substring — simplest, and enough for "I remember a
+phrase." Word-boundary matching and stemming ("love" also matching "loved/loving") are future polish,
+not v1. Reuse the same UTF-8-safe comparison discipline the rest of the Bible code already follows.
+
+**UI:** reuse `KeyboardEntryActivity` for the query (same as verse-ref), render results as a
+`UiListActivity` of `Book C:V` rows plus a short text snippet, and jump on select via the existing
+`goTo()` / `goToVerse()` — so the results screen is the only genuinely new surface, everything it
+launches into already exists.
+
+**Flash / build-flavor honesty:** search *code* is KB-scale in any of these forms — it fits even a
+wireless-heavy build, so "we need a Bible build to afford search" isn't really a flash statement. What a
+Bible-leaning profile actually buys here is **CPU/UX headroom and attention**, not flash: a multi-second
+blocking whole-Bible scan is acceptable on a device whose job is reading, less so on one juggling a live
+radio. The only version of "more Bible" that genuinely spends *flash* is baking large data tables into
+the image (a concordance, Strong's numbers) instead of SD-loading them — keep that kind of data on SD by
+default, same rule as the translation files and the Flock signatures.
+
+**Sequencing:** run the micro-benchmark during the device-arrival checklist (a natural addition to
+item 15/16 — it needs the hardware and nothing else), then decide A vs. B from the number. Not before.
