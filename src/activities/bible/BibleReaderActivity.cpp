@@ -12,7 +12,9 @@
 #include "activities/bible/BibleBookmarkListActivity.h"
 #include "activities/bible/BibleChapterSelectionActivity.h"
 #include "activities/bible/BibleMenuActivity.h"
+#include "activities/util/KeyboardEntryActivity.h"
 #include "bible/BibleBookmarkStore.h"
+#include "bible/BibleReference.h"
 #include "bible/BibleReadingStateStore.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -113,6 +115,9 @@ void BibleReaderActivity::openMenu() {
           case BibleMenuActivity::GoToBook:
             openBookPicker();
             break;
+          case BibleMenuActivity::GoToVerse:
+            openVerseJump();
+            break;
           case BibleMenuActivity::OpenBookmarks:
             openBookmarkList();
             break;
@@ -155,6 +160,45 @@ void BibleReaderActivity::openChapterPicker() {
         currentPageIndex = 0;
         loadCurrentChapter();
       });
+}
+
+// Free-text reference entry ("John 3:16"), on the same keyboard the WiFi and
+// OPDS screens use. Faster than book picker -> chapter picker for a known
+// reference, and the only way to land on a specific *verse* rather than a
+// chapter's first page.
+void BibleReaderActivity::openVerseJump() {
+  startActivityForResult(
+      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_VERSE_REFERENCE), lastVerseQuery,
+                                              MAX_REFERENCE_LENGTH),
+      [this](const ActivityResult& result) {
+        if (result.isCancelled) return;
+        const std::string& input = std::get<KeyboardResult>(result.data).text;
+        BibleReferenceQuery query;
+        if (!parseBibleReference(input, books, query)) {
+          // No toast facility exists, so an unparseable reference reopens the
+          // keyboard with the text intact rather than silently doing nothing.
+          // Cancel is the way out; that's why this can't loop forever.
+          lastVerseQuery = input;
+          openVerseJump();
+          return;
+        }
+        lastVerseQuery.clear();
+        goTo(query.book, query.chapter, 0);
+        if (query.verse > 0) goToVerse(query.verse);
+      });
+}
+
+// Moves to the page a verse starts on, after goTo() has loaded the chapter.
+// Silently stays put when the verse doesn't exist (the book index carries
+// chapter counts, not verse counts, so the parser cannot reject it earlier).
+void BibleReaderActivity::goToVerse(const int verseNumber) {
+  for (size_t i = 0; i < verses.size() && i < versePages.size(); ++i) {
+    if (verses[i].number != verseNumber) continue;
+    currentPageIndex = std::clamp(versePages[i], 0, std::max(0, static_cast<int>(pages.size()) - 1));
+    persistPosition();
+    requestUpdate();
+    return;
+  }
 }
 
 void BibleReaderActivity::openBookmarkList() {
@@ -237,6 +281,7 @@ bool BibleReaderActivity::pageTurn(const bool isForward) {
 // render.
 void BibleReaderActivity::buildPages() {
   pages.clear();
+  versePages.clear();
   if (!chapterLoaded || verses.empty()) return;
 
   const auto& metrics = UITheme::getInstance().getMetrics();
@@ -258,7 +303,12 @@ void BibleReaderActivity::buildPages() {
   const int linesPerPage = std::max(1, (viewableBottomY - contentTop) / lineH);
 
   std::vector<std::string> flatLines;
+  versePages.reserve(verses.size());
   for (const auto& verse : verses) {
+    // Recorded before the verse's lines are appended, so this is the page the
+    // verse *starts* on. Pages are fixed-size slices of flatLines, so the page
+    // is just integer division -- no need to keep the slicing and this in sync.
+    versePages.push_back(static_cast<int>(flatLines.size()) / linesPerPage);
     const std::string prefixed = std::to_string(verse.number) + "  " + verse.text;
     for (auto& line : renderer.wrappedText(UI_10_FONT_ID, prefixed.c_str(), maxLineWidth, MAX_WRAP_LINES_PER_VERSE)) {
       flatLines.push_back(std::move(line));

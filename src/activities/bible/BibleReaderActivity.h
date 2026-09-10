@@ -48,7 +48,9 @@ class BibleReaderActivity final : public ReaderActivity {
   void openBookPicker();
   void openChapterPicker();
   void openBookmarkList();
+  void openVerseJump();
   void goTo(const std::string& bookName, int chapter, int page);
+  void goToVerse(int verseNumber);
   void loadCurrentChapter();
   void buildPages();
   void persistPosition() const;
@@ -60,7 +62,16 @@ class BibleReaderActivity final : public ReaderActivity {
   int currentBookIndex = 0;
   int currentChapter = 1;
 
+  // Longest real reference ("1 Corinthians 15:58") is 19 chars; 32 leaves room
+  // for spacing and punctuation the parser tolerates.
+  static constexpr size_t MAX_REFERENCE_LENGTH = 32;
+
   std::vector<BibleVerse> verses;
+  // Page each verse *starts* on, parallel to `verses`, rebuilt by buildPages().
+  // Ints, not a map: a chapter tops out around 176 verses.
+  std::vector<int> versePages;
+  // Survives a failed parse so the keyboard reopens with the text still there.
+  std::string lastVerseQuery;
   std::vector<std::vector<std::string>> pages;
   int currentPageIndex = 0;
   bool chapterLoaded = false;
