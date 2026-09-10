@@ -172,6 +172,87 @@ void onNumber(void* ctxPtr, const char* value, size_t len) {
   }
 }
 
+// --- book index scan (name + chapter count only, no verse text) -----------
+
+struct IndexParseContext {
+  std::vector<BibleBookInfo>* outBooks;
+
+  Frame frameStack[MAX_FRAME_DEPTH];
+  uint8_t frameDepth = 0;
+  Key lastKey = Key::NONE;
+
+  std::string currentBookName;
+  int currentChapterCount = 0;
+
+  Frame top() const { return frameDepth > 0 ? frameStack[frameDepth - 1] : Frame::ROOT; }
+  void push(Frame f) {
+    if (frameDepth < MAX_FRAME_DEPTH) frameStack[frameDepth++] = f;
+  }
+  void pop() {
+    if (frameDepth > 0) --frameDepth;
+  }
+};
+
+void onIndexKey(void* ctxPtr, const char* key, size_t len) {
+  auto* ctx = static_cast<IndexParseContext*>(ctxPtr);
+  ctx->lastKey = keyFromString(key, len);
+}
+
+void onIndexObjectStart(void* ctxPtr) {
+  auto* ctx = static_cast<IndexParseContext*>(ctxPtr);
+  const Frame parent = ctx->top();
+  if (ctx->frameDepth == 0) {
+    ctx->push(Frame::ROOT);
+  } else if (parent == Frame::BOOKS_ARRAY) {
+    ctx->push(Frame::BOOK_OBJECT);
+    ctx->currentBookName.clear();
+    ctx->currentChapterCount = 0;
+  } else if (parent == Frame::CHAPTERS_ARRAY) {
+    ctx->push(Frame::CHAPTER_OBJECT);
+    ++ctx->currentChapterCount;
+  } else if (parent == Frame::VERSES_ARRAY) {
+    ctx->push(Frame::VERSE_OBJECT);
+  } else {
+    ctx->push(Frame::OTHER);
+  }
+}
+
+void onIndexObjectEnd(void* ctxPtr) {
+  auto* ctx = static_cast<IndexParseContext*>(ctxPtr);
+  const Frame closing = ctx->top();
+  ctx->pop();
+  if (closing == Frame::BOOK_OBJECT) {
+    ctx->outBooks->push_back(BibleBookInfo{ctx->currentBookName, ctx->currentChapterCount});
+  }
+}
+
+void onIndexArrayStart(void* ctxPtr) {
+  auto* ctx = static_cast<IndexParseContext*>(ctxPtr);
+  const Frame parent = ctx->top();
+  const Key key = ctx->lastKey;
+  if (parent == Frame::ROOT && key == Key::BOOKS) {
+    ctx->push(Frame::BOOKS_ARRAY);
+  } else if (parent == Frame::BOOK_OBJECT && key == Key::CHAPTERS) {
+    ctx->push(Frame::CHAPTERS_ARRAY);
+  } else if (parent == Frame::CHAPTER_OBJECT && key == Key::VERSES) {
+    ctx->push(Frame::VERSES_ARRAY);
+  } else {
+    ctx->push(Frame::OTHER);
+  }
+}
+
+void onIndexArrayEnd(void* ctxPtr) {
+  auto* ctx = static_cast<IndexParseContext*>(ctxPtr);
+  ctx->pop();
+}
+
+void onIndexString(void* ctxPtr, const char* value, size_t len) {
+  auto* ctx = static_cast<IndexParseContext*>(ctxPtr);
+  if (ctx->top() == Frame::BOOK_OBJECT && ctx->lastKey == Key::NAME) {
+    ctx->currentBookName.assign(value, len);
+  }
+}
+
 }  // namespace
 
 bool BibleChapterLoader::loadChapter(const char* path, const char* bookName, int chapterNumber,
@@ -181,6 +262,8 @@ bool BibleChapterLoader::loadChapter(const char* path, const char* bookName, int
     LOG_ERR("BIBLE", "Could not open translation file: %s", path);
     return false;
   }
+
+  outVerses.clear();  // callers reuse the vector across chapter switches
 
   ParseContext ctx;
   ctx.targetBook = bookName;
@@ -204,6 +287,39 @@ bool BibleChapterLoader::loadChapter(const char* path, const char* bookName, int
 
   if (outVerses.empty()) {
     LOG_ERR("BIBLE", "Book/chapter not found: %s %d (in %s)", bookName, chapterNumber, path);
+    return false;
+  }
+  return true;
+}
+
+bool BibleChapterLoader::loadBookIndex(const char* path, std::vector<BibleBookInfo>& outBooks) {
+  HalFile file;
+  if (!Storage.openFileForRead("BIBLE", path, file)) {
+    LOG_ERR("BIBLE", "Could not open translation file: %s", path);
+    return false;
+  }
+
+  IndexParseContext ctx;
+  ctx.outBooks = &outBooks;
+  outBooks.reserve(66);  // most translations follow the 66-book Protestant canon
+
+  const JsonCallbacks callbacks{&ctx, onIndexKey,          onIndexString,       nullptr /*onNumber*/,
+                                nullptr /*onBool*/, nullptr /*onNull*/, onIndexObjectStart, onIndexObjectEnd,
+                                onIndexArrayStart,   onIndexArrayEnd};
+  StreamingJsonParser parser(callbacks);
+
+  char buf[READ_CHUNK_SIZE];
+  int n;
+  while ((n = file.read(buf, sizeof(buf))) > 0) {
+    parser.feed(buf, static_cast<size_t>(n));
+    if (parser.hasError()) {
+      LOG_ERR("BIBLE", "JSON parse error in %s", path);
+      return false;
+    }
+  }
+
+  if (outBooks.empty()) {
+    LOG_ERR("BIBLE", "No books found in %s", path);
     return false;
   }
   return true;

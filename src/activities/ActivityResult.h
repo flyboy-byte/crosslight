@@ -67,9 +67,19 @@ struct FilePathResult {
   std::string path;
 };
 
+struct BibleBookResult {
+  std::string name;
+  int chapterCount = 0;
+};
+
+struct BibleChapterResult {
+  int chapter = 0;
+};
+
 using ResultVariant =
     std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult, IntervalResult,
-                 PageResult, ProgressChangeResult, NetworkModeResult, FootnoteResult, FilePathResult>;
+                 PageResult, ProgressChangeResult, NetworkModeResult, FootnoteResult, FilePathResult, BibleBookResult,
+                 BibleChapterResult>;
 
 struct ActivityResult {
   bool isCancelled = false;

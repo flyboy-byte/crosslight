@@ -22,6 +22,12 @@ struct BibleVerse {
   std::string text;
 };
 
+// One book's name and chapter count, for a book/chapter picker. No verse text.
+struct BibleBookInfo {
+  std::string name;
+  int chapterCount = 0;
+};
+
 class BibleChapterLoader {
  public:
   // Loads `bookName`/`chapterNumber` (1-based) from a getBible-format JSON
@@ -31,4 +37,11 @@ class BibleChapterLoader {
   // field exactly (e.g. "Genesis").
   static bool loadChapter(const char* path, const char* bookName, int chapterNumber,
                            std::vector<BibleVerse>& outVerses);
+
+  // Scans `path` for its book list and each book's chapter count, without
+  // materializing any verse text. Still a full-file streaming pass (the SAX
+  // parser tokenizes every byte regardless), but memory stays flat since verse
+  // text is never stored. Returns false if the file can't be opened or a JSON
+  // error occurs; `outBooks` is untouched on failure.
+  static bool loadBookIndex(const char* path, std::vector<BibleBookInfo>& outBooks);
 };

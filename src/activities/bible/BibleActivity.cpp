@@ -5,6 +5,8 @@
 #include <Logging.h>
 
 #include "MappedInputManager.h"
+#include "activities/bible/BibleBookSelectionActivity.h"
+#include "activities/bible/BibleChapterSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -17,14 +19,43 @@ constexpr const char* KJV_PATH = "/Bible/KJV/kjv.json";
 
 void BibleActivity::onEnter() {
   Activity::onEnter();
-  loaded = BibleChapterLoader::loadChapter(KJV_PATH, "Genesis", 1, verses);
+  loadCurrentChapter();
+}
+
+void BibleActivity::loadCurrentChapter() {
+  loaded = BibleChapterLoader::loadChapter(KJV_PATH, currentBook.c_str(), currentChapter, verses);
   requestUpdate();
 }
 
 void BibleActivity::loop() {
   if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
     goBack();
+  } else if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    openBookPicker();
   }
+}
+
+void BibleActivity::openBookPicker() {
+  startActivityForResult(std::make_unique<BibleBookSelectionActivity>(renderer, mappedInput, KJV_PATH),
+                          [this](const ActivityResult& result) {
+                            if (result.isCancelled) return;
+                            const auto& bookResult = std::get<BibleBookResult>(result.data);
+                            currentBook = bookResult.name;
+                            currentBookChapterCount = bookResult.chapterCount;
+                            openChapterPicker();
+                          });
+}
+
+void BibleActivity::openChapterPicker() {
+  startActivityForResult(
+      std::make_unique<BibleChapterSelectionActivity>(renderer, mappedInput, currentBook, currentBookChapterCount,
+                                                       currentChapter),
+      [this](const ActivityResult& result) {
+        if (result.isCancelled) return;
+        const auto& chapterResult = std::get<BibleChapterResult>(result.data);
+        currentChapter = chapterResult.chapter;
+        loadCurrentChapter();
+      });
 }
 
 void BibleActivity::render(RenderLock&&) {
@@ -43,7 +74,8 @@ void BibleActivity::render(RenderLock&&) {
     y += lineH * 2;
     renderer.drawText(UI_10_FONT_ID, x, y, KJV_PATH, true);
   } else {
-    renderer.drawText(UI_10_FONT_ID, x, y, "Genesis 1 (KJV)", true, EpdFontFamily::BOLD);
+    const std::string title = currentBook + " " + std::to_string(currentChapter) + " (KJV)";
+    renderer.drawText(UI_10_FONT_ID, x, y, title.c_str(), true, EpdFontFamily::BOLD);
     y += lineH * 2;
     // Bound to the viewable area: this screen has no real line-wrapping or
     // pagination yet (that's reader work, not today's scope -- see
@@ -68,7 +100,7 @@ void BibleActivity::render(RenderLock&&) {
     }
   }
 
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_SELECT), "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer();
 }
