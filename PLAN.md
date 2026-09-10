@@ -1,10 +1,15 @@
 # PLAN.md
 
 Status: Bible reader Phase 1 MVP complete on the simulator (pagination, chapter/book-crossing page
-turns, book/chapter picker, Esther 8:9 fixed, reading position persisted — all verified in the
-simulator, all 198 host tests pass); paused pending hardware (2026-09-09). **Resume trigger: the X4 Pro
-shipping/leaving China** — nothing code-side to do until then; next session should start at the "Device
-arrival test plan" below.
+turns, book/chapter picker, Esther 8:9 fixed, reading position persisted, bookmarks — all verified in
+the simulator, all 198 host tests pass); **last updated 2026-09-10**. Hardware-dependent work is paused
+pending the X4 Pro shipping/leaving China; when it arrives, start at the "Device arrival test plan"
+below.
+
+Still buildable without the device, in rough priority order: verse-reference jump (`John 3:16` — reuses
+the existing `KeyboardEntryActivity`), then search *if* it survives the open question under "Known
+limitations". The translation downloader is the one genuinely blocked item — the simulator does not
+emulate the radio, so its UI could be built but never exercised.
 
 Personal fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) for an
 Xteink X4 Pro. Fork name **CrossLight**, repo `flyboy-byte/crosslight`. Remotes: `origin` = upstream,
@@ -148,6 +153,38 @@ stub occasionally whenever upstream adds a HAL method — the cost of tracking d
 Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (AnimatedGIF) and `-std=gnu17`
 (QRCode's `typedef ... bool` collides with this GCC's default C23).
 
+### Scripted simulator QA (how every UI claim in this doc was verified)
+
+The simulator can be driven headlessly, which is what makes "verified in the simulator" mean something
+repeatable rather than "I clicked around once". Two env vars, both `;`-separated `<ms>:<what>` lists:
+
+- `CROSSPOINT_SIM_INPUT_SCRIPT` — actions at wall-clock ms. Valid actions (confirmed in the sim's
+  `HalGPIO.cpp`, not guessed): `ESCAPE`/`BACK`, `RETURN`/`ENTER`/`CONFIRM`, `LEFT`, `RIGHT`, `UP`,
+  `DOWN`, `QUIT`.
+- `CROSSPOINT_SIM_SCREENSHOTS` — `<ms>:<path>.bmp`. Convert with PIL to view.
+
+A real example — the bookmark toggle run from item 11 (Home → Bible → menu → toggle → screenshot):
+
+```
+CROSSPOINT_SIM_INPUT_SCRIPT="1000:DOWN;1200:DOWN;1400:DOWN;1600:DOWN;1800:RETURN;2800:RETURN;3800:DOWN;4000:DOWN;4200:RETURN;5000:QUIT" \
+CROSSPOINT_SIM_SCREENSHOTS="4800:/tmp/star.bmp" \
+timeout 20 .pio/build/simulator_x4_pro/program
+```
+
+**Two traps worth knowing before you debug a scripted run**, both of which cost real time already:
+
+1. **Wipe the state files between runs.** `fs_/.crosspoint/bible_state.json` and
+   `bible_bookmarks.json` persist across runs, so a "wrong" chapter or a pre-checked toggle is usually
+   last run's state, not a bug. A previous session lost time misdiagnosing exactly this as input-timing
+   flakiness — the giveaway was that *slower* timings made results worse, not better. Screenshot after
+   every single keypress when a navigation lands somewhere unexpected; guessing at timing is the wrong
+   move.
+2. **After renaming or moving the repo, `rm -rf .pio/build/simulator_x4_pro` and `build/test`** —
+   CMake caches absolute paths and fails with a "current CMakeCache.txt directory is different" error.
+
+`fs_/` is the simulator's SD sandbox (gitignored). `fs_/Bible/KJV/kjv.json` is the real 8.9MB getBible
+KJV used for all Bible testing.
+
 ## Next steps
 
 **Done:**
@@ -225,8 +262,49 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
     chapter/book loads (covers both boundary-crossing page turns and picker jumps, since both route
     through `loadCurrentChapter()`). Reopening the app now resumes exactly where you left off instead
     of always opening on Genesis 1.
+11. Bookmarks (2026-09-10). New `BibleBookmarkStore` (`src/bible/`), a third dedicated
+    `PersistableStore<T>` at `/.crosspoint/bible_bookmarks.json`, holding `{book, chapter, page}`
+    newest-first and capped at `MAX_BOOKMARKS = 100` so the JSON can't outgrow one ArduinoJson
+    document. Same no-shared-state stance as items 8 and 10: it deliberately does *not* reuse the
+    shared file-book bookmark plumbing, which keys bookmarks by EPUB spine index / xpath and has no
+    meaning for a getBible JSON file.
+
+    **The UI decision worth knowing before touching this:** the reader's four buttons were already
+    fully bound (Back / Select / previous page / next page), so there was no binding free for
+    bookmarks. Confirm now opens a new `BibleMenuActivity` (Select Book / Bookmarks / Toggle Bookmark)
+    instead of jumping straight to the book picker — "Select Book" is the first row, so that path is
+    one extra press, and any *future* Bible feature (search, translations) has somewhere to land
+    without another button fight. `BibleBookmarkListActivity` is the picker; it returns a new
+    `BibleBookmarkResult`. Deletion deliberately lives on the menu as a toggle against the current
+    location rather than as a long-press on a list row, so it stays reachable without touch.
+
+    Bookmarks store a *page* index, not just a chapter, so they resolve back to the exact screen. That
+    page number is pagination-dependent (a font-size or orientation change renumbers it), so `goTo()`
+    clamps it against the freshly-built page count — the same clamp `onEnter()` does, and the reason
+    the bookmark list shows `p4` as a disambiguator rather than a promise. Current page being
+    bookmarked is shown by a `*` appended to the title row: deliberately ASCII, not a star glyph or
+    icon bitmap, so it renders identically under every bundled font and in the simulator (it is the
+    only on-screen confirmation a toggle took effect).
+
+    Verified in the simulator by scripted run, clean-slate each time: menu renders with a live
+    bookmark count and a switch reflecting current state; toggle-on writes the JSON and shows the `*`;
+    two bookmarks in one chapter disambiguate as `p1`/`p4`; selecting one jumps to that exact page;
+    toggle-off removes it from the JSON and clears the `*`. All 198 host tests still pass.
+
+    Cost on the real target (`pio run -e x4pro`, measured not estimated): flash 82.4% → **82.5%**
+    (5,409,174 B of 6,553,600), RAM unchanged at 30.6%. So two Activities plus a store ran ~9KB of
+    flash — a useful unit rate for budgeting the remaining Phase 1/2 tiles against the OTA slot.
 
 **Known limitations, not yet fixed (flagged, not hidden):**
+- Bookmarks are position-only — no label, note, or verse-text preview, so the picker shows
+  `Genesis 1  p4` and nothing about what's on that page. Page-number disambiguation is the stopgap.
+- No search yet, and it's an open question whether whole-Bible full-text search belongs on this
+  device at all: a naive query is a full streaming pass over ~8.9MB from SD, and the simulator
+  **cannot** answer the perf question (it reads from host SSD, so it measures parse cost while hiding
+  SD read cost — the likely dominant term). Measure on hardware before designing an index. Verse
+  *reference* jump ("John 3:16") is the cheaper, more-used feature and needs no new infrastructure —
+  `KeyboardEntryActivity` already exists (built for WiFi passwords/OPDS) and the book index is already
+  loaded. Scoping search to the current book is the obvious middle ground if full-text disappoints.
 - Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection or downloader.
   **Priority note (2026-09-09):** low personal priority — one translation is enough for actual use — but
   raised anyway because no other open-source e-ink Bible app exists to defer this to (confirmed, see
@@ -237,29 +315,45 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
 **Device arrival test plan (device in transit from China, not shipped as of 2026-09-09):**
 
 *Stock bring-up — before flashing anything:*
-11. Boot on stock firmware. Note the panel-controller batch from the boot/about screen or visible
+12. Boot on stock firmware. Note the panel-controller batch from the boot/about screen or visible
     behavior (SSD1677 vs UC8179 — see "freeink-sdk findings" above; both auto-detect, but which one
     this specific unit has is still unconfirmed). Exercise display, touch, WiFi connect, frontlight
     (both warm/cold channels), sleep/wake, Home key, and reading an EPUB, and write down what stock
     behavior actually looks like (refresh timing/ghosting, sleep image, boot time) — this is the
     baseline the next step gets compared against, not just a box-check.
-12. Flash an unmodified, self-built `x4pro` CrossPoint image (no CrossLight changes). Re-run the same
-    checklist as #11. **Must match stock behavior before any code changes go on the device** — if it
+13. Flash an unmodified, self-built `x4pro` CrossPoint image (no CrossLight changes). Re-run the same
+    checklist as #12. **Must match stock behavior before any code changes go on the device** — if it
     doesn't, that's an upstream/build issue to resolve first, not a CrossLight bug to chase.
 
 *Then CrossLight itself:*
-13. Flash the real `x4pro` CrossLight build. Confirm the same baseline list once more (display, touch,
+14. Flash the real `x4pro` CrossLight build. Confirm the same baseline list once more (display, touch,
     SD, WiFi, frontlight, sleep/wake, Home key, EPUB reading) still holds with the fork's changes in.
-14. Bible app smoke test on real hardware — this is the first time any of Phase 1's simulator-verified
+15. Bible app smoke test on real hardware — this is the first time any of Phase 1's simulator-verified
     behavior touches real e-ink timing/PSRAM/touch: open the Bible, book/chapter picker, page through a
     chapter/book boundary (the simulator can't exercise real e-ink refresh-batching or true PSRAM
     behavior — see "Desktop dev loop" above), confirm reading position survives a real sleep/wake and a
     real power-off/on, not just a simulator relaunch.
-15. If anything in 13/14 regresses vs. #12's CrossPoint-unmodified baseline, that narrows the cause to
-    CrossLight's changes specifically (Bible app or fork strip) rather than upstream/build/hardware —
-    the point of doing 11/12 first instead of jumping straight to the fork build.
-16. Only after 11-15 hold: search, bookmarks/history for the Bible reader; the translation downloader
-    (scoped below) after that.
+16. Bookmarks on real hardware (item 11). Everything below is simulator-verified already, so the point
+    is only what the simulator structurally cannot test — check in this order, since each one isolates
+    a different layer:
+    - **Real SD write latency on toggle.** Every toggle does a synchronous `saveToFile()` on the
+      button-press path. On host disk that's free; on SD behind a full-refresh e-ink update it may not
+      be. If toggling feels laggy, that's where to look first — the store, not the UI.
+    - **Persistence across a real power cycle**, not just an app relaunch — same distinction as #15.
+      Bookmarks and reading position are separate files; confirm both survive independently.
+    - **The `*` marker under the device's real font.** It is ASCII precisely so this should be boring,
+      but it is the only visual confirmation a toggle worked, so verify it before trusting the feature.
+    - **Touch activation on the menu and picker rows.** Both screens set `inputMask = InputTouch` with
+      physical buttons handled in `loop()` — that split is untested against a real GT911 digitizer.
+    - **A bookmark whose saved page no longer exists** (bookmark a late page, change font size, jump
+      back). `goTo()`'s clamp handles it; this is the path most likely to be wrong on hardware, since
+      pagination depends on real font metrics.
+17. If anything in 14/15/16 regresses vs. #13's CrossPoint-unmodified baseline, that narrows the cause
+    to CrossLight's changes specifically (Bible app or fork strip) rather than upstream/build/hardware —
+    the point of doing 12/13 first instead of jumping straight to the fork build.
+18. Only after 12-17 hold: search (see the open question under "Known limitations" — measure a
+    full-file pass on real SD *before* designing it) and verse-reference jump; the translation
+    downloader (scoped below) after that.
 
 ## Bible data/feature shape (for when that work starts)
 
