@@ -9,7 +9,10 @@
 
 #include "MappedInputManager.h"
 #include "activities/bible/BibleBookSelectionActivity.h"
+#include "activities/bible/BibleBookmarkListActivity.h"
 #include "activities/bible/BibleChapterSelectionActivity.h"
+#include "activities/bible/BibleMenuActivity.h"
+#include "bible/BibleBookmarkStore.h"
 #include "bible/BibleReadingStateStore.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -47,6 +50,7 @@ void BibleReaderActivity::onEnter() {
   currentBookIndex = 0;
   currentChapter = 1;
   currentPageIndex = 0;
+  BIBLE_BOOKMARKS.loadFromFile();
   BIBLE_READING_STATE.loadFromFile();
   if (BIBLE_READING_STATE.hasSavedPosition()) {
     for (size_t i = 0; i < books.size(); ++i) {
@@ -89,10 +93,39 @@ void BibleReaderActivity::persistPosition() const {
 
 bool BibleReaderActivity::handleFormatInput() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    openBookPicker();
+    openMenu();
     return true;
   }
   return false;
+}
+
+void BibleReaderActivity::openMenu() {
+  if (books.empty()) return;
+  const std::string& book = books[currentBookIndex].name;
+  const bool bookmarked = BIBLE_BOOKMARKS.indexOf(book, currentChapter, currentPageIndex) >= 0;
+
+  startActivityForResult(
+      std::make_unique<BibleMenuActivity>(renderer, mappedInput, bookmarked,
+                                          static_cast<int>(BIBLE_BOOKMARKS.all().size())),
+      [this](const ActivityResult& result) {
+        if (result.isCancelled) return;
+        switch (std::get<MenuResult>(result.data).action) {
+          case BibleMenuActivity::GoToBook:
+            openBookPicker();
+            break;
+          case BibleMenuActivity::OpenBookmarks:
+            openBookmarkList();
+            break;
+          case BibleMenuActivity::ToggleBookmark:
+            // Bookmarks a page index, so it resolves back to the exact screen
+            // that was on display -- not just the chapter.
+            BIBLE_BOOKMARKS.toggle(books[currentBookIndex].name, currentChapter, currentPageIndex);
+            requestUpdate();
+            break;
+          default:
+            break;
+        }
+      });
 }
 
 void BibleReaderActivity::openBookPicker() {
@@ -122,6 +155,36 @@ void BibleReaderActivity::openChapterPicker() {
         currentPageIndex = 0;
         loadCurrentChapter();
       });
+}
+
+void BibleReaderActivity::openBookmarkList() {
+  startActivityForResult(std::make_unique<BibleBookmarkListActivity>(renderer, mappedInput),
+                         [this](const ActivityResult& result) {
+                           if (result.isCancelled) return;
+                           const auto& bookmark = std::get<BibleBookmarkResult>(result.data);
+                           goTo(bookmark.book, bookmark.chapter, bookmark.page);
+                         });
+}
+
+// Jumps to a saved location. The page clamp matters here in a way it doesn't
+// for picker jumps (which always land on page 0): a bookmark stores a page
+// index from a previous pagination, and font-size or orientation changes since
+// then can shrink the chapter's page count.
+void BibleReaderActivity::goTo(const std::string& bookName, const int chapter, const int page) {
+  for (size_t i = 0; i < books.size(); ++i) {
+    if (books[i].name == bookName) {
+      currentBookIndex = static_cast<int>(i);
+      break;
+    }
+  }
+  currentChapter = std::clamp(chapter, 1, books[currentBookIndex].chapterCount);
+  currentPageIndex = std::max(0, page);
+  loadCurrentChapter();
+  if (currentPageIndex >= static_cast<int>(pages.size())) {
+    currentPageIndex = std::max(0, static_cast<int>(pages.size()) - 1);
+    persistPosition();
+    requestUpdate();
+  }
 }
 
 // Crosses book boundaries at the ends of a chapter so paging forward/back
@@ -228,6 +291,12 @@ void BibleReaderActivity::renderBook() {
     std::string title = books[currentBookIndex].name + " " + std::to_string(currentChapter) + " (KJV)";
     if (pages.size() > 1) {
       title += "  " + std::to_string(currentPageIndex + 1) + "/" + std::to_string(pages.size());
+    }
+    // ASCII marker rather than a star glyph or icon bitmap: this has to render
+    // identically under every bundled font and on the simulator, since it's the
+    // only on-screen confirmation that a toggle took effect.
+    if (BIBLE_BOOKMARKS.indexOf(books[currentBookIndex].name, currentChapter, currentPageIndex) >= 0) {
+      title += "  *";
     }
     renderer.drawText(UI_10_FONT_ID, x, y, title.c_str(), true, EpdFontFamily::BOLD);
     y += lineH * 2;

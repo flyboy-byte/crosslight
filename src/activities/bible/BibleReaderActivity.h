@@ -22,8 +22,13 @@
 // reason -- Revelation's last page just stops advancing, no end-of-book menu.
 //
 // Reading position (book/chapter/page) is persisted via BibleReadingStateStore,
-// a dedicated PersistableStore -- deliberately NOT added to CrossPointState,
-// to keep avoiding the shared-app-state coupling described above.
+// and saved locations via BibleBookmarkStore -- both dedicated PersistableStores,
+// deliberately NOT added to CrossPointState or the shared file-book bookmark
+// plumbing, to keep avoiding the shared-app-state coupling described above.
+//
+// Confirm opens BibleMenuActivity (Select Book / Bookmarks / Toggle Bookmark)
+// rather than the book picker directly: all four buttons are already bound
+// (Back / Select / previous page / next page), so added features need a menu.
 class BibleReaderActivity final : public ReaderActivity {
  public:
   explicit BibleReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
@@ -39,8 +44,11 @@ class BibleReaderActivity final : public ReaderActivity {
   bool isAtEndOfBook() const override { return false; }
   void renderBook() override;
 
+  void openMenu();
   void openBookPicker();
   void openChapterPicker();
+  void openBookmarkList();
+  void goTo(const std::string& bookName, int chapter, int page);
   void loadCurrentChapter();
   void buildPages();
   void persistPosition() const;
