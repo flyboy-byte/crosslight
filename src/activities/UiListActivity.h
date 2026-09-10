@@ -57,7 +57,17 @@ class UiListActivity : public Activity, protected UiAppHost {
   // Back/Confirm handling; override wholesale for press/release or hold
   // variants. Return true when a button consumed the pass.
   virtual bool handleButtons();
-  virtual void onBackButton() { finish(); }
+  // Back cancels: for-result callers universally guard on `result.isCancelled`
+  // before std::get<T>-ing the payload, so a plain finish() here (which
+  // delivers a default, non-cancelled, monostate result) makes that guard fail
+  // and the caller throw std::bad_variant_access. Setting the cancel flag is
+  // the contract every list picker's caller already assumes.
+  virtual void onBackButton() {
+    ActivityResult cancelled;
+    cancelled.isCancelled = true;
+    setResult(std::move(cancelled));
+    finish();
+  }
   // Header band, drawn before the app renders. Default paints GUI.drawHeader
   // with headerTitle(); override either for custom chrome.
   virtual const char* headerTitle() const { return nullptr; }
