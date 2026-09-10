@@ -21,10 +21,9 @@
 // skip that coupling. isAtEndOfBook() always returns false for the same
 // reason -- Revelation's last page just stops advancing, no end-of-book menu.
 //
-// Known gap, not yet done: position (book/chapter) isn't persisted across
-// reopening the app -- always opens on Genesis 1. Needs a small addition to
-// CrossPointState (or a dedicated store) to fix; left alone this pass rather
-// than touching shared app state.
+// Reading position (book/chapter/page) is persisted via BibleReadingStateStore,
+// a dedicated PersistableStore -- deliberately NOT added to CrossPointState,
+// to keep avoiding the shared-app-state coupling described above.
 class BibleReaderActivity final : public ReaderActivity {
  public:
   explicit BibleReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
@@ -44,6 +43,7 @@ class BibleReaderActivity final : public ReaderActivity {
   void openChapterPicker();
   void loadCurrentChapter();
   void buildPages();
+  void persistPosition() const;
 
   // Canonical book order + chapter counts, scanned once per activity visit
   // (BibleChapterLoader::loadBookIndex) so chapter-boundary page turns can

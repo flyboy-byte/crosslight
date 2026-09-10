@@ -10,6 +10,7 @@
 #include "MappedInputManager.h"
 #include "activities/bible/BibleBookSelectionActivity.h"
 #include "activities/bible/BibleChapterSelectionActivity.h"
+#include "bible/BibleReadingStateStore.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -43,8 +44,29 @@ void BibleReaderActivity::onEnter() {
     return;
   }
 
+  currentBookIndex = 0;
+  currentChapter = 1;
   currentPageIndex = 0;
+  BIBLE_READING_STATE.loadFromFile();
+  if (BIBLE_READING_STATE.hasSavedPosition()) {
+    for (size_t i = 0; i < books.size(); ++i) {
+      if (books[i].name == BIBLE_READING_STATE.bookName) {
+        currentBookIndex = static_cast<int>(i);
+        break;
+      }
+    }
+    currentChapter = std::clamp(BIBLE_READING_STATE.chapter, 1, books[currentBookIndex].chapterCount);
+    currentPageIndex = std::max(0, BIBLE_READING_STATE.page);
+  }
+
+  // loadCurrentChapter() persists whatever currentPageIndex is set to above;
+  // clamp and re-persist afterward only in the (unexpected) case a saved page
+  // no longer fits the freshly-built page count.
   loadCurrentChapter();
+  if (currentPageIndex >= static_cast<int>(pages.size())) {
+    currentPageIndex = std::max(0, static_cast<int>(pages.size()) - 1);
+    persistPosition();
+  }
 }
 
 void BibleReaderActivity::onExit() {
@@ -56,7 +78,13 @@ void BibleReaderActivity::loadCurrentChapter() {
   chapterLoaded =
       BibleChapterLoader::loadChapter(KJV_PATH, books[currentBookIndex].name.c_str(), currentChapter, verses);
   buildPages();
+  persistPosition();
   requestUpdate();
+}
+
+void BibleReaderActivity::persistPosition() const {
+  if (books.empty()) return;
+  BIBLE_READING_STATE.save(books[currentBookIndex].name, currentChapter, currentPageIndex);
 }
 
 bool BibleReaderActivity::handleFormatInput() {
@@ -106,6 +134,7 @@ bool BibleReaderActivity::pageTurn(const bool isForward) {
   if (isForward) {
     if (currentPageIndex + 1 < static_cast<int>(pages.size())) {
       ++currentPageIndex;
+      persistPosition();
       return true;
     }
     if (currentChapter < books[currentBookIndex].chapterCount) {
@@ -123,6 +152,7 @@ bool BibleReaderActivity::pageTurn(const bool isForward) {
 
   if (currentPageIndex > 0) {
     --currentPageIndex;
+    persistPosition();
     return true;
   }
   if (currentChapter > 1) {
