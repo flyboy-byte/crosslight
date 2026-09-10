@@ -1,6 +1,10 @@
 # PLAN.md
 
-Status: Bible reader on ReaderActivity — real pagination, chapter/book-crossing page turns, book/chapter picker (real KJV data, verified in simulator); device not in hand yet (2026-09-09)
+Status: Bible reader Phase 1 MVP complete on the simulator (pagination, chapter/book-crossing page
+turns, book/chapter picker, Esther 8:9 fixed, reading position persisted — all verified in the
+simulator, all 198 host tests pass); paused pending hardware (2026-09-09). **Resume trigger: the X4 Pro
+shipping/leaving China** — nothing code-side to do until then; next session should start at the "Device
+arrival test plan" below.
 
 Personal fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) for an
 Xteink X4 Pro. Fork name **CrossLight**, repo `flyboy-byte/crosslight`. Remotes: `origin` = upstream,
@@ -17,28 +21,60 @@ one big drift-merge.
    app. This is the whole scope until it works and is stable on the device.
 2. **Phase 2 (later): broader custom firmware**, one capability at a time, measuring flash/heap after
    each (`scripts/firmware_size_history.py`, `ESP.getFreeHeap()`). Sequenced after Phase 1.
-   - **Plain networking:** WiFi connect/scan, HTTP client, ping/DNS, file transfer. Same weight class as
-     what CrossPoint already ships; the enabler for the Bible translation downloader.
+   - **"Plain networking" is mostly already built — corrected 2026-09-09.** Earlier drafts of this plan
+     treated WiFi connect/HTTP client/file transfer as a Phase 2 item to build. It isn't: CrossPoint
+     already ships all of it, in production use by OTA updates and the OPDS browser today —
+     `HttpDownloader::fetchUrl()`/`downloadToFile()` (`src/network/HttpDownloader.h/.cpp`, built on
+     `esp_http_client`, handles HTTPS CA verification, has a `ProgressCallback` + cancel-flag for
+     large transfers, and heap pre-flight guards `MIN_TLS_FREE_HEAP`/`MIN_TLS_MAX_ALLOC` before opening
+     a TLS connection) and `WifiSelectionActivity` + the `checkAndConnectWifi()`/`launchWifiSelection()`
+     pattern every network feature reuses (see `OpdsBookBrowserActivity` for the reference
+     implementation of both). **This is also exactly what the Bible translation downloader needs** —
+     see the dedicated scoping section under "Bible data/feature shape" below. Net effect: that
+     downloader is Phase-1-adjacent tooling reuse, not a Phase 2 prerequisite to build first. What
+     Biscuit's tools actually need that isn't already here is raw 802.11 packet injection/promiscuous
+     mode and BLE HID/central — see below.
+   - **Flash is the binding constraint, not RAM — measured 2026-09-09.** A real `pio run -e x4pro` build
+     is already at 82.4% flash (5.40MB/6.55MB of one OTA slot) but only 30.6% internal RAM (100KB/328KB)
+     — the S3's 8MB PSRAM makes RAM comfortable even with WiFi/BLE stacks live (~50-100KB combined).
+     Practical effect on sequencing: **budget and measure flash per Phase 2 tile before building it**,
+     not heap. A tile with a large const data table (e.g. Flock OUI/IE signatures, if baked in rather
+     than SD-loaded) costs more than one with equivalent logic but small static data.
+   - **The one architecturally transferable idea from the e-ink firmware survey** (`docs/research/eink-
+     firmware-app-models.md`, written 2026-09-09): KOReader's plugin self-registration seam (a plugin
+     registers itself into a menu/dispatcher rather than being hand-wired into a central enum). Maps
+     onto this repo's existing `HomeMenuItem`/`HomeActivity` index math and the noted-but-not-yet-built
+     `App`/`AppRegistry` idea (see "Architecture notes" above, from `crosspoint-reader-apps`) — if Phase
+     2 grows past a handful of home-menu entries, that's the point to build it, not before. Confirmed
+     the survey's other conclusion is not actionable guidance so much as validation: CrossPoint's
+     single-image/one-activity-at-a-time model already matches Plato's (the closest bare-metal
+     comparison), so there's no different architecture to move toward here — just the registration seam.
    - **Biscuit-derived tools** (`rayrayrayyyym/biscuit`, MIT, but targets the C3 X4 — porting to S3 is
-     real work, not a recompile). Its eight tiles split into: plain networking (above), genuinely
-     dual-use offensive security (deauth, credential-capturing captive portal, AP cloning, BLE/USB HID
-     injection), defensive/awareness (tracker detection, rogue-AP/camera sweep, MAC rotation, RF kill),
-     comms (ESP-NOW mesh chat, anonymous file drop), and utilities/games (TOTP, password manager,
-     cipher tools, calculator, chess, etc.). Offensive tiles are fine for authorized testing on own
-     gear; the narrow carve-out is anything aimed at deceiving/attacking people or networks not yours.
+     real work, not a recompile). Its eight tiles split into: plain networking (already have it, above),
+     genuinely dual-use offensive security (deauth, credential-capturing captive portal, AP cloning,
+     BLE/USB HID injection), defensive/awareness (tracker detection, rogue-AP/camera sweep, MAC
+     rotation, RF kill), comms (ESP-NOW mesh chat, anonymous file drop), and utilities/games (TOTP,
+     password manager, cipher tools, calculator, chess, etc.). Offensive tiles are fine for authorized
+     testing on own gear; the narrow carve-out is anything aimed at deceiving/attacking people or
+     networks not yours. The tiles that need real new HAL work are the ones needing raw 802.11
+     (monitor/injection mode) or BLE HID/central (`FREEINK_CAP_BLE_HID_HOST`, NimBLE — see freeink-sdk
+     findings above) — utilities/games and comms (ESP-NOW) tiles are comparatively cheap since they sit
+     on top of what's already enabled.
    - **Flock camera detector** (idea from `colonelpanichacks/flock-you`, MIT — *inspiration, not a
      direct port*). Passive 2.4GHz promiscuous sniff for Flock camera OUIs + IE fingerprint. Runs on
      the same ESP32-S3, needs no BLE, purely passive → cleanest fit (privacy/awareness, detects cameras
      watching you). Port the detection logic only (not the Flask/GPS wardriving dashboard). Keep OUI +
-     IE signatures in an updatable SD file — Flock changes behavior often and detection methods keep
-     breaking. US/Canada only (that's where Flock is deployed). A dedicated scanner screen, never
-     background (promiscuous mode monopolizes the radio, so it can't run while reading).
+     IE signatures in an updatable SD file, not baked into flash — both for the "Flock changes behavior
+     often" reason already noted and to keep this tile's flash cost near-zero per the budget note above.
+     US/Canada only (that's where Flock is deployed). A dedicated scanner screen, never background
+     (promiscuous mode monopolizes the radio, so it can't run while reading).
    - **Coupling stance:** OK to strip the fork back somewhat rather than keep upstream's tree pristine;
      deal with upstream-PR conflicts later if that ever happens. Note the tradeoff: stripping raises the
      conflict cost of the periodic upstream merges too, so strip conservatively (things upstream rarely
      touches) and eat conflicts when they land.
    - App flash budget: ~6.25MB per OTA slot (`partitions.csv`: `app0`/`app1` at `0x640000` each), not
-     the full 16MB. Dropped: Bionic Reading / CrossInk typography. Not pursuing.
+     the full 16MB — and already 82.4% (5.40MB) spent before any Phase 2 tile is added (see above).
+     Dropped: Bionic Reading / CrossInk typography. Not pursuing.
 
 ## Decisions made
 
@@ -191,13 +227,39 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
     of always opening on Genesis 1.
 
 **Known limitations, not yet fixed (flagged, not hidden):**
-- Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection.
+- Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection or downloader.
+  **Priority note (2026-09-09):** low personal priority — one translation is enough for actual use — but
+  raised anyway because no other open-source e-ink Bible app exists to defer this to (confirmed, see
+  "Decisions made" above): if this project doesn't add other translations, nothing will. Scoped in
+  detail (not yet built) under "Bible translation downloader" below, specifically because most of its
+  prerequisite infrastructure turned out to already exist in CrossPoint.
 
-**Blocked on device arrival:**
-11. Run stock firmware briefly, document hardware/display-controller batch (SSD1677 vs UC8179).
-12. Flash unmodified CrossPoint (`x4pro`); verify display, touch, SD, WiFi, frontlight, sleep/wake, Home
-    key, EPUB reading. Confirm a self-built unmodified image matches stock before any code changes.
-13. Then: search, bookmarks/history. Translation downloader after the MVP is stable.
+**Device arrival test plan (device in transit from China, not shipped as of 2026-09-09):**
+
+*Stock bring-up — before flashing anything:*
+11. Boot on stock firmware. Note the panel-controller batch from the boot/about screen or visible
+    behavior (SSD1677 vs UC8179 — see "freeink-sdk findings" above; both auto-detect, but which one
+    this specific unit has is still unconfirmed). Exercise display, touch, WiFi connect, frontlight
+    (both warm/cold channels), sleep/wake, Home key, and reading an EPUB, and write down what stock
+    behavior actually looks like (refresh timing/ghosting, sleep image, boot time) — this is the
+    baseline the next step gets compared against, not just a box-check.
+12. Flash an unmodified, self-built `x4pro` CrossPoint image (no CrossLight changes). Re-run the same
+    checklist as #11. **Must match stock behavior before any code changes go on the device** — if it
+    doesn't, that's an upstream/build issue to resolve first, not a CrossLight bug to chase.
+
+*Then CrossLight itself:*
+13. Flash the real `x4pro` CrossLight build. Confirm the same baseline list once more (display, touch,
+    SD, WiFi, frontlight, sleep/wake, Home key, EPUB reading) still holds with the fork's changes in.
+14. Bible app smoke test on real hardware — this is the first time any of Phase 1's simulator-verified
+    behavior touches real e-ink timing/PSRAM/touch: open the Bible, book/chapter picker, page through a
+    chapter/book boundary (the simulator can't exercise real e-ink refresh-batching or true PSRAM
+    behavior — see "Desktop dev loop" above), confirm reading position survives a real sleep/wake and a
+    real power-off/on, not just a simulator relaunch.
+15. If anything in 13/14 regresses vs. #12's CrossPoint-unmodified baseline, that narrows the cause to
+    CrossLight's changes specifically (Bible app or fork strip) rather than upstream/build/hardware —
+    the point of doing 11/12 first instead of jumping straight to the fork build.
+16. Only after 11-15 hold: search, bookmarks/history for the Bible reader; the translation downloader
+    (scoped below) after that.
 
 ## Bible data/feature shape (for when that work starts)
 
@@ -240,3 +302,44 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
   too slow on-device, but isn't needed yet and hasn't been shown to be.
 - Standard Ebooks (https://standardebooks.org/) and Project Gutenberg for public-domain EPUB reading
   generally — the normal reading workflow this device is for.
+
+### Bible translation downloader — API/infra scoping (2026-09-09, not yet built)
+
+Checked whether this needs building from scratch before scoping it: it doesn't. CrossPoint already
+ships everything the download side needs, in production use today by OTA updates and the OPDS book
+browser. This is reuse, not new infrastructure — the only genuinely new piece is the picker UI.
+
+- **HTTP client — reuse directly:** `HttpDownloader` (`src/network/HttpDownloader.h/.cpp`), built on
+  `esp_http_client`. `fetchUrl(url, ...)` for the `translations.json` catalog (small JSON, fits in
+  memory); `downloadToFile(url, destPath, ProgressCallback, cancelFlag*, ...)` for a translation file
+  (multi-MB — KJV is 8.9MB, some translations will be larger). Handles HTTPS CA verification and has a
+  `ProgressCallback` + cancel flag already, which a multi-MB transfer needs. Also carries
+  `MIN_TLS_FREE_HEAP`/`MIN_TLS_MAX_ALLOC` heap pre-flight constants — check these before opening the
+  connection, same as OPDS does (below), since a translation file is meaningfully bigger than a typical
+  OPDS ebook.
+- **WiFi connect — reuse directly:** the `checkAndConnectWifi()` / `launchWifiSelection()` /
+  `onWifiSelectionComplete(bool)` three-method pattern, reference implementation in
+  `OpdsBookBrowserActivity` (`src/activities/browser/`), backed by the shared `WifiSelectionActivity`
+  (`src/activities/network/`). Every network feature in this codebase gates on WiFi this same way;
+  no reason for the Bible downloader to do it differently.
+- **Browse-catalog-and-download UI — reuse the *shape*, not the class:** `OpdsBookBrowserActivity` is a
+  full `Activity`/`UiAppHost` (not a `UiListActivity`) with `buildBrowsingScreen()` /
+  `buildDownloadScreen()` (progress UI, cancel-flag-driven) / `buildStatusScreen()` and a
+  `downloadBook(entry)` that does the heap pre-flight check before calling `downloadToFile()`. It's
+  OPDS-XML-entry-shaped internally, so not directly subclassable — but it's the concrete template: a
+  new `BibleTranslationDownloadActivity` (name TBD) of comparable weight (not a small add-on to the
+  existing `UiListActivity`-based `BibleBookSelectionActivity`/`BibleChapterSelectionActivity` pickers)
+  with the same catalog-list → confirm → progress-download → save shape.
+- **Flow, given the above:** list `translations.json` (117 entries) → user picks one → show its
+  `distribution_license` and confirm (per the license-reality note above, this must be surfaced, not
+  silently downloaded) → `downloadToFile()` into `/Bible/<ABBREV>/<abbrev>.json` with a progress screen
+  → `BibleReaderActivity`/`BibleBookSelectionActivity` already read from that exact path shape with zero
+  changes needed (the SD-first design was already built this way — see "Offline-first" above).
+- **Not yet decided:** re-download-on-checksum-change (OpenBible2's pattern, mentioned above) vs.
+  one-shot download with manual re-fetch; where the translation list/picker hangs off the home menu or
+  UI (a Bible settings/translations sub-screen, most likely, once one exists) vs. inside
+  `BibleBookSelectionActivity` itself.
+- Sequencing: after the device-arrival checklist above and after search/bookmarks (item 16) — this
+  isn't blocked technically (everything it needs already exists and works on the simulator, no hardware
+  required to build or test the download flow), just deliberately ordered behind get-the-MVP-solid on
+  real hardware first.
