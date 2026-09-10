@@ -60,3 +60,6 @@ add_subdirectory(bible_chapter_loader)
 add_subdirectory(bible_reference)
 
 add_subdirectory(inflate_stream)
+add_subdirectory(fs_helpers)
+
+add_subdirectory(absolute_grayscale)
