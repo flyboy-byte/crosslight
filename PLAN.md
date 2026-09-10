@@ -1,15 +1,20 @@
 # PLAN.md
 
 Status: Bible reader Phase 1 MVP complete on the simulator (pagination, chapter/book-crossing page
-turns, book/chapter picker, Esther 8:9 fixed, reading position persisted, bookmarks — all verified in
-the simulator, all 198 host tests pass); **last updated 2026-09-10**. Hardware-dependent work is paused
-pending the X4 Pro shipping/leaving China; when it arrives, start at the "Device arrival test plan"
-below.
+turns, book/chapter picker, Esther 8:9 fixed, reading position persisted, bookmarks, verse-reference
+jump — all verified in the simulator, 209 host tests pass); **last updated 2026-09-10**.
 
-Still buildable without the device, in rough priority order: verse-reference jump (`John 3:16` — reuses
-the existing `KeyboardEntryActivity`), then search *if* it survives the open question under "Known
-limitations". The translation downloader is the one genuinely blocked item — the simulator does not
-emulate the radio, so its UI could be built but never exercised.
+**Plan (decided 2026-09-10):** ship the *full* Bible build for the first on-device run, get it working
+and documented on hardware, then use this doc as the guide for what to cut when a wireless/security
+profile needs the flash. No build flavors or cuts pre-emptively — see "Build strategy" under Path
+forward for the flash accounting (short version: cutting the Bible barely dents the wireless-flash
+problem; the reader *profile* is the real lever). Next UI step is the Bible hub off Home (designed,
+not built — see "Agreed next UI step"). Hardware-gated work waits on the X4 Pro leaving China; when it
+arrives, start at the "Device arrival test plan".
+
+The translation downloader is the one genuinely blocked feature — the simulator does not emulate the
+radio, so its UI could be built but never exercised. Full-text search is an open question (perf can't
+be measured on the simulator; see "Known limitations").
 
 Personal fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) for an
 Xteink X4 Pro. Fork name **CrossLight**, repo `flyboy-byte/crosslight`. Remotes: `origin` = upstream,
@@ -80,6 +85,36 @@ one big drift-merge.
    - App flash budget: ~6.25MB per OTA slot (`partitions.csv`: `app0`/`app1` at `0x640000` each), not
      the full 16MB — and already 82.4% (5.40MB) spent before any Phase 2 tile is added (see above).
      Dropped: Bionic Reading / CrossInk typography. Not pursuing.
+
+### Build strategy: full first, then cut — and what a cut actually buys (decided 2026-09-10)
+
+The plan, in Logan's words: **ship the full build for the first on-device run, get it fully working and
+documented, and let the documentation itself be the guide for what to cut** when a security/wireless
+profile needs the room. Do *not* set up build flavors or cut anything pre-emptively — you can't budget
+a trim against wireless tools that don't exist yet, and a cut made blind gets redone.
+
+**The flash accounting that reframes this** (measured 2026-09-10, not estimated):
+
+| Thing | Flash | Where |
+| --- | --- | --- |
+| Whole Bible app (all 9 `.o`: reader, 3 pickers/lists, stores, parser) | **~74KB** | image |
+| — of which bookmarks | ~9KB | image |
+| — of which verse jump | ~2.3KB | image |
+| `kjv.json` (the 8.86MB translation) | **0** | SD card, not image |
+| Free in the OTA slot after item 12 | **~1.09MB** | 5.41MB of 6.55MB used |
+
+The counter-intuitive part, and the reason not to over-invest in a "cut-down Bible": **cutting the
+Bible barely helps the wireless-flash problem.** Deleting the whole app reclaims ~74KB (~7% of current
+free space); a partial trim (drop bookmarks/search/verse, keep reader + book picker) reclaims ~30-40KB.
+Raw 802.11 monitor mode + a BLE stack + packet capture + Flock detection will be *hundreds* of KB to
+over a megabyte combined — 74KB against that is a rounding error.
+
+**Where the megabytes actually are is the reader *profile*** — EPUB parsing, the font engine, OPDS,
+dictionaries, the wolfSSL that `ContentProtection` pulls in. A security-focused build's real lever is
+stripping *that*, not trimming the Bible. So the eventual build split is "reading device vs. red-team
+device," and in the red-team build a **cut-down Bible is a ~40KB nicety you can keep**, not the thing
+that makes room. When it's time, the KOReader-style registration seam (noted above) is where tiles get
+gated in/out; that's the seam to build, once there are tiles to gate.
 
 ## Decisions made
 
@@ -294,17 +329,56 @@ KJV used for all Bible testing.
     Cost on the real target (`pio run -e x4pro`, measured not estimated): flash 82.4% → **82.5%**
     (5,409,174 B of 6,553,600), RAM unchanged at 30.6%. So two Activities plus a store ran ~9KB of
     flash — a useful unit rate for budgeting the remaining Phase 1/2 tiles against the OTA slot.
+12. Verse-reference jump (2026-09-10). New "Go to Verse" row on `BibleMenuActivity` opens
+    `KeyboardEntryActivity` (the *existing* keyboard, already linked for WiFi/OPDS — this is why the
+    feature is nearly flash-free) and parses free text against the loaded book list. The parser lives
+    in its own TU, `src/bible/BibleReference.{h,cpp}`, as pure logic with a host unit test
+    (`test/bible_reference/`, 15 cases): normalization keeps only `[a-z0-9:]` so spacing and
+    punctuation are irrelevant (`"1 Jn." == "1john"`), book match is exact-first then *prefix*
+    (`gen`/`ps`/`matt`/`rev` all resolve; contracted forms like `Jn` deliberately do not, and that's a
+    pinned test), and a trailing digit run is unambiguously the chapter because book names never end in
+    a digit (`"1john2"` → 1 John ch.2). `buildPages()` now also records `versePages[]` — the page each
+    verse *starts* on, parallel to `verses[]` — so a reference with a verse (`John 3:16`) lands on the
+    right page, not just the chapter's first. An unparseable entry reopens the keyboard with the text
+    intact (no toast facility exists); Cancel is the escape, so it can't loop. Flash 82.5% → **82.6%**
+    (5,411,502 B) — ~2.3KB, as predicted, because no new keyboard was added.
+
+    The first draft of the parser's own test asserted `"1 Jn."` should parse, which contradicts the
+    prefix-only rule stated in the header — the test caught the contradiction by failing, and the fix
+    was to correct the test (and pin the real behavior), not the code. [[verify-dont-assume]] in
+    practice.
+
+**Agreed next UI step — Bible hub off Home (designed 2026-09-10, not yet built):**
+
+Logan's structure: **the Home "Bible" entry should open a hub screen — Continue Reading / Select Book /
+Go to Verse / Bookmarks — rather than dropping straight into the reader.** Today Home → Bible enters
+`BibleReaderActivity` directly (resumes at saved position) and Confirm-in-reader opens `BibleMenuActivity`.
+The hub makes those actions the Bible landing instead of a while-reading afterthought.
+
+- **Keep resume fast.** The common case is "open Bible, keep reading," which is one press today. A
+  pure hub-first design makes that three presses, which is the clunk regression to avoid. Mitigation:
+  make **"Continue Reading" the pre-selected first row** (label it with the saved position, e.g.
+  "Continue — John 3"), so resuming is Bible → Confirm, same press count as now.
+- **Cheapest implementation, reusing everything:** give `BibleReaderActivity` an optional *initial
+  action* (`Resume` default / `BookPicker` / `VerseJump` / `Bookmarks`); the hub is a thin
+  `UiListActivity` whose rows open the reader with the matching action, and the reader fires it in
+  `onEnter()` after loading (it already has `openBookPicker`/`openVerseJump`/`openBookmarkList`). Keep
+  the in-reader Confirm menu (`BibleMenuActivity`) as-is for while-reading — it carries Toggle Bookmark,
+  which is inherently a reader-context action the hub can't have.
+- **Flash:** the hub is a new `UiListActivity` (~12KB by the item-11 unit rate). Worth it for the
+  structure Logan wants; cuttable later, and the first thing a red-team-profile build would drop back to
+  the current reader-first flow. Consider folding the hub and `BibleMenuActivity` into one dual-mode
+  activity if the ~12KB matters — they differ only in the first row (Continue Reading vs. Toggle Bookmark).
 
 **Known limitations, not yet fixed (flagged, not hidden):**
 - Bookmarks are position-only — no label, note, or verse-text preview, so the picker shows
   `Genesis 1  p4` and nothing about what's on that page. Page-number disambiguation is the stopgap.
-- No search yet, and it's an open question whether whole-Bible full-text search belongs on this
-  device at all: a naive query is a full streaming pass over ~8.9MB from SD, and the simulator
+- Verse-reference jump (item 12) covers the *known-reference* case ("take me to John 3:16"). Full-text
+  search — "find the verse that says X" — is still absent, and it's an open question whether it belongs
+  on this device at all: a naive query is a full streaming pass over ~8.9MB from SD, and the simulator
   **cannot** answer the perf question (it reads from host SSD, so it measures parse cost while hiding
-  SD read cost — the likely dominant term). Measure on hardware before designing an index. Verse
-  *reference* jump ("John 3:16") is the cheaper, more-used feature and needs no new infrastructure —
-  `KeyboardEntryActivity` already exists (built for WiFi passwords/OPDS) and the book index is already
-  loaded. Scoping search to the current book is the obvious middle ground if full-text disappoints.
+  SD read cost — the likely dominant term). Measure on hardware before designing an index. Scoping
+  search to the current book is the obvious middle ground if full-text disappoints.
 - Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection or downloader.
   **Priority note (2026-09-09):** low personal priority — one translation is enough for actual use — but
   raised anyway because no other open-source e-ink Bible app exists to defer this to (confirmed, see
