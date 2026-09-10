@@ -168,18 +168,30 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
    by `GfxRenderer`'s "Outside range" log during a scripted page-through-Genesis-1 run, not by compiling.
    All 195 host tests still pass.
 
-**Known limitations, not yet fixed (flagged, not hidden):**
-- `StreamingJsonParser`'s fixed 512-byte token buffer still *drops* (not truncates) any string over that
-  length. One verse in all of KJV exceeds it (Esther 8:9, 528 chars) — its text is currently lost
-  silently. Needs either a larger buffer (check other consumers first) or a dedicated overflow path.
-- Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection.
-- Reading position (current book/chapter/page) isn't persisted across reopening the app — always opens
-  on Genesis 1. Needs a small addition to `CrossPointState` (or a dedicated store); deliberately not
-  touched yet since it's shared app state.
+9. Fixed the Esther 8:9 token-overflow gap: `StreamingJsonParser::TOKEN_BUF_SIZE` was 512, and its
+   overflow path (`appendToken`) *drops* (not truncates) any string that hits the cap — silently, no
+   error. Checked the data before touching the constant: scanned all 66 books of the actual
+   `kjv.json` and confirmed Esther 8:9 (530 UTF-8 *bytes* — Python `len()`/codepoint-counting says 528,
+   which undercounts the curly apostrophe in "king's") is the *only* verse in the whole KJV over 511
+   bytes — not a stale/guessed claim. `StreamingJsonParser` has exactly one other consumer
+   (`ReleaseJsonParser`, for OTA release JSON), and it copies out of `tokenBuf` via a bounds-checked
+   `safeCopy` into its own fixed buffers regardless of `tokenBuf`'s size, so growing the shared
+   constant doesn't weaken it. Bumped `TOKEN_BUF_SIZE` to 600 for headroom. Added a new
+   `BibleChapterLoaderTest` host suite (fixture: Esther 8 sliced from the real `kjv.json`) asserting
+   verse 9 loads at its real length and exact start/end text — the first version of that assertion used
+   the wrong (codepoint) byte count and caught its own mistake by failing. All 198 host tests pass.
+10. Persisted Bible reading position: new `BibleReadingStateStore` (`src/bible/`), a dedicated
+    `PersistableStore<T>` at `/.crosspoint/bible_state.json` — deliberately *not* added to
+    `CrossPointState`, keeping the same no-shared-state stance as item 8. `BibleReaderActivity` loads
+    it once in `onEnter()` (resolves the saved book name back to an index against the freshly-scanned
+    `books` list, clamps chapter/page against the real chapter count and page count in case the saved
+    values no longer fit), and persists on every position change: intra-chapter page turns, and
+    chapter/book loads (covers both boundary-crossing page turns and picker jumps, since both route
+    through `loadCurrentChapter()`). Reopening the app now resumes exactly where you left off instead
+    of always opening on Genesis 1.
 
-**No hardware needed, next up:**
-9. Fix the Esther 8:9 token-overflow gap above.
-10. Persist Bible reading position (see limitation above).
+**Known limitations, not yet fixed (flagged, not hidden):**
+- Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection.
 
 **Blocked on device arrival:**
 11. Run stock firmware briefly, document hardware/display-controller batch (SSD1677 vs UC8179).
