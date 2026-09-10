@@ -1,6 +1,6 @@
 # PLAN.md
 
-Status: Bible reader with a real book/chapter picker (real KJV data, verified in simulator); device not in hand yet (2026-09-09)
+Status: Bible reader on ReaderActivity — real pagination, chapter/book-crossing page turns, book/chapter picker (real KJV data, verified in simulator); device not in hand yet (2026-09-09)
 
 Personal fork of [crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) for an
 Xteink X4 Pro. Fork name **CrossLight**, repo `flyboy-byte/crosslight`. Remotes: `origin` = upstream,
@@ -152,22 +152,40 @@ Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (Animat
    Leviticus 5, correct text) via a scripted `CROSSPOINT_SIM_INPUT_SCRIPT` run with screenshots; all 195
    host tests still pass.
 
+8. Rebuilt the reading surface on `ReaderActivity` (`BibleReaderActivity`, replacing the raw-`Activity`
+   `BibleActivity`) — the same base EPUB/TXT/XTC subclass. Picked up, for free: page-turn button/touch
+   handling and the e-ink refresh-batching policy. Built new: real word-wrap + pagination via
+   `GfxRenderer::wrappedText` (verses flattened into lines, sliced into screen-sized pages once per
+   chapter load), and paging across chapter/book boundaries in both directions so the whole Bible reads
+   as one continuous book (verified: Genesis 1 -> Genesis 2 forward, and Genesis 2 page 1 -> Genesis 1's
+   *last* page backward, not its first). Deliberately not wired into `ReaderActivity`'s file-book
+   plumbing (`APP_STATE.openEpubPath`/`RecentBooksStore`/`EndOfBookOptions` all assume a path
+   `ReaderActivity::create()` can re-dispatch by extension, which would misdispatch a `.json` translation
+   file to the EPUB branch) — `onEnter`/`onExit` are overridden in full instead. `isAtEndOfBook()` is
+   always `false`; Revelation's last page just stops. Found and fixed a real off-by-one while verifying
+   in the simulator: the page-builder's content-top offset didn't match the renderer's actual first
+   content line by one `lineH`, so a full page's last line silently overflowed the bottom edge — caught
+   by `GfxRenderer`'s "Outside range" log during a scripted page-through-Genesis-1 run, not by compiling.
+   All 195 host tests still pass.
+
 **Known limitations, not yet fixed (flagged, not hidden):**
 - `StreamingJsonParser`'s fixed 512-byte token buffer still *drops* (not truncates) any string over that
   length. One verse in all of KJV exceeds it (Esther 8:9, 528 chars) — its text is currently lost
   silently. Needs either a larger buffer (check other consumers first) or a dedicated overflow path.
-- Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection — and no
-  pagination beyond "truncate at the screen edge" (verses are single-line-truncated, not wrapped).
+- Still only the hardcoded KJV path (`/Bible/KJV/kjv.json`) — no translation selection.
+- Reading position (current book/chapter/page) isn't persisted across reopening the app — always opens
+  on Genesis 1. Needs a small addition to `CrossPointState` (or a dedicated store); deliberately not
+  touched yet since it's shared app state.
 
 **No hardware needed, next up:**
-8. Real line-wrapping/pagination for verse text (currently one truncated line per verse).
 9. Fix the Esther 8:9 token-overflow gap above.
+10. Persist Bible reading position (see limitation above).
 
 **Blocked on device arrival:**
-10. Run stock firmware briefly, document hardware/display-controller batch (SSD1677 vs UC8179).
-11. Flash unmodified CrossPoint (`x4pro`); verify display, touch, SD, WiFi, frontlight, sleep/wake, Home
+11. Run stock firmware briefly, document hardware/display-controller batch (SSD1677 vs UC8179).
+12. Flash unmodified CrossPoint (`x4pro`); verify display, touch, SD, WiFi, frontlight, sleep/wake, Home
     key, EPUB reading. Confirm a self-built unmodified image matches stock before any code changes.
-12. Then: search, bookmarks/history. Translation downloader after the MVP is stable.
+13. Then: search, bookmarks/history. Translation downloader after the MVP is stable.
 
 ## Bible data/feature shape (for when that work starts)
 
