@@ -11,7 +11,7 @@
 
 #include "CrossPointSettings.h"
 #include "OpdsServerStore.h"
-#include "bible/BibleActivity.h"
+#include "bible/BibleReaderActivity.h"
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
@@ -245,7 +245,7 @@ void ActivityManager::goToUsbDrive() {
 
 void ActivityManager::goToSettings() { replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInput)); }
 
-void ActivityManager::goToBible() { replaceActivity(std::make_unique<BibleActivity>(renderer, mappedInput)); }
+void ActivityManager::goToBible() { replaceActivity(std::make_unique<BibleReaderActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goToFileBrowser(std::string path) {
   replaceActivity(std::make_unique<FileBrowserActivity>(renderer, mappedInput, std::move(path)));
