@@ -13,10 +13,11 @@
 //   { ..., "books": [ { "nr", "name", "chapters": [ { "chapter", "name",
 //     "verses": [ { "chapter", "verse", "name", "text" } ] } ] } ] }
 //
-// Known limitation, not yet fixed: StreamingJsonParser's fixed 512-byte
-// token buffer drops (does not truncate) any string value longer than
-// that. Verified against live KJV data: exactly one verse in the whole
-// Bible exceeds it (Esther 8:9, 528 chars) and its text is silently lost.
+// StreamingJsonParser's fixed token buffer (TOKEN_BUF_SIZE) drops (does not
+// truncate) any string value longer than it. Verified against live KJV data:
+// Esther 8:9 (530 UTF-8 bytes) is the single longest verse in the whole Bible, and
+// TOKEN_BUF_SIZE was bumped past it for exactly that reason -- see
+// BibleChapterLoaderTest's EstherLongestVerseLoadsIntact regression test.
 struct BibleVerse {
   int number = 0;
   std::string text;

@@ -56,5 +56,6 @@ add_subdirectory(chapter_html_slim_parser)
 add_subdirectory(ligature_guard)
 add_subdirectory(page_link)
 add_subdirectory(chapter_position)
+add_subdirectory(bible_chapter_loader)
 
 add_subdirectory(inflate_stream)

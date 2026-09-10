@@ -18,7 +18,14 @@ struct JsonCallbacks {
 
 class StreamingJsonParser {
  public:
-  static constexpr size_t TOKEN_BUF_SIZE = 512;
+  // 600 covers the longest string token any current consumer parses: Esther
+  // 8:9, the single longest verse in the whole KJV, is 530 UTF-8 *bytes*
+  // (only verse in all 66 books over the old 512 cap -- verified against the
+  // actual kjv.json data by byte length, not Python len()/codepoint count,
+  // which undercounts multi-byte chars like the curly apostrophe in
+  // "king's"). Silent drops on overflow (see appendToken) make this worth
+  // padding past the known worst case.
+  static constexpr size_t TOKEN_BUF_SIZE = 600;
   static constexpr size_t MAX_NESTING = 32;
 
   explicit StreamingJsonParser(const JsonCallbacks& callbacks);
