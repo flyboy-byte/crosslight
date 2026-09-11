@@ -1,4 +1,5 @@
 .pio
+/simulator
 .idea
 .DS_Store
 .vscode
