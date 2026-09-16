@@ -2,7 +2,8 @@
 
 Status: Bible reader Phase 1 MVP complete on the simulator (pagination, chapter/book-crossing page
 turns, book/chapter picker, Esther 8:9 fixed, reading position persisted, bookmarks, verse-reference
-jump — all verified in the simulator, 209 host tests pass); **last updated 2026-09-10**.
+jump — all verified in the simulator, 349 host tests pass); **last updated 2026-09-16. X4 Pro arriving
+2026-09-16 — the "Device arrival test plan" below is now live, not hypothetical.**
 
 **Plan (decided 2026-09-10):** ship the *full* Bible build for the first on-device run, get it working
 and documented on hardware, then use this doc as the guide for what to cut when a wireless/security
@@ -24,6 +25,25 @@ personal main line + fork default branch; topic branches off `crosslight`, delet
 **Keep this fork current:** upstream is very active. Periodically `git fetch origin && git merge
 origin/develop` into `develop`, then merge `develop` into `crosslight`. Small frequent catch-ups, not
 one big drift-merge.
+
+**Upstream sync log** (what landed, what conflicted, what broke the sim — so a future sync isn't
+surprised by the same class of break):
+
+- **2026-09-16** (`9e7baf2e..0b6bb004`, 35 commits): merged clean apart from three expected
+  conflicts — our `HomeMenuItem::BIBLE` vs upstream's new `LIBRARY` (replacing `RECENTS`), the matching
+  `HomeActivity.cpp` menu-item list/count/switch, and `test/CMakeLists.txt`'s `add_subdirectory` list —
+  all resolved by keeping both sides (Bible stays a menu item alongside the new Library view). Notable
+  upstream content: Library view (#3366), AboutActivity (#3563), timezone/DST settings (#3562), Arabic
+  keyboard layout, X4 Pro/X4C display-detection fixes, SD SPI batching (#3501, relevant to the
+  full-text-search benchmark below), a dropped-input-while-repainting fix, and absolute-plane
+  `GrayscaleMode::Direct` for the SSD1677 sleep-cover path. Also hit one **upstream test bug**, not
+  ours: `test/library_builder/stubs/HalStorage.h` uses `uint8_t`/`uint32_t`/`uint64_t` without
+  `#include <cstdint>` — compiled by luck on whatever toolchain upstream CI uses, failed outright here.
+  Fixed with the one-line include (not reported upstream yet). Firmware `x4pro` flash: 82.7% → 83.7%.
+  Host tests: 223 → 349 passing. Simulator fork needed six new/updated stubs to relink (see its own
+  "Local checkout moved" note above and its 2026-09-16 commit for the full list — `GrayscaleMode::Direct`,
+  `AboutActivity`'s board/chip metadata reads, `HalStorage::usbDriveHostSuspended`,
+  `HalClock::setTimezone`, `HalFile::modificationTime`).
 
 ## Path forward (two phases)
 
@@ -187,6 +207,13 @@ than upstream, because the simulator (separate repo, v1.0.0) lags fast upstream 
 stub occasionally whenever upstream adds a HAL method — the cost of tracking develop's tip on the sim.
 Two host-toolchain build fixes also live in the env: `-Dmemcpy_P=memcpy` (AnimatedGIF) and `-std=gnu17`
 (QRCode's `typedef ... bool` collides with this GCC's default C23).
+
+**Local checkout moved 2026-09-11:** the fork now lives at `crosslight/simulator/` (nested inside this
+repo, still its own pushable git repo via its own `.git`; gitignored here so the firmware repo never
+tracks its files). `platformio.local.ini` points at it with `symlink://simulator` instead of a git URL
+— edits are live, no push-then-`pio pkg install` refetch cycle. (Superseded: it used to live as a
+sibling checkout at `~/projects/crosslight-simulator`; if you see that path referenced anywhere old,
+it's stale.)
 
 ### Scripted simulator QA (how every UI claim in this doc was verified)
 
