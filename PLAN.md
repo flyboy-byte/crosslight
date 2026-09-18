@@ -414,9 +414,65 @@ The hub makes those actions the Bible landing instead of a while-reading afterth
   detail (not yet built) under "Bible translation downloader" below, specifically because most of its
   prerequisite infrastructure turned out to already exist in CrossPoint.
 
-**Device arrival test plan (device in transit from China, not shipped as of 2026-09-09):**
+**Device arrival test plan — X4 Pro arrived 2026-09-18, ordered direct from xteink.com (not USB-locked,
+per the site's own "unlocked firmware" policy and confirmed by `docs/fix-bricked-xteink.md` — normal USB
+flashing applies, the SPI-clip procedure in that doc is last-resort only and is written for the older
+ESP32-C3 X4/X3 besides):**
 
-*Stock bring-up — before flashing anything:*
+**Stock firmware baseline — captured 2026-09-18, screenshots in
+`docs/images/stock-firmware-baseline/` (13 photos).** XTEink X4 Pro, firmware `XT V7.2.4`. Top menu:
+Read / All Files / USB Mode / Cloud Sync / Settings. Settings: account (Logged In/Bound), Upgrade (OTA),
+Network (WiFi 2.4G, saved networks), Bluetooth, Language, Time (manual + NTP + timezone), Startup
+Password, System Font (built-in + cloud "Get Fonts" store), About Device. Cloud Sync pulls wallpaper
+(`.xth` packages) and even books (saw it grab a Project Gutenberg EPUB) from Xteink's own cloud service.
+USB Mode exposes the microSD as a mass-storage drive.
+
+**Feature comparison against CrossLight/CrossPoint (verified against source, not assumed):**
+
+| Feature | Stock | CrossLight/CrossPoint |
+| --- | --- | --- |
+| WiFi | Yes | Yes — `WifiSelectionActivity`, `HttpDownloader`, production-used by OTA/OPDS |
+| USB Mode (mass storage) | Yes | Yes — `FREEINK_CAP_USB_MSC=1` set in the `x4pro` env |
+| OTA/firmware upgrade | Yes | Yes |
+| Timezone/DST | Yes | Yes — `HalClock::setTimezone`, upstream #3562 |
+| Custom fonts | Yes, via cloud "Get Fonts" store | Yes, differently — SD-card-dropped fonts (`OMIT_FONTS`/`builtinFonts`), no cloud store |
+| Wallpaper / sleep-screen customization | Yes, via cloud `.xth` packages | **Yes, and arguably more flexible** — `CrossPointSettings::sleepScreen` supports Dark/Light/Custom/Cover/Cover-Custom/Blank/Quick-Resume/Transparent-Custom; `BmpViewerActivity` sets any viewed `.bmp` as the custom sleep screen directly on-device |
+| Getting content on wirelessly | Xteink's proprietary cloud account | No cloud account (by design, offline-first) — but the device hosts its own file-transfer web UI (AP-mode hotspot w/ QR, or STA/home WiFi), plus WebDAV, Calibre wireless connect, and an OPDS browser with saved servers |
+| About Device | Yes | Yes — `AboutActivity`, upstream #3563 |
+| Bluetooth | Yes (settings toggle shown) | **Gap** — BLE stack exists in freeink-sdk (`BleKeyboardHost`/NimBLE) but `FREEINK_CAP_BLE_HID_HOST` is not set in any `platformio.ini` env, including `x4pro`. Not a priority (Logan doesn't need it). |
+| Startup Password / lock screen | Yes | **Gap, not yet built.** No PIN/lock activity exists. Buildable without new subsystems though: `KeyboardEntryActivity` already exists (reused for WiFi passwords and the Bible verse-jump feature) for input, `CrossPointSettings`/`SettingsList.h`/`PersistableStore` already exist for the toggle+stored PIN, and `SleepActivity`'s wake-intercept is the pattern for gating boot/wake before `ActivityManager` reaches Home. Estimated similar size to the verse-jump feature (a few KB flash, roughly an afternoon), not a big lift — low personal priority per Logan ("isn't very important depending on how hard it is to add"), candidate for Phase 2 if it starts to matter. |
+
+Net: Phase 1 as built already matches or exceeds stock on reading, WiFi, OTA, USB transfer, fonts, and
+wallpaper. The only real gaps are BLE (declined, not needed) and startup password (deferred, cheap to
+add later if wanted).
+
+**Stock backup — mandatory before any USB flash, do this first:**
+
+11. Dump a full stock-flash backup over USB before flashing anything else. This is the "unmodified
+    firmware image" step: no public X4 Pro (ESP32-S3) stock dump exists online the way the older C3
+    X4/X3 backup does (`docs/fix-bricked-xteink.md`), so the backup has to be made from this specific
+    unit, right now, while it's still stock. 16MB flash = `0x1000000`.
+
+    ```bash
+    # find the port first: ls /dev/ttyACM* /dev/ttyUSB*
+    pio pkg exec -p tool-esptoolpy -- esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
+      read_flash 0x0 0x1000000 stock_x4pro_backup.bin
+    ```
+
+    Verify by reading twice and comparing hashes (same technique as the SPI-clip doc's step 8) before
+    trusting the backup:
+
+    ```bash
+    pio pkg exec -p tool-esptoolpy -- esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
+      read_flash 0x0 0x1000000 backup_verify.bin
+    md5sum stock_x4pro_backup.bin backup_verify.bin   # must match
+    ```
+
+    Keep the verified `.bin` somewhere durable (off-device). To revert at any point:
+    `write_flash 0x0 stock_x4pro_backup.bin` — rewrites bootloader, partition table, NVS, both OTA
+    slots, everything, back to byte-identical stock. No separate erase step needed first.
+
+*Stock bring-up — before flashing anything else:*
 12. Boot on stock firmware. Note the panel-controller batch from the boot/about screen or visible
     behavior (SSD1677 vs UC8179 — see "freeink-sdk findings" above; both auto-detect, but which one
     this specific unit has is still unconfirmed). Exercise display, touch, WiFi connect, frontlight
