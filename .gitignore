@@ -1,5 +1,7 @@
 .pio
 /simulator
+# Device flash dumps: contain WiFi creds and vendor account tokens from NVS.
+/stock_x4pro_backup.bin*
 .idea
 .DS_Store
 .vscode

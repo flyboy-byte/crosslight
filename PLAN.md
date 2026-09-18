@@ -2,8 +2,10 @@
 
 Status: Bible reader Phase 1 MVP complete on the simulator (pagination, chapter/book-crossing page
 turns, book/chapter picker, Esther 8:9 fixed, reading position persisted, bookmarks, verse-reference
-jump — all verified in the simulator, 349 host tests pass); **last updated 2026-09-16. X4 Pro arriving
-2026-09-16 — the "Device arrival test plan" below is now live, not hypothetical.**
+jump — all verified in the simulator, 349 host tests pass); **last updated 2026-09-18. X4 Pro arrived
+2026-09-18: stock baseline photographed, full 16MB stock flash backed up and verified (step 11). Device
+is still on stock. Next: step 12 stock checklist, then step 13, the first flash (plain CrossPoint).** Use a
+USB-A-to-C cable, not C-to-C (see "What the dump took").
 
 **Plan (decided 2026-09-10):** ship the *full* Bible build for the first on-device run, get it working
 and documented on hardware, then use this doc as the guide for what to cut when a wireless/security
@@ -448,29 +450,98 @@ add later if wanted).
 
 **Stock backup — mandatory before any USB flash, do this first:**
 
-11. Dump a full stock-flash backup over USB before flashing anything else. This is the "unmodified
-    firmware image" step: no public X4 Pro (ESP32-S3) stock dump exists online the way the older C3
-    X4/X3 backup does (`docs/fix-bricked-xteink.md`), so the backup has to be made from this specific
-    unit, right now, while it's still stock. 16MB flash = `0x1000000`.
+11. ~~Dump a full stock-flash backup over USB before flashing anything else.~~ — **DONE 2026-09-18,
+    verified.** No public X4 Pro (ESP32-S3) stock dump exists online the way the older C3 X4/X3 backup
+    does (`docs/fix-bricked-xteink.md`), so it had to come from this unit.
+
+    **Result:** `stock_x4pro_backup.bin` in the repo root (gitignored as `/stock_x4pro_backup.bin*` —
+    it holds NVS, i.e. saved WiFi passwords and the Xteink account token; never commit or share it,
+    and it's only valid for *this* unit). Move a copy off-device. 16,777,216 bytes,
+    MD5 `2ace56c58de8425fc3c406336c995110`,
+    SHA256 `e2c81fcf83f62c675573429c52144e781bed9720d4681b889cf1a163dca444cc`.
+    Verified two independent ways: the whole-image MD5 computed *on the chip* (`flash_md5sum` over all
+    16MB) matched the file's, and every app/bootloader image inside passes esptool's own checksum +
+    SHA256 validation (see "Stock image anatomy" below).
+
+    **How to re-dump (tested):** `~/.platformio/penv/bin/python3 scripts/x4pro_flash_backup.py`
+    (resumable, ~3.5 min). **How to revert to stock:**
 
     ```bash
-    # find the port first: ls /dev/ttyACM* /dev/ttyUSB*
-    pio pkg exec -p tool-esptoolpy -- esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
-      read_flash 0x0 0x1000000 stock_x4pro_backup.bin
+    ~/.platformio/penv/bin/python3 ~/.platformio/packages/tool-esptoolpy/esptool.py \
+      --chip esp32s3 -p /dev/ttyACM0 write-flash 0x0 stock_x4pro_backup.bin
     ```
 
-    Verify by reading twice and comparing hashes (same technique as the SPI-clip doc's step 8) before
-    trusting the backup:
+    That rewrites bootloader, partition table, NVS, otadata and both app slots back to byte-identical
+    stock. Not yet actually exercised — only the read path has been tested on hardware.
 
-    ```bash
-    pio pkg exec -p tool-esptoolpy -- esptool.py --chip esp32s3 -p /dev/ttyACM0 -b 921600 \
-      read_flash 0x0 0x1000000 backup_verify.bin
-    md5sum stock_x4pro_backup.bin backup_verify.bin   # must match
-    ```
+**What the dump took to get working (2026-09-18) — read before touching USB on this device again:**
 
-    Keep the verified `.bin` somewhere durable (off-device). To revert at any point:
-    `write_flash 0x0 stock_x4pro_backup.bin` — rewrites bootloader, partition table, NVS, both OTA
-    slots, everything, back to byte-identical stock. No separate erase step needed first.
+| Attempt | Result | Actual cause |
+| --- | --- | --- |
+| Magnetic pogo adapter + USB-C-to-C cable | Never enumerates: `device descriptor read/64, error -71`, `unable to enumerate`; once took the whole xHCI controller down (`HC died`), survived a reboot | C-to-C path through the magnetic adapter. Unverified *why* (CC negotiation through the adapter is the leading guess, INFERRED). The pogo adapter is the device's only port, so "use another cable" isn't an option on the device side |
+| Same adapter + **USB-A-to-C** cable | Enumerates immediately as `303a:1001 Espressif USB JTAG/serial debug unit` → `/dev/ttyACM0` | This is the working setup. Logan is in `uucp`, no sudo needed |
+| `pio pkg exec -p tool-esptoolpy -- esptool.py ...` | `ModuleNotFoundError: rich_click` | `pio pkg exec` runs the script with a Python that lacks esptool's deps. Call PlatformIO's own Python directly: `~/.platformio/penv/bin/python3 ~/.platformio/packages/tool-esptoolpy/esptool.py` |
+| Single 16MB `read-flash`, then 1MB/4MB/512KB chunked retries, then lower baud | Always died with `Packet content transfer stopped`, looked random | **Not** the link. Baud rate is ignored on the S3's native USB-Serial/JTAG (a 64KB read at "115200" ran 1344 kbit/s), so lowering it never did anything. See next row |
+| Per-sector probe of 0x260000–0x26F000 | Exactly one sector, **0x267000**, fails every time; on-chip MD5 of it works fine; reading it with 1024-byte packets works and matches | **esptool stub bug, data-dependent.** That sector has 57×`0xC0` + 5×`0xDB`; SLIP-escaped it's 4096+62+2 = **4160 bytes = 65×64** — an exact multiple of the USB full-speed packet size. A frame ending exactly on a 64-byte boundary never completes (missing short/zero-length packet is the likely mechanism, INFERRED). Predicted rate for dense data ≈1/64 sectors ≈22% of 64KB blocks; observed 24 retries over the dump, matching. Blank `0xFF` regions can't trigger it |
+
+The fix lives in `scripts/x4pro_flash_backup.py`: stays in download mode for the whole run (so the stock
+app can never boot between blocks and change flash mid-dump — the earlier chunked attempts used
+`--after hard-reset` and could have produced an inconsistent image), reads 64KB blocks, and retries any
+failed block with smaller packet sizes (1024, 1000, 256, …) to move the frame boundary. Also checked
+first that this wasn't intentional read protection: `esptool get-security-info` reports Secure Boot
+**disabled**, Flash Encryption **disabled**, no eFuse keys. Chip: ESP32-S3 (QFN56) rev v0.2, 8MB
+embedded PSRAM (AP_3v3), MAC `7c:0c:5f:41:8e:50`.
+
+Not reported upstream yet (esptool / esp-flasher-stub). Writing firmware *to* the device is the other
+direction and shouldn't hit it (INFERRED — confirm on the first `pio run -e x4pro -t upload`).
+
+**Stock image anatomy (parsed from the dump, 2026-09-18):**
+
+| Partition | Type | Offset | Size | Notes |
+| --- | --- | --- | --- | --- |
+| nvs | data/nvs | 0x9000 | 20KB | settings, WiFi creds, account token |
+| otadata | data/ota | 0xe000 | 8KB | seq 1 → app0, seq 2 → app1: **boots app1** |
+| app0 | app/ota_0 | 0x10000 | 7.88MB | `xteink_app` **7.2.4**, built 2026-08-14, checksum + SHA256 valid |
+| app1 | app/ota_1 | 0x7f0000 | 7.88MB | `xteink_app` **7.5.10**, built 2026-09-10, checksum + SHA256 valid |
+| spiffs | data/spiffs | 0xfd0000 | 80KB | |
+| coredump | data/coredump | 0xfe4000 | 112KB | |
+
+Bootloader: ESP-IDF v6.0.1, valid. Stock is **pure ESP-IDF v6.0.1**, not Arduino. Its app slots
+(7.88MB) are bigger than CrossPoint's (6.25MB, `partitions.csv`); flashing CrossPoint writes its own
+table, and the full-image revert above restores stock's. The About screen said `XT V7.2.4` at 14:24,
+but the active slot holds 7.5.10 — with Auto Check Updates on, it most likely auto-updated over WiFi
+after the photos were taken. Unconfirmed: check About Device.
+
+**Why run the dump at all, and what to expect (Logan's goals: confirm the dump is good, then mine
+stock's UI for CrossLight ideas):**
+- *Is it good?* — already answered by the hash checks above, which are stronger evidence than booting
+  it would be.
+- *Emulating it for UI:* Espressif's QEMU fork (`qemu-system-xtensa -machine esp32s3`) can boot this
+  exact image and will show bootloader/app serial logs. It will **not** draw the UI — QEMU has no
+  model of the e-ink panel, GT911 touch, buttons, SD, or frontlight, so the app likely stalls in
+  display/touch init. Not worth it for UI.
+- *Better UI sources:* (1) the device itself — it's still running stock until step 13, so photograph
+  every screen now; (2) static analysis of `app1` — strings (menu names, the cloud-sync host), embedded
+  fonts (MiSans) and icon bitmaps, and possibly the panel waveform tables (the one thing that would
+  directly improve CrossLight if stock's refresh looks better — speculative until looked at).
+
+**Stock UI patterns worth borrowing** (from `docs/images/stock-firmware-baseline/`, Claude's read,
+2026-09-18 — ideas, not decisions):
+- **Continue-reading card on Home** — a big cover + title/author/%/time-read + "Continue" strip at the
+  bottom of Bookshelf. Same idea as the Bible hub's planned "Continue Reading" row.
+- **Paged lists with explicit ▲/▼ and a counter** ("2 folders 0 files", "1/1") instead of scrolling —
+  e-ink-friendly, and what physical buttons map onto naturally.
+- **Dithered scrim behind overlays** — the side drawer dims the page with a checkerboard, a
+  cheap way to show depth with only black and white.
+- **Consistent chrome** — back arrow top-left, centered title, one action top-right ("Get Fonts",
+  "Retry All", "Rescan"); settings rows are icon + label + gray subtitle + chevron or pill toggle.
+- **Line-art illustration for USB Mode** plus a centered "Preparing…" interstitial — the connection
+  state is unmistakable.
+- Weaker spots not to copy: primary nav hidden behind a hamburger drawer (extra tap for everything),
+  a mostly-empty Bookshelf grid with truncated titles ("The Phanto..."), low-contrast gray secondary
+  text.
+- Not yet checked: how many of these CrossPoint's existing themes (Lyra, Lyra Extended, RoundedRaff)
+  already do — check before building any.
 
 *Stock bring-up — before flashing anything else:*
 12. Boot on stock firmware. Note the panel-controller batch from the boot/about screen or visible
