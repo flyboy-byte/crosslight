@@ -131,12 +131,32 @@ free space); a partial trim (drop bookmarks/search/verse, keep reader + book pic
 Raw 802.11 monitor mode + a BLE stack + packet capture + Flock detection will be *hundreds* of KB to
 over a megabyte combined — 74KB against that is a rounding error.
 
-**Where the megabytes actually are is the reader *profile*** — EPUB parsing, the font engine, OPDS,
+**Corrected 2026-09-18 by measuring (linker map of the `x4pro` build + a real `-DOMIT_FONTS` build) —
+the paragraph after this table guessed wrong about where the space is:**
+
+| Component (flash, from `firmware.map`) | KB | Cuttable? |
+| --- | --- | --- |
+| Built-in fonts (all in `main.cpp.o`): Noto Serif 939, Noto Sans 936, Ubuntu UI 225 | **2,102** | **Mostly, without losing a feature.** `-DOMIT_FONTS` (existing flag) keeps Noto Serif 14 + UI fonts, drops the rest: measured **5,490,294 → 3,842,962 B (−1.57MB, 83.8% → 58.6%)**. Dropped sizes can come back from SD as `.cpfont` (repo's own converter); SD-font render speed on this device not yet measured |
+| EPUB engine (`lib/Epub`) + reader activities + expat | ~666 | Only in a no-reading build |
+| I18n, 34 UI languages | 361 | English-only would save ~330KB, but `gen_i18n.py` has no language-subset option yet |
+| All string literals, merged (map credits them to `Wire.cpp.o`) | 214 | Partly: compiling out `LOG_DBG` text |
+| wolfSSL | 199 | **No** — it's the HTTPS/TLS stack (`FREEINK_NET_WOLFSSL=1`: OTA, OPDS, future Bible downloader), not just ContentProtection as said below |
+| WiFi/IP stack (net80211, lwip, pp, wpa_supplicant, phy) | ~450 | No — radio features need it |
+| Bible app (linker-level) | 35 | Not worth it |
+
+Plus the partition lever: CrossPoint's layout spends 3.4MB on a SPIFFS partition it never mounts;
+stock's layout (from the 2026-09-18 dump) uses 7.88MB app slots on this same hardware → **+1.63MB per
+slot**, OTA kept. Fonts-to-SD + repartition together: **~1.06MB free → ~4.4MB free**, with no reading
+feature removed. Costs: one USB flash for the new table, a `partitions.csv` diff vs upstream, and the
+SD-font speed question.
+
+~~**Where the megabytes actually are is the reader *profile*** — EPUB parsing, the font engine, OPDS,
 dictionaries, the wolfSSL that `ContentProtection` pulls in. A security-focused build's real lever is
 stripping *that*, not trimming the Bible. So the eventual build split is "reading device vs. red-team
 device," and in the red-team build a **cut-down Bible is a ~40KB nicety you can keep**, not the thing
-that makes room. When it's time, the KOReader-style registration seam (noted above) is where tiles get
-gated in/out; that's the seam to build, once there are tiles to gate.
+that makes room.~~ (superseded by the measured table above.) When it's time, the KOReader-style
+registration seam (noted above) is where tiles get gated in/out; that's the seam to build, once there are
+tiles to gate.
 
 ## Decisions made
 
