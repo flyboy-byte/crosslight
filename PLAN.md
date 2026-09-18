@@ -7,6 +7,14 @@ jump — all verified in the simulator, 349 host tests pass); **last updated 202
 (panel is UC8279). Bible opens in ~15 ms via the new chapter cache (was 10 s) and its menu now opens by
 touch — see "First flash and first on-device session".** Use a USB-A-to-C cable, not C-to-C.
 
+**Next (agreed 2026-09-18, not started):** (1) Fonts to SD — add `-DOMIT_FONTS` to `[env:x4pro]`
+(−1.57MB measured), convert the dropped Noto Sans 12-18 / Noto Serif 12,16,18 with
+`fontconvert_sdcard.py --intervals builtin` under plain family names, put them in `/.fonts/`, flash,
+check on device. SD fonts measured as fast as built-in (see "Build strategy"). (2) Then plan the
+feature architecture Logan asked about: many Phase 2 features without hurting battery or speed —
+load-on-demand vs. resident, radio power management, and the partition change (+1.63MB) before the
+first radio feature. Three commits on `crosslight` are local-only (not pushed to `fork`).
+
 **Plan (decided 2026-09-10):** ship the *full* Bible build for the first on-device run, get it working
 and documented on hardware, then use this doc as the guide for what to cut when a wireless/security
 profile needs the flash. No build flavors or cuts pre-emptively — see "Build strategy" under Path
