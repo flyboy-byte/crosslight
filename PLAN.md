@@ -150,6 +150,17 @@ slot**, OTA kept. Fonts-to-SD + repartition together: **~1.06MB free → ~4.4MB 
 feature removed. Costs: one USB flash for the new table, a `partitions.csv` diff vs upstream, and the
 SD-font speed question.
 
+**SD-font speed question answered (measured on the X4 Pro, 2026-09-18):** same Noto Sans source TTFs
+converted to `.cpfont` (`fontconvert_sdcard.py --intervals builtin --sizes 12,14,16,18`, family
+`NotoSansSD`, 2.05MB on SD in `/.fonts/`), same Mistborn chapter, size 16, 7 page turns each. Per page:
+SD `prewarm` 27-31ms / total ~1360ms; built-in `prewarm` 28-31ms / total ~1375ms — **no measurable
+difference**. The per-chapter SD cost (advance table + kern classes) is tens of ms at chapter open.
+Logan couldn't tell them apart. Not measured: a cold chapter re-layout with an SD font. A PSRAM-resident
+font mode (`SdCardFont` has none — it's built for the C3's RAM) is therefore not needed.
+Side finding: of ~1.36s per page turn, ~1.0s is panel (687ms page + 330ms grayscale pass) and ~270ms is
+the grayscale anti-aliasing CPU work — **Settings → Reader → Text Anti-Aliasing off** should bring page
+turns to roughly 0.8s (inferred from the breakdown, not yet measured).
+
 ~~**Where the megabytes actually are is the reader *profile*** — EPUB parsing, the font engine, OPDS,
 dictionaries, the wolfSSL that `ContentProtection` pulls in. A security-focused build's real lever is
 stripping *that*, not trimming the Bible. So the eventual build split is "reading device vs. red-team
