@@ -12,6 +12,7 @@
 #include "activities/bible/BibleBookmarkListActivity.h"
 #include "activities/bible/BibleChapterSelectionActivity.h"
 #include "activities/bible/BibleMenuActivity.h"
+#include "activities/reader/ReaderUtils.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "bible/BibleBookmarkStore.h"
 #include "bible/BibleReference.h"
@@ -44,9 +45,20 @@ void BibleReaderActivity::onEnter() {
 
   applyInitialOrientation();
 
-  if (books.empty() && !BibleChapterLoader::loadBookIndex(KJV_PATH, books)) {
-    finish();
-    return;
+  if (books.empty()) {
+    const unsigned long start = millis();
+    if (BibleChapterLoader::loadCachedBookIndex(KJV_PATH, books)) {
+      LOG_INF("BIBLE", "Book index from cache: %u books in %lu ms", static_cast<unsigned>(books.size()),
+              millis() - start);
+    } else {
+      GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+      if (!BibleChapterLoader::buildCache(KJV_PATH, books)) {
+        finish();
+        return;
+      }
+      LOG_INF("BIBLE", "Chapter cache built: %u books in %lu ms", static_cast<unsigned>(books.size()),
+              millis() - start);
+    }
   }
 
   currentBookIndex = 0;
@@ -81,8 +93,12 @@ void BibleReaderActivity::onExit() {
 }
 
 void BibleReaderActivity::loadCurrentChapter() {
-  chapterLoaded =
-      BibleChapterLoader::loadChapter(KJV_PATH, books[currentBookIndex].name.c_str(), currentChapter, verses);
+  const unsigned long start = millis();
+  const BibleBookInfo& book = books[currentBookIndex];
+  chapterLoaded = BibleChapterLoader::loadCachedChapter(KJV_PATH, book, currentChapter, verses) ||
+                  BibleChapterLoader::loadChapter(KJV_PATH, book.name.c_str(), currentChapter, verses);
+  LOG_INF("BIBLE", "Chapter %s %d: %u verses in %lu ms", books[currentBookIndex].name.c_str(), currentChapter,
+          static_cast<unsigned>(verses.size()), millis() - start);
   buildPages();
   persistPosition();
   requestUpdate();
@@ -94,7 +110,9 @@ void BibleReaderActivity::persistPosition() const {
 }
 
 bool BibleReaderActivity::handleFormatInput() {
-  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+  // The X4 Pro has no Confirm button, so touch (center tap / menu swipe) is its only way in.
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) ||
+      ReaderUtils::isTouchMenuGesture(renderer, mappedInput)) {
     openMenu();
     return true;
   }

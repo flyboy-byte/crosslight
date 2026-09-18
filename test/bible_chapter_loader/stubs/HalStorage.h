@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sys/stat.h>
+
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -38,6 +40,18 @@ class HalFile {
   size_t write(uint8_t byte) { return write(&byte, 1); }
 
   bool seekCur(size_t count) { return file_ && std::fseek(file_, static_cast<long>(count), SEEK_CUR) == 0; }
+
+  bool seek(size_t pos) { return file_ && std::fseek(file_, static_cast<long>(pos), SEEK_SET) == 0; }
+
+  uint64_t fileSize64() {
+    struct stat st;
+    return file_ && fstat(fileno(file_), &st) == 0 ? static_cast<uint64_t>(st.st_size) : 0;
+  }
+
+  uint32_t modificationTime() {
+    struct stat st;
+    return file_ && fstat(fileno(file_), &st) == 0 ? static_cast<uint32_t>(st.st_mtime) : 0;
+  }
 
   bool close() {
     if (!file_) return false;

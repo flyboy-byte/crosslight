@@ -12,6 +12,7 @@ target_include_directories(BibleChapterLoaderTest PRIVATE
 
 target_compile_definitions(BibleChapterLoaderTest PRIVATE
   BIBLE_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+  REPO_ROOT_DIR="${REPO_ROOT}"
 )
 
 target_link_libraries(BibleChapterLoaderTest PRIVATE

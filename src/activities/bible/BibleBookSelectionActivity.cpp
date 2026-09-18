@@ -17,7 +17,8 @@ BibleBookSelectionActivity::BibleBookSelectionActivity(GfxRenderer& renderer, Ma
 void BibleBookSelectionActivity::onEnter() {
   UiListActivity::onEnter();
 
-  loaded = BibleChapterLoader::loadBookIndex(translationPath.c_str(), books);
+  loaded = BibleChapterLoader::loadCachedBookIndex(translationPath.c_str(), books) ||
+           BibleChapterLoader::loadBookIndex(translationPath.c_str(), books);
   if (!loaded) return;
 
   // Built once here, not per buildScreen() call: labels are static and

@@ -27,6 +27,9 @@ struct BibleVerse {
 struct BibleBookInfo {
   std::string name;
   int chapterCount = 0;
+  // Position of this book's first chapter in the on-SD chapter cache, or -1 when the
+  // list came from a plain JSON scan and chapters must be loaded with loadChapter().
+  int firstChapterIndex = -1;
 };
 
 class BibleChapterLoader {
@@ -45,4 +48,27 @@ class BibleChapterLoader {
   // text is never stored. Returns false if the file can't be opened or a JSON
   // error occurs; `outBooks` is untouched on failure.
   static bool loadBookIndex(const char* path, std::vector<BibleBookInfo>& outBooks);
+
+  // --- On-SD chapter cache -------------------------------------------------
+  // Parsing the whole KJV takes ~7s on the X4 Pro, so the first open writes
+  // `<path>.cache`: the book list plus every chapter's verses at a known offset.
+  // Later opens and chapter jumps read a few KB from it instead of parsing JSON.
+  // The cache records the source file's size and mtime and is rebuilt when either
+  // changes.
+
+  static std::string cachePathFor(const char* path);
+
+  // Fast path: the book list from an existing, up-to-date cache. False if the cache
+  // is missing, stale, or unreadable (no parsing is attempted).
+  static bool loadCachedBookIndex(const char* path, std::vector<BibleBookInfo>& outBooks);
+
+  // One full parse of `path` that writes the cache and fills `outBooks`. If the
+  // parse succeeds but the cache can't be written, still returns true with books
+  // whose firstChapterIndex is -1 (callers fall back to loadChapter()).
+  static bool buildCache(const char* path, std::vector<BibleBookInfo>& outBooks);
+
+  // Reads one chapter from the cache. `book` must come from loadCachedBookIndex()
+  // or buildCache(); returns false if it has no cache position.
+  static bool loadCachedChapter(const char* path, const BibleBookInfo& book, int chapterNumber,
+                                std::vector<BibleVerse>& outVerses);
 };

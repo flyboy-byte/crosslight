@@ -3,9 +3,9 @@
 Status: Bible reader Phase 1 MVP complete on the simulator (pagination, chapter/book-crossing page
 turns, book/chapter picker, Esther 8:9 fixed, reading position persisted, bookmarks, verse-reference
 jump — all verified in the simulator, 349 host tests pass); **last updated 2026-09-18. X4 Pro arrived
-2026-09-18: stock baseline photographed, full 16MB stock flash backed up and verified (step 11). Device
-is still on stock. Next: step 12 stock checklist, then step 13, the first flash (plain CrossPoint).** Use a
-USB-A-to-C cable, not C-to-C (see "What the dump took").
+2026-09-18: stock backed up and verified (step 11), then CrossLight flashed and running on the device
+(panel is UC8279). Bible opens in ~15 ms via the new chapter cache (was 10 s) and its menu now opens by
+touch — see "First flash and first on-device session".** Use a USB-A-to-C cable, not C-to-C.
 
 **Plan (decided 2026-09-10):** ship the *full* Bible build for the first on-device run, get it working
 and documented on hardware, then use this doc as the guide for what to cut when a wireless/security
@@ -542,6 +542,34 @@ stock's UI for CrossLight ideas):**
   text.
 - Not yet checked: how many of these CrossPoint's existing themes (Lyra, Lyra Extended, RoundedRaff)
   already do — check before building any.
+
+**First flash and first on-device session (2026-09-18):**
+- **Step 13 skipped by Logan's call** — flashed CrossLight directly, not plain CrossPoint first. If
+  something looks wrong on-device, flashing plain CrossPoint is still the fastest upstream-vs-ours test.
+- **How it was flashed:** `esptool erase-flash` first (wipes stock NVS — confirmed all-`0xFF` at
+  0x9000 — and stock's leftover regions), then `pio run -e x4pro -t upload`. The upload writes bootloader
+  (0x0), CrossPoint's partition table (0x8000), `boot_app0.bin` (0xe000, resets otadata to app0) and the
+  app (0x10000). **Don't use upstream README's app-only `write_flash 0x10000`** on a unit fresh from
+  stock: stock's otadata pointed at app1, so an app-only flash would "succeed" and keep booting stock.
+  Writing to flash is unaffected by the esptool read bug (hash verified on every upload).
+- **Panel controller answered (step 12's open question): UC8279**, not SSD1677/UC8179 — boot log:
+  `bus probe ... -> UltraChip`, `promoted SSD1677 -> UC8279 800x480 (LUT_VER=02)`, driver `8279x4`.
+  Refresh: full ~1331 ms, fast ~485 ms. Consequence: grayscale sleep images need SSD1677
+  (`SleepActivity` gates on it), so the custom sleep screen renders 1-bit on this unit.
+- **SD card as set up:** `/Bible/KJV/kjv.json` (+ the generated `kjv.json.cache`), `/sleep.bmp` (the
+  stock Sabaton wallpaper, converted from stock's `Pushed Images/*.xth` — XTH is a 22-byte header + two
+  column-major bit planes, decoded with the same mapping as `lib/Xtc/Xtc.cpp`, written as a 2-bit 4-gray
+  BMP), `/Books/` (4 EPUBs). Stock's own folders (`XTApps`, `XTCache`, `XTData`, `Pushed *`) left alone.
+- **Bible on real hardware — two bugs the simulator structurally couldn't show (item 15 partly done):**
+  | Symptom | Cause | Fix | Measured |
+  | --- | --- | --- | --- |
+  | Opening the Bible froze ~10s | `onEnter()` ran `loadBookIndex` = full SAX parse of the 8.9MB JSON, just for 66 names + chapter counts. `loadChapter` also re-scans from the file start, so late books cost another near-full pass. The book picker did its own full pass too. Sim hid it (host SSD/CPU ~100× faster). | 1) 512B stack read buffer → 16KB heap (7.0s, parse-bound, not I/O-bound). 2) **Chapter cache** `<json>.cache`: one full parse writes book table + every chapter's verses at known offsets (4.25MB); invalidated by source size/mtime; reader and book picker read it first, JSON fallback if anything fails | Open: 10,060 ms → **7 ms** (book list) + **8 ms** (chapter). One-time cache build: 14.7 s behind a Loading popup |
+  | No way to reach Books/Verse/Bookmarks | Bible menu only opened on `Confirm`; the X4 Pro has no Confirm button | Also accept `ReaderUtils::isTouchMenuGesture` (center-third tap / menu swipe), same as the EPUB reader | Confirmed on device |
+  Host tests: 353 pass, including a full-KJV check (skipped where `fs_/` is absent) that the cache's
+  first and last chapter of every book match the JSON loader byte for byte.
+- **Serial logging from the device:** CrossLight logs over the same USB-Serial/JTAG. Opening the port
+  **resets the chip** even with DTR/RTS pre-cleared (Linux raises them on open), so attaching a logger
+  reboots the device — harmless, just expect it. `Errno 71` on port open = device asleep; wake it.
 
 *Stock bring-up — before flashing anything else:*
 12. Boot on stock firmware. Note the panel-controller batch from the boot/about screen or visible
