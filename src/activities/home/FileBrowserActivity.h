@@ -53,6 +53,9 @@ class FileBrowserActivity final : public UiListActivity {
   // forceDelete routes the touch long-press to the delete branch; button
   // navigation leaves it false and relies on getHeldTime() instead.
   void activateSelected(bool forceDelete = false);
+  // CrossLight: long-press menu for .bmp files (wallpaper actions + delete).
+  void showImageOptions(const std::string& fullPath, const std::string& entry);
+  bool imageDeleteChosen = false;
 
   // Data loading
   void loadFiles();

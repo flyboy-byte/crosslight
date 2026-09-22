@@ -11,11 +11,13 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "activities/util/ChoiceActivity.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "components/UiAppHelpers.h"
 #include "fontIds.h"
 #include "util/BookCacheUtils.h"
+#include "util/Wallpaper.h"
 
 namespace fui = freeink::ui;
 
@@ -280,6 +282,13 @@ void FileBrowserActivity::activateSelected(const bool forceDelete) {
     if (cleanBasePath.back() != '/') cleanBasePath += "/";
     const std::string fullPath = cleanBasePath + entry;
 
+    // CrossLight: images get wallpaper options first; its Delete choice comes back here.
+    if (!isDirectory && FsHelpers::hasBmpExtension(entry) && !imageDeleteChosen) {
+      showImageOptions(fullPath, entry);
+      return;
+    }
+    imageDeleteChosen = false;
+
     auto handler = [this, fullPath](const ActivityResult& res) {
       if (!res.isCancelled) {
         LOG_DBG("FileBrowser", "Attempting to delete: %s", fullPath.c_str());
@@ -335,6 +344,35 @@ void FileBrowserActivity::activateSelected(const bool forceDelete) {
     }
   }
   return;
+}
+
+void FileBrowserActivity::showImageOptions(const std::string& fullPath, const std::string& entry) {
+  enum { SET_SLEEP_SCREEN, ADD_TO_ROTATION, DELETE_FILE };
+  std::vector<std::string> options = {tr(STR_SET_AS_WALLPAPER), tr(STR_ADD_TO_WALLPAPERS), tr(STR_DELETE),
+                                      tr(STR_CANCEL)};
+  startActivityForResult(
+      std::make_unique<ChoiceActivity>(renderer, mappedInput, utf8ComposeNfc(entry), "", std::move(options)),
+      [this, fullPath](const ActivityResult& res) {
+        const auto* choice = std::get_if<MenuResult>(&res.data);
+        if (res.isCancelled || !choice) return;
+        if (choice->action == DELETE_FILE) {
+          imageDeleteChosen = true;
+          activateSelected(/*forceDelete=*/true);
+          return;
+        }
+        if (choice->action != SET_SLEEP_SCREEN && choice->action != ADD_TO_ROTATION) return;
+        const bool ok = choice->action == SET_SLEEP_SCREEN ? Wallpaper::setAsSleepScreen(fullPath)
+                                                           : Wallpaper::addToRotation(fullPath);
+        {
+          RenderLock lock(*this);
+          GUI.drawPopup(renderer, ok ? tr(STR_DONE) : tr(STR_FAILED_LOWER));
+        }
+        delay(800);
+        // /sleep.bmp or /.sleep may have just appeared in the listing.
+        RenderLock lock(*this);
+        loadFiles();
+        nav.follow(listCount());
+      });
 }
 
 bool FileBrowserActivity::handleCustomInput() {

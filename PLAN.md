@@ -12,11 +12,11 @@ touch — see "First flash and first on-device session".** Use a USB-A-to-C cabl
 | # | Request | Status |
 | --- | --- | --- |
 | 1 | Fonts to SD to free flash for utilities | **Built, sim-verified, not yet on device.** `-DOMIT_FONTS` in `[env:x4pro]` (flash 83.8% → 58.6%). SD families `/.fonts/Noto Serif/` + `/.fonts/Noto Sans/` (12-18, from the built-in source TTFs, `--intervals builtin`). Under `OMIT_FONTS`: built-in sizes shrink to {14}; `getReaderFontId()` only ever returns Noto Serif 14 (a missing id rendered blank pages); boot maps a built-in family choice to the same-named SD family (`SdCardFontSystem::begin`); the Font Family list hides built-ins the SD families replace. Next device session: copy both families, delete the `NotoSansSD` test family, flash, verify |
-| 2 | Local (PC) tool to prep any image as a wallpaper | Planned. Pre-dither to **1-bit** 480×800 on the PC: this UC8279 unit renders sleep images 1-bit, and 4-gray input gets thresholded (posterized) rather than dithered — firmware only error-diffuses high-color BMPs. Also re-do the Sabaton `/sleep.bmp` this way |
-| 3 | Wallpaper options from the file browser | Planned. Long-press on an image → Set as sleep screen / Add to sleep rotation (`/.sleep/`) / Delete (long-press is delete-only today). The image viewer's "Set sleep cover" exists but is Confirm-only and its hint is hidden on touch boards — unreachable on the X4 Pro |
+| 2 | Local (PC) tool to prep any image as a wallpaper | **Built:** `scripts/make_wallpaper.py` (0.4s/image; sim sleep screen renders it pixel-identical to `--preview`). New 1-bit Sabaton ready for the card. Was: Planned. Pre-dither to **1-bit** 480×800 on the PC: this UC8279 unit renders sleep images 1-bit, and 4-gray input gets thresholded (posterized) rather than dithered — firmware only error-diffuses high-color BMPs. Also re-do the Sabaton `/sleep.bmp` this way |
+| 3 | Wallpaper options from the file browser | **Built, sim-verified (all 3 actions + Delete hand-off), not yet on device.** `ChoiceActivity` (N-option modal) + `util/Wallpaper` (set → `/sleep.bmp`; add → `/.sleep/`, moving an existing `/sleep.bmp` in rather than deleting it); both switch Sleep Screen to Custom. Was: Planned. Long-press on an image → Set as sleep screen / Add to sleep rotation (`/.sleep/`) / Delete (long-press is delete-only today). The image viewer's "Set sleep cover" exists but is Confirm-only and its hint is hidden on touch boards — unreachable on the X4 Pro |
 | 4 | Bible: download preset English translations over WiFi | Planned. Infra exists (`HttpDownloader`, WiFi picker, chapter cache rebuilds per file). Offer public-domain English versions only, show license before download (see translation-downloader scoping below) |
 | 5 | Bible full-text search | Planned; cheaper than scoped. Search the chapter cache (plain text, 4.25MB) instead of the JSON; optionally keep it in PSRAM for near-instant repeat searches. Measure the cold SD pass first |
-| 6 | Bible: center tap sometimes doesn't open the menu | To investigate with the serial logger (did the tap register, where did it land vs. the center-third zone) |
+| 6 | Bible: center tap sometimes doesn't open the menu | **Fixed, not yet on device:** the reader menu tap only accepts the center *ninth*; taps above/below it in the center column hit no zone. The Bible now takes the whole center column. Was: To investigate with the serial logger (did the tap register, where did it land vs. the center-third zone) |
 | 7 | Lag when page-turn taps queue up | To investigate: skip queued intermediate pages and render only the final one. Baseline: ~1.36s/turn, ~1.0s of it panel |
 | 8 | Home screen: select with buttons, not only touch | Existing setting: Settings → Controls → Short Power Button Click → Confirm (or Home key tap → Confirm). Consider making it the X4 Pro default |
 | 9 | WiFi not set up | No code needed: the flash erase removed stock's saved network; add it once in Settings → System → Wi-Fi Networks |
@@ -275,9 +275,12 @@ it's stale.)
 The simulator can be driven headlessly, which is what makes "verified in the simulator" mean something
 repeatable rather than "I clicked around once". Two env vars, both `;`-separated `<ms>:<what>` lists:
 
-- `CROSSPOINT_SIM_INPUT_SCRIPT` — actions at wall-clock ms. Valid actions (confirmed in the sim's
-  `HalGPIO.cpp`, not guessed): `ESCAPE`/`BACK`, `RETURN`/`ENTER`/`CONFIRM`, `LEFT`, `RIGHT`, `UP`,
-  `DOWN`, `QUIT`.
+- `CROSSPOINT_SIM_INPUT_SCRIPT` — `<ms>:<ACTION>[:<detail>]` at wall-clock ms. Actions (re-read from the
+  sim's `HalGPIO.cpp` 2026-09-21 — the earlier list here was incomplete): `ESCAPE`/`BACK`,
+  `RETURN`/`ENTER`/`CONFIRM`, `LEFT`, `RIGHT`, `UP`, `DOWN`, `POWER` (buttons take an optional hold in ms,
+  e.g. `3000:RETURN:1200`), `HOME[:holdMs]`, `SLEEP`, `QUIT`, and **touch**: `TAP:x,y[,durationMs]`
+  (logical pixels; a long-press is a tap with duration ≥500) and `SWIPE:x1,y1,x2,y2[,durationMs]`. So
+  touch-only flows (long-press menus, the Bible center tap) are scriptable.
 - `CROSSPOINT_SIM_SCREENSHOTS` — `<ms>:<path>.bmp`. Convert with PIL to view.
 
 A real example — the bookmark toggle run from item 11 (Home → Bible → menu → toggle → screenshot):
