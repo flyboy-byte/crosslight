@@ -109,10 +109,21 @@ void BibleReaderActivity::persistPosition() const {
   BIBLE_READING_STATE.save(books[currentBookIndex].name, currentChapter, currentPageIndex);
 }
 
+bool BibleReaderActivity::isCenterColumnTap() const {
+  if (!mappedInput.hasTouch() || SETTINGS.showReaderMenu != CrossPointSettings::READER_MENU_TAP) return false;
+  int x = 0;
+  int y = 0;
+  if (!mappedInput.wasScreenTapped(x, y)) return false;
+  const int zoneWidth = renderer.getScreenWidth() / 3;
+  return x >= zoneWidth && x < renderer.getScreenWidth() - zoneWidth;
+}
+
 bool BibleReaderActivity::handleFormatInput() {
-  // The X4 Pro has no Confirm button, so touch (center tap / menu swipe) is its only way in.
+  // The X4 Pro has no Confirm button, so touch is its only way in. ReaderUtils' menu tap
+  // only accepts the center ninth; above or below it in the center column a tap hit
+  // neither the menu nor a page-turn zone, so the Bible takes the whole column.
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) ||
-      ReaderUtils::isTouchMenuGesture(renderer, mappedInput)) {
+      ReaderUtils::isTouchMenuGesture(renderer, mappedInput) || isCenterColumnTap()) {
     openMenu();
     return true;
   }

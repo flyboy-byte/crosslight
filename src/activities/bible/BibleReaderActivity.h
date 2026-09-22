@@ -40,6 +40,7 @@ class BibleReaderActivity final : public ReaderActivity {
   bool loadBook() override { return true; }  // no-op: onEnter() drives loading directly, see above
   std::string getBookTitle() const override { return "Bible"; }
   bool handleFormatInput() override;
+  bool isCenterColumnTap() const;
   bool pageTurn(bool isForward) override;
   bool isAtEndOfBook() const override { return false; }
   void renderBook() override;
