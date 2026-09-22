@@ -20,6 +20,9 @@ class BibleReadingStateStore : public PersistableStore<BibleReadingStateStore> {
   std::string bookName;
   int chapter = 1;
   int page = 0;
+  // getBible abbreviation of the selected translation ("kjv"); empty = default.
+  // See BibleTranslations::current().
+  std::string translation;
 
   static const char* getFilePath() { return "/.crosspoint/bible_state.json"; }
   void toJson(JsonDocument& doc) const;

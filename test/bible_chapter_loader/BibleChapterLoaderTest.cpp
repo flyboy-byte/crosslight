@@ -137,3 +137,89 @@ TEST(BibleCacheFullKjvTest, FirstAndLastChapterOfEveryBookMatchJson) {
   }
   fs::remove_all(dir);
 }
+
+TEST_F(BibleCacheTest, SearchIsCaseInsensitiveAndCapped) {
+  std::vector<BibleBookInfo> books;
+  ASSERT_TRUE(BibleChapterLoader::buildCache(source.c_str(), books));
+
+  std::vector<BibleChapterLoader::SearchHit> lower;
+  std::vector<BibleChapterLoader::SearchHit> upper;
+  ASSERT_TRUE(BibleChapterLoader::searchCache(source.c_str(), "king", 100, lower));
+  ASSERT_TRUE(BibleChapterLoader::searchCache(source.c_str(), "  KING ", 100, upper));
+  ASSERT_FALSE(lower.empty());
+  ASSERT_EQ(lower.size(), upper.size());
+  EXPECT_EQ(lower[0].book, "Esther");
+  EXPECT_EQ(lower[0].chapter, 8);
+
+  bool truncated = false;
+  std::vector<BibleChapterLoader::SearchHit> capped;
+  ASSERT_TRUE(BibleChapterLoader::searchCache(source.c_str(), "king", 2, capped, &truncated));
+  EXPECT_EQ(capped.size(), 2u);
+  EXPECT_TRUE(truncated);
+
+  std::vector<BibleChapterLoader::SearchHit> none;
+  ASSERT_TRUE(BibleChapterLoader::searchCache(source.c_str(), "zzzqqq", 100, none));
+  EXPECT_TRUE(none.empty());
+}
+
+TEST_F(BibleCacheTest, LongVerseSnippetIsWindowedAroundMatch) {
+  std::vector<BibleBookInfo> books;
+  ASSERT_TRUE(BibleChapterLoader::buildCache(source.c_str(), books));
+  // Esther 8:9 is 530 bytes; "their language" is its ending.
+  std::vector<BibleChapterLoader::SearchHit> hits;
+  ASSERT_TRUE(BibleChapterLoader::searchCache(source.c_str(), "according to their language", 10, hits));
+  ASSERT_EQ(hits.size(), 1u);
+  EXPECT_EQ(hits[0].verse, 9);
+  EXPECT_LT(hits[0].snippet.size(), 130u);
+  EXPECT_EQ(hits[0].snippet.rfind("...", 0), 0u) << "window should start mid-verse";
+  EXPECT_NE(hits[0].snippet.find("their language"), std::string::npos);
+}
+
+TEST(BibleSearchFullKjvTest, FindsKnownVerses) {
+  const fs::path kjv = fs::path(REPO_ROOT_DIR) / "fs_/Bible/KJV/kjv.json";
+  if (!fs::exists(kjv)) GTEST_SKIP() << "no local KJV at " << kjv;
+  const fs::path dir = fs::temp_directory_path() / ("bible_kjv_search_test_" + std::to_string(getpid()));
+  fs::create_directories(dir);
+  const std::string source = (dir / "kjv.json").string();
+  fs::copy_file(kjv, source, fs::copy_options::overwrite_existing);
+  std::vector<BibleBookInfo> books;
+  ASSERT_TRUE(BibleChapterLoader::buildCache(source.c_str(), books));
+
+  std::vector<BibleChapterLoader::SearchHit> hits;
+  ASSERT_TRUE(BibleChapterLoader::searchCache(source.c_str(), "jesus wept", 10, hits));
+  ASSERT_EQ(hits.size(), 1u);
+  EXPECT_EQ(hits[0].book, "John");
+  EXPECT_EQ(hits[0].chapter, 11);
+  EXPECT_EQ(hits[0].verse, 35);
+
+  ASSERT_TRUE(BibleChapterLoader::searchCache(source.c_str(), "in the beginning", 10, hits));
+  ASSERT_GE(hits.size(), 2u);
+  EXPECT_EQ(hits[0].book, "Genesis");
+  EXPECT_EQ(hits[0].verse, 1);
+  fs::remove_all(dir);
+}
+
+TEST_F(BibleCacheTest, VerseWhitespaceIsNormalizedInCacheAndJsonPaths) {
+  // WEB-style text: paragraph indent, double spaces, trailing space.
+  const std::string messy = (dir / "messy.json").string();
+  std::ofstream(messy) << R"({"books":[{"name":"Genesis","chapters":[{"chapter":1,"verses":[)"
+                       << R"({"verse":1,"text":"In the beginning."},)"
+                       << R"({"verse":3,"text":"  God said,  “Let there be light,” and there was light. "}]}]}]})";
+  const std::string expected = "God said, “Let there be light,” and there was light.";
+
+  std::vector<BibleVerse> fromJson;
+  ASSERT_TRUE(BibleChapterLoader::loadChapter(messy.c_str(), "Genesis", 1, fromJson));
+  ASSERT_EQ(fromJson.size(), 2u);
+  EXPECT_EQ(fromJson[1].text, expected);
+
+  std::vector<BibleBookInfo> books;
+  ASSERT_TRUE(BibleChapterLoader::buildCache(messy.c_str(), books));
+  std::vector<BibleVerse> fromCache;
+  ASSERT_TRUE(BibleChapterLoader::loadCachedChapter(messy.c_str(), books[0], 1, fromCache));
+  ASSERT_EQ(fromCache.size(), 2u);
+  EXPECT_EQ(fromCache[1].text, expected);
+
+  std::vector<BibleChapterLoader::SearchHit> hits;
+  ASSERT_TRUE(BibleChapterLoader::searchCache(messy.c_str(), "god said, “let there", 5, hits));
+  EXPECT_EQ(hits.size(), 1u);
+}

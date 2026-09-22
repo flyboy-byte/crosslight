@@ -11,48 +11,59 @@
 #include "activities/bible/BibleBookSelectionActivity.h"
 #include "activities/bible/BibleBookmarkListActivity.h"
 #include "activities/bible/BibleChapterSelectionActivity.h"
+#include "activities/ActivityManager.h"
 #include "activities/bible/BibleMenuActivity.h"
+#include "activities/bible/BibleSearchResultsActivity.h"
 #include "activities/reader/ReaderUtils.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "bible/BibleBookmarkStore.h"
 #include "bible/BibleReference.h"
 #include "bible/BibleReadingStateStore.h"
+#include "bible/BibleTranslations.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
 namespace {
-// SD-first: a translation dropped at this path (getBible v2 JSON format,
-// e.g. downloaded from https://api.getbible.net/v2/kjv.json) just works,
-// no network needed. See PLAN.md.
-constexpr const char* KJV_PATH = "/Bible/KJV/kjv.json";
+// ReaderActivity's bookPath; the file actually read is the selected translation
+// (BibleTranslations: /Bible/<ABBR>/<abbr>.json, SD-first, no network needed).
+constexpr const char* BIBLE_BOOK_PATH = "/Bible";
+constexpr size_t MAX_SEARCH_HITS = 100;
+constexpr size_t MAX_SEARCH_LENGTH = 48;
 // A single verse wrapping into more lines than this is not expected at this
 // screen width; wrappedText truncates (with an ellipsis) past its cap rather
 // than overflowing, so this is a safety ceiling, not a real limit.
 constexpr int MAX_WRAP_LINES_PER_VERSE = 24;
 }  // namespace
 
-BibleReaderActivity::BibleReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
-    : ReaderActivity("BibleReader", renderer, mappedInput, KJV_PATH, /*allowFastInitialRefresh=*/true) {}
+BibleReaderActivity::BibleReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                                         const InitialAction initialAction)
+    : ReaderActivity("BibleReader", renderer, mappedInput, BIBLE_BOOK_PATH, /*allowFastInitialRefresh=*/true),
+      pendingAction(initialAction) {}
 
 void BibleReaderActivity::onEnter() {
   Activity::onEnter();
 
-  if (!Storage.exists(KJV_PATH)) {
-    LOG_ERR("BIBLE", "Translation file not found: %s", KJV_PATH);
-    finish();
+  BIBLE_READING_STATE.loadFromFile();
+  translationAbbr = BibleTranslations::current();
+  translationPath = BibleTranslations::pathFor(translationAbbr.empty() ? "kjv" : translationAbbr);
+  if (translationAbbr.empty()) {
+    LOG_ERR("BIBLE", "No translation found under /Bible");
+    pendingAction = InitialAction::Resume;
+    requestUpdate();  // renders the "copy a translation to..." screen
     return;
   }
+  const char* path = translationPath.c_str();
 
   applyInitialOrientation();
 
   if (books.empty()) {
     const unsigned long start = millis();
-    if (BibleChapterLoader::loadCachedBookIndex(KJV_PATH, books)) {
+    if (BibleChapterLoader::loadCachedBookIndex(path, books)) {
       LOG_INF("BIBLE", "Book index from cache: %u books in %lu ms", static_cast<unsigned>(books.size()),
               millis() - start);
     } else {
       GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
-      if (!BibleChapterLoader::buildCache(KJV_PATH, books)) {
+      if (!BibleChapterLoader::buildCache(path, books)) {
         finish();
         return;
       }
@@ -65,7 +76,6 @@ void BibleReaderActivity::onEnter() {
   currentChapter = 1;
   currentPageIndex = 0;
   BIBLE_BOOKMARKS.loadFromFile();
-  BIBLE_READING_STATE.loadFromFile();
   if (BIBLE_READING_STATE.hasSavedPosition()) {
     for (size_t i = 0; i < books.size(); ++i) {
       if (books[i].name == BIBLE_READING_STATE.bookName) {
@@ -95,8 +105,8 @@ void BibleReaderActivity::onExit() {
 void BibleReaderActivity::loadCurrentChapter() {
   const unsigned long start = millis();
   const BibleBookInfo& book = books[currentBookIndex];
-  chapterLoaded = BibleChapterLoader::loadCachedChapter(KJV_PATH, book, currentChapter, verses) ||
-                  BibleChapterLoader::loadChapter(KJV_PATH, book.name.c_str(), currentChapter, verses);
+  chapterLoaded = BibleChapterLoader::loadCachedChapter(translationPath.c_str(), book, currentChapter, verses) ||
+                  BibleChapterLoader::loadChapter(translationPath.c_str(), book.name.c_str(), currentChapter, verses);
   LOG_INF("BIBLE", "Chapter %s %d: %u verses in %lu ms", books[currentBookIndex].name.c_str(), currentChapter,
           static_cast<unsigned>(verses.size()), millis() - start);
   buildPages();
@@ -119,6 +129,33 @@ bool BibleReaderActivity::isCenterColumnTap() const {
 }
 
 bool BibleReaderActivity::handleFormatInput() {
+  // The hub's row (Select Book, Search, ...) opens on top once the reader has loaded.
+  if (pendingAction != InitialAction::Resume && !books.empty()) {
+    const InitialAction action = pendingAction;
+    pendingAction = InitialAction::Resume;
+    switch (action) {
+      case InitialAction::BookPicker:
+        openBookPicker();
+        break;
+      case InitialAction::VerseJump:
+        openVerseJump();
+        break;
+      case InitialAction::Bookmarks:
+        openBookmarkList();
+        break;
+      case InitialAction::Search:
+        openSearch();
+        break;
+      case InitialAction::Resume:
+        break;
+    }
+    return true;
+  }
+  // Back returns to the Bible hub; Back there goes Home.
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    activityManager.goToBible();
+    return true;
+  }
   // The X4 Pro has no Confirm button, so touch is its only way in. ReaderUtils' menu tap
   // only accepts the center ninth; above or below it in the center column a tap hit
   // neither the menu nor a page-turn zone, so the Bible takes the whole column.
@@ -164,7 +201,7 @@ void BibleReaderActivity::openMenu() {
 
 void BibleReaderActivity::openBookPicker() {
   startActivityForResult(
-      std::make_unique<BibleBookSelectionActivity>(renderer, mappedInput, KJV_PATH),
+      std::make_unique<BibleBookSelectionActivity>(renderer, mappedInput, translationPath),
       [this](const ActivityResult& result) {
         if (result.isCancelled) return;
         const auto& bookResult = std::get<BibleBookResult>(result.data);
@@ -230,6 +267,38 @@ void BibleReaderActivity::goToVerse(const int verseNumber) {
   }
 }
 
+void BibleReaderActivity::openSearch() {
+  startActivityForResult(std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_SEARCH_BIBLE),
+                                                                 lastSearchQuery, MAX_SEARCH_LENGTH),
+                         [this](const ActivityResult& result) {
+                           if (result.isCancelled) return;
+                           runSearch(std::get<KeyboardResult>(result.data).text);
+                         });
+}
+
+// One linear pass over the chapter cache (see BibleChapterLoader::searchCache).
+void BibleReaderActivity::runSearch(const std::string& query) {
+  lastSearchQuery = query;
+  {
+    RenderLock lock(*this);
+    GUI.drawPopup(renderer, tr(STR_SEARCHING));
+  }
+  const unsigned long start = millis();
+  std::vector<BibleChapterLoader::SearchHit> hits;
+  bool truncated = false;
+  BibleChapterLoader::searchCache(translationPath.c_str(), query, MAX_SEARCH_HITS, hits, &truncated);
+  LOG_INF("BIBLE", "Search \"%s\": %u hits%s in %lu ms", query.c_str(), static_cast<unsigned>(hits.size()),
+          truncated ? "+" : "", millis() - start);
+  startActivityForResult(
+      std::make_unique<BibleSearchResultsActivity>(renderer, mappedInput, query, std::move(hits), truncated),
+      [this](const ActivityResult& result) {
+        if (result.isCancelled) return;
+        const auto& hit = std::get<BibleVerseResult>(result.data);
+        goTo(hit.book, hit.chapter, 0);
+        if (hit.verse > 0) goToVerse(hit.verse);
+      });
+}
+
 void BibleReaderActivity::openBookmarkList() {
   startActivityForResult(std::make_unique<BibleBookmarkListActivity>(renderer, mappedInput),
                          [this](const ActivityResult& result) {
@@ -267,6 +336,7 @@ void BibleReaderActivity::goTo(const std::string& bookName, const int chapter, c
 // backward paging at Genesis 1's first page both just stop rather than
 // wrapping or opening an end-of-book menu.
 bool BibleReaderActivity::pageTurn(const bool isForward) {
+  if (books.empty()) return false;  // no translation installed
   if (isForward) {
     if (currentPageIndex + 1 < static_cast<int>(pages.size())) {
       ++currentPageIndex;
@@ -365,9 +435,10 @@ void BibleReaderActivity::renderBook() {
   if (!chapterLoaded) {
     renderer.drawText(UI_10_FONT_ID, x, y, tr(STR_BIBLE_NOT_FOUND), true, EpdFontFamily::BOLD);
     y += lineH * 2;
-    renderer.drawText(UI_10_FONT_ID, x, y, KJV_PATH, true);
+    renderer.drawText(UI_10_FONT_ID, x, y, translationPath.c_str(), true);
   } else {
-    std::string title = books[currentBookIndex].name + " " + std::to_string(currentChapter) + " (KJV)";
+    std::string title = books[currentBookIndex].name + " " + std::to_string(currentChapter) + " (" +
+                        BibleTranslations::shortLabel(translationAbbr) + ")";
     if (pages.size() > 1) {
       title += "  " + std::to_string(currentPageIndex + 1) + "/" + std::to_string(pages.size());
     }

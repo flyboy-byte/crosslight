@@ -17,6 +17,26 @@ namespace {
 constexpr size_t READ_CHUNK_SIZE = 16 * 1024;
 constexpr size_t BOOK_NAME_BUF_SIZE = 64;
 
+// Verse text with runs of whitespace collapsed to one space and the ends trimmed. Some
+// translations (WEB) carry paragraph indents and double spaces that show as gaps and
+// would break phrase search.
+std::string normalizeWhitespace(const char* value, size_t len) {
+  std::string out;
+  out.reserve(len);
+  bool pendingSpace = false;
+  for (size_t i = 0; i < len; ++i) {
+    const char c = value[i];
+    if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+      pendingSpace = !out.empty();
+      continue;
+    }
+    if (pendingSpace) out.push_back(' ');
+    pendingSpace = false;
+    out.push_back(c);
+  }
+  return out;
+}
+
 // Semantic container kind at the current nesting level. Tracked as a small
 // manual stack (max depth ~7 for this fixed schema) since StreamingJsonParser
 // only reports generic object/array start/end, not what they mean.
@@ -154,7 +174,7 @@ void onString(void* ctxPtr, const char* value, size_t len) {
     ctx->inTargetBook = (strcmp(ctx->currentBookName, ctx->targetBook) == 0);
   } else if (ctx->top() == Frame::VERSE_OBJECT && ctx->lastKey == Key::TEXT && ctx->inTargetBook &&
              ctx->inTargetChapter) {
-    ctx->outVerses->push_back(BibleVerse{ctx->currentVerseNumber, std::string(value, len)});
+    ctx->outVerses->push_back(BibleVerse{ctx->currentVerseNumber, normalizeWhitespace(value, len)});
   }
 }
 
@@ -264,7 +284,7 @@ void onIndexString(void* ctxPtr, const char* value, size_t len) {
 // Chapter blob: repeated { u16 verseNumber, u16 textLen, text bytes }.
 
 constexpr char CACHE_MAGIC[4] = {'C', 'L', 'B', 'C'};
-constexpr uint16_t CACHE_VERSION = 1;
+constexpr uint16_t CACHE_VERSION = 2;  // 2: verse whitespace normalized
 
 #pragma pack(push, 1)
 struct CacheHeader {
@@ -405,10 +425,11 @@ void onBuildString(void* ctxPtr, const char* value, size_t len) {
   if (ctx->top() == Frame::BOOK_OBJECT && ctx->lastKey == Key::NAME) {
     ctx->bookName.assign(value, len);
   } else if (ctx->top() == Frame::VERSE_OBJECT && ctx->lastKey == Key::TEXT) {
-    const auto n = static_cast<uint16_t>(len < 0xFFFF ? len : 0xFFFF);
+    const std::string text = normalizeWhitespace(value, len);
+    const auto n = static_cast<uint16_t>(text.size() < 0xFFFF ? text.size() : 0xFFFF);
     appendU16(ctx->chapterBlob, static_cast<uint16_t>(ctx->verseNumber));
     appendU16(ctx->chapterBlob, n);
-    ctx->chapterBlob.append(value, n);
+    ctx->chapterBlob.append(text.data(), n);
   }
 }
 
@@ -679,5 +700,120 @@ bool BibleChapterLoader::loadCachedChapter(const char* path, const BibleBookInfo
   }
   if (verses.empty()) return false;
   outVerses = std::move(verses);
+  return true;
+}
+
+namespace {
+
+char asciiLower(char c) { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c; }
+
+// Byte offset of `needle` (already lower-case) in `hay`, ignoring ASCII case; npos if absent.
+size_t findCaseInsensitive(const char* hay, size_t hayLen, const std::string& needle) {
+  const size_t n = needle.size();
+  if (n == 0 || n > hayLen) return std::string::npos;
+  for (size_t i = 0; i + n <= hayLen; ++i) {
+    size_t j = 0;
+    while (j < n && asciiLower(hay[i + j]) == needle[j]) ++j;
+    if (j == n) return i;
+  }
+  return std::string::npos;
+}
+
+// Moves `pos` back to the start of a UTF-8 character so a cut never splits one.
+size_t utf8Boundary(const char* s, size_t pos) {
+  while (pos > 0 && (static_cast<unsigned char>(s[pos]) & 0xC0) == 0x80) --pos;
+  return pos;
+}
+
+std::string snippetAround(const char* text, size_t len, size_t matchPos) {
+  constexpr size_t MAX_SNIPPET = 110;
+  constexpr size_t LEAD = 30;
+  if (len <= MAX_SNIPPET) return std::string(text, len);
+  size_t start = matchPos > LEAD ? utf8Boundary(text, matchPos - LEAD) : 0;
+  size_t end = start + MAX_SNIPPET < len ? utf8Boundary(text, start + MAX_SNIPPET) : len;
+  std::string out;
+  if (start > 0) out += "...";
+  out.append(text + start, end - start);
+  if (end < len) out += "...";
+  return out;
+}
+
+}  // namespace
+
+bool BibleChapterLoader::searchCache(const char* path, const std::string& query, const size_t maxHits,
+                                     std::vector<SearchHit>& outHits, bool* truncated) {
+  outHits.clear();
+  if (truncated) *truncated = false;
+  std::string needle;
+  needle.reserve(query.size());
+  for (const char c : query) needle.push_back(asciiLower(c));
+  while (!needle.empty() && needle.back() == ' ') needle.pop_back();
+  while (!needle.empty() && needle.front() == ' ') needle.erase(needle.begin());
+  if (needle.empty()) return true;
+
+  HalFile file;
+  if (!Storage.openFileForRead("BIBLE", cachePathFor(path), file)) return false;
+  CacheHeader header;
+  if (!readHeader(file, header) || header.chaptersOffset < header.booksOffset) return false;
+
+  // Book table -> (name, first chapter index, chapter count).
+  const size_t tableLen = header.chaptersOffset - header.booksOffset;
+  std::unique_ptr<uint8_t[]> table(new (std::nothrow) uint8_t[tableLen]);
+  if (!table || !file.seek(header.booksOffset) || file.read(table.get(), tableLen) != static_cast<int>(tableLen)) {
+    return false;
+  }
+  std::vector<BibleBookInfo> books;
+  books.reserve(header.bookCount);
+  for (size_t pos = 0, i = 0; i < header.bookCount; ++i) {
+    if (pos + 1 > tableLen) return false;
+    const uint8_t nameLen = table[pos++];
+    if (pos + nameLen + 4 > tableLen) return false;
+    BibleBookInfo book;
+    book.name.assign(reinterpret_cast<const char*>(&table[pos]), nameLen);
+    pos += nameLen;
+    book.chapterCount = table[pos] | (table[pos + 1] << 8);
+    book.firstChapterIndex = table[pos + 2] | (table[pos + 3] << 8);
+    pos += 4;
+    books.push_back(std::move(book));
+  }
+  table.reset();
+
+  std::vector<ChapterEntry> chapters(header.chapterCount);
+  const size_t chaptersLen = chapters.size() * sizeof(ChapterEntry);
+  if (!file.seek(header.chaptersOffset) || file.read(chapters.data(), chaptersLen) != static_cast<int>(chaptersLen)) {
+    return false;
+  }
+
+  uint32_t maxLen = 0;
+  for (const auto& c : chapters) maxLen = c.length > maxLen ? c.length : maxLen;
+  std::unique_ptr<char[]> blob(new (std::nothrow) char[maxLen > 0 ? maxLen : 1]);
+  if (!blob) return false;
+
+  for (const auto& book : books) {
+    for (int c = 0; c < book.chapterCount; ++c) {
+      const auto& entry = chapters[book.firstChapterIndex + c];
+      if (!file.seek(entry.offset) || file.read(blob.get(), entry.length) != static_cast<int>(entry.length)) {
+        return false;
+      }
+      size_t pos = 0;
+      while (pos + 4 <= entry.length) {
+        const auto* p = reinterpret_cast<const uint8_t*>(blob.get() + pos);
+        const int verse = p[0] | (p[1] << 8);
+        const size_t len = p[2] | (p[3] << 8);
+        pos += 4;
+        if (pos + len > entry.length) return false;
+        const char* text = blob.get() + pos;
+        const size_t at = findCaseInsensitive(text, len, needle);
+        if (at != std::string::npos) {
+          if (outHits.size() >= maxHits) {
+            if (truncated) *truncated = true;
+            return true;
+          }
+          outHits.push_back(SearchHit{book.name, entry.number, verse, snippetAround(text, len, at)});
+        }
+        pos += len;
+      }
+    }
+  }
   return true;
 }

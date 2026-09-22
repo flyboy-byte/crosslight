@@ -31,7 +31,11 @@
 // (Back / Select / previous page / next page), so added features need a menu.
 class BibleReaderActivity final : public ReaderActivity {
  public:
-  explicit BibleReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
+  // What to open on top of the reader once it has loaded (the Bible hub's rows).
+  enum class InitialAction { Resume, BookPicker, VerseJump, Bookmarks, Search };
+
+  explicit BibleReaderActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
+                               InitialAction initialAction = InitialAction::Resume);
 
   void onEnter() override;
   void onExit() override;
@@ -50,6 +54,8 @@ class BibleReaderActivity final : public ReaderActivity {
   void openChapterPicker();
   void openBookmarkList();
   void openVerseJump();
+  void openSearch();
+  void runSearch(const std::string& query);
   void goTo(const std::string& bookName, int chapter, int page);
   void goToVerse(int verseNumber);
   void loadCurrentChapter();
@@ -59,6 +65,11 @@ class BibleReaderActivity final : public ReaderActivity {
   // Canonical book order + chapter counts, scanned once per activity visit
   // (BibleChapterLoader::loadBookIndex) so chapter-boundary page turns can
   // cross into the next/previous book without re-scanning the file each time.
+  std::string translationAbbr;
+  std::string translationPath;
+  InitialAction pendingAction = InitialAction::Resume;
+  std::string lastSearchQuery;
+
   std::vector<BibleBookInfo> books;
   int currentBookIndex = 0;
   int currentChapter = 1;

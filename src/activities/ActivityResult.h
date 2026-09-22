@@ -82,10 +82,16 @@ struct BibleBookmarkResult {
   int page = 0;
 };
 
+struct BibleVerseResult {
+  std::string book;
+  int chapter = 0;
+  int verse = 0;
+};
+
 using ResultVariant =
     std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult, IntervalResult,
                  PageResult, ProgressChangeResult, NetworkModeResult, FootnoteResult, FilePathResult, BibleBookResult,
-                 BibleChapterResult, BibleBookmarkResult>;
+                 BibleChapterResult, BibleBookmarkResult, BibleVerseResult>;
 
 struct ActivityResult {
   bool isCancelled = false;

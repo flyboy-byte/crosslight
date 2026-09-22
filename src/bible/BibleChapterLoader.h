@@ -71,4 +71,16 @@ class BibleChapterLoader {
   // or buildCache(); returns false if it has no cache position.
   static bool loadCachedChapter(const char* path, const BibleBookInfo& book, int chapterNumber,
                                 std::vector<BibleVerse>& outVerses);
+
+  // Case-insensitive (ASCII) substring search over the whole cached translation, in
+  // canonical order. Collects at most `maxHits`; `truncated` reports whether more
+  // matched. False only if the cache is missing or unreadable (build it first).
+  struct SearchHit {
+    std::string book;
+    int chapter = 0;
+    int verse = 0;
+    std::string snippet;  // the verse, or a window around the match for long verses
+  };
+  static bool searchCache(const char* path, const std::string& query, size_t maxHits, std::vector<SearchHit>& outHits,
+                          bool* truncated = nullptr);
 };
