@@ -94,7 +94,7 @@ HttpDownloader::DownloadError runGetWolf(const std::string& startUrl, const std:
           if (sink.total == 0 && http.hasContentLength()) sink.total = http.getContentLength();
           if (!sink.write(data, len)) return false;
           sink.downloaded += len;
-          if (sink.progress && sink.total > 0) sink.progress(sink.downloaded, sink.total);
+          if (sink.progress) sink.progress(sink.downloaded, sink.total);  // total is 0 for chunked replies
           return true;
         },
         [&sink]() { return sink.cancelFlag && *sink.cancelFlag; });
@@ -230,7 +230,7 @@ HttpDownloader::DownloadError runGet(const std::string& url, const std::string& 
       return HttpDownloader::FILE_ERROR;
     }
     sink.downloaded += read;
-    if (sink.progress && sink.total > 0) sink.progress(sink.downloaded, sink.total);
+    if (sink.progress) sink.progress(sink.downloaded, sink.total);  // total is 0 for chunked replies
   }
 
   const bool complete = esp_http_client_is_complete_data_received(client);

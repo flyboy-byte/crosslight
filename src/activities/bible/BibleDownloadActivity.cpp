@@ -102,6 +102,7 @@ void BibleDownloadActivity::download() {
         // The loop is blocked for the whole transfer; pump input here so Back can cancel.
         mappedInput.update(true);
         if (mappedInput.wasReleased(MappedInputManager::Button::Back)) cancelRequested = true;
+        if (mappedInput.wasHomeGesture()) cancelRequested = true;  // X4 Pro: Home key
         const int percent = size > 0 ? static_cast<int>(static_cast<uint64_t>(done) * 100 / size) : 0;
         const unsigned long now = millis();
         if (percent >= 100 || lastPercent < 0 || percent >= lastPercent + PROGRESS_STEP_PERCENT ||
@@ -164,12 +165,16 @@ void BibleDownloadActivity::render(RenderLock&&) {
   } else if (state == DOWNLOADING) {
     renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_DOWNLOADING));
     const int barY = y + lineH + metrics.verticalSpacing;
-    const int percent = total > 0 ? static_cast<int>(static_cast<uint64_t>(downloaded) * 100 / total) : 0;
-    GUI.drawProgressBar(renderer,
-                        Rect{metrics.contentSidePadding, barY, pageWidth - metrics.contentSidePadding * 2,
-                             metrics.progressBarHeight},
-                        percent, 100);
-    const std::string sizes = std::to_string(downloaded / 1024) + " / " + std::to_string(total / 1024) + " KB";
+    // getBible sends chunked replies with no Content-Length, so the total is usually unknown.
+    if (total > 0) {
+      const int percent = static_cast<int>(static_cast<uint64_t>(downloaded) * 100 / total);
+      GUI.drawProgressBar(renderer,
+                          Rect{metrics.contentSidePadding, barY, pageWidth - metrics.contentSidePadding * 2,
+                               metrics.progressBarHeight},
+                          percent, 100);
+    }
+    const std::string sizes = std::to_string(downloaded / 1024) +
+                              (total > 0 ? " / " + std::to_string(total / 1024) + " KB" : " KB");
     renderer.drawCenteredText(UI_10_FONT_ID, barY + metrics.progressBarHeight + lineH, sizes.c_str());
   } else if (state == DONE) {
     renderer.drawCenteredText(UI_10_FONT_ID, y, tr(STR_DOWNLOAD_COMPLETE), true, EpdFontFamily::BOLD);
