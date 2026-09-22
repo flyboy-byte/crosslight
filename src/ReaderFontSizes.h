@@ -13,7 +13,15 @@
 
 // The built-in Noto Serif / Noto Sans families are compiled in at exactly these
 // point sizes (see the global font objects in main.cpp).
+#ifdef OMIT_FONTS
+// OMIT_FONTS keeps only Noto Serif 14 in flash (saves ~1.6MB). The other sizes,
+// and Noto Sans, come from SD families with these folder names under /.fonts/.
+inline constexpr uint8_t BUILTIN_READER_POINT_SIZES[] = {14};
+inline constexpr const char* SD_NOTO_SERIF_FAMILY = "Noto Serif";
+inline constexpr const char* SD_NOTO_SANS_FAMILY = "Noto Sans";
+#else
 inline constexpr uint8_t BUILTIN_READER_POINT_SIZES[] = {12, 14, 16, 18};
+#endif
 
 // Point sizes selectable for the active reader font, ascending: the SD family's
 // installed sizes when `sdFamilyName` names one the registry knows, otherwise

@@ -7,13 +7,27 @@ jump — all verified in the simulator, 349 host tests pass); **last updated 202
 (panel is UC8279). Bible opens in ~15 ms via the new chapter cache (was 10 s) and its menu now opens by
 touch — see "First flash and first on-device session".** Use a USB-A-to-C cable, not C-to-C.
 
-**Next (agreed 2026-09-18, not started):** (1) Fonts to SD — add `-DOMIT_FONTS` to `[env:x4pro]`
-(−1.57MB measured), convert the dropped Noto Sans 12-18 / Noto Serif 12,16,18 with
-`fontconvert_sdcard.py --intervals builtin` under plain family names, put them in `/.fonts/`, flash,
-check on device. SD fonts measured as fast as built-in (see "Build strategy"). (2) Then plan the
-feature architecture Logan asked about: many Phase 2 features without hurting battery or speed —
-load-on-demand vs. resident, radio power management, and the partition change (+1.63MB) before the
-first radio feature. The 2026-09-18 commits on `crosslight` are local-only until pushed to `fork` (`git log fork/crosslight..crosslight`).
+**Logan's request list (2026-09-21) — every item he asked for, with status. Keep this current:**
+
+| # | Request | Status |
+| --- | --- | --- |
+| 1 | Fonts to SD to free flash for utilities | **Built, sim-verified, not yet on device.** `-DOMIT_FONTS` in `[env:x4pro]` (flash 83.8% → 58.6%). SD families `/.fonts/Noto Serif/` + `/.fonts/Noto Sans/` (12-18, from the built-in source TTFs, `--intervals builtin`). Under `OMIT_FONTS`: built-in sizes shrink to {14}; `getReaderFontId()` only ever returns Noto Serif 14 (a missing id rendered blank pages); boot maps a built-in family choice to the same-named SD family (`SdCardFontSystem::begin`); the Font Family list hides built-ins the SD families replace. Next device session: copy both families, delete the `NotoSansSD` test family, flash, verify |
+| 2 | Local (PC) tool to prep any image as a wallpaper | Planned. Pre-dither to **1-bit** 480×800 on the PC: this UC8279 unit renders sleep images 1-bit, and 4-gray input gets thresholded (posterized) rather than dithered — firmware only error-diffuses high-color BMPs. Also re-do the Sabaton `/sleep.bmp` this way |
+| 3 | Wallpaper options from the file browser | Planned. Long-press on an image → Set as sleep screen / Add to sleep rotation (`/.sleep/`) / Delete (long-press is delete-only today). The image viewer's "Set sleep cover" exists but is Confirm-only and its hint is hidden on touch boards — unreachable on the X4 Pro |
+| 4 | Bible: download preset English translations over WiFi | Planned. Infra exists (`HttpDownloader`, WiFi picker, chapter cache rebuilds per file). Offer public-domain English versions only, show license before download (see translation-downloader scoping below) |
+| 5 | Bible full-text search | Planned; cheaper than scoped. Search the chapter cache (plain text, 4.25MB) instead of the JSON; optionally keep it in PSRAM for near-instant repeat searches. Measure the cold SD pass first |
+| 6 | Bible: center tap sometimes doesn't open the menu | To investigate with the serial logger (did the tap register, where did it land vs. the center-third zone) |
+| 7 | Lag when page-turn taps queue up | To investigate: skip queued intermediate pages and render only the final one. Baseline: ~1.36s/turn, ~1.0s of it panel |
+| 8 | Home screen: select with buttons, not only touch | Existing setting: Settings → Controls → Short Power Button Click → Confirm (or Home key tap → Confirm). Consider making it the X4 Pro default |
+| 9 | WiFi not set up | No code needed: the flash erase removed stock's saved network; add it once in Settings → System → Wi-Fi Networks |
+| 10 | (Found along the way) Bible text uses the UI font (Ubuntu 10), not the reader font/size | Noted; offer the reader font later if wanted |
+| 11 | Feature architecture: many utilities without hurting battery/speed | After the above: load-on-demand vs. resident, radio power management, and the partition change (+1.63MB) before the first radio feature |
+
+**User data and updates:** all user data lives on SD under `/.crosspoint/` (settings, `wifi.json`,
+recents, library index, per-book progress/bookmarks, Bible state, KOReader). `pio run -e x4pro -t upload`
+writes only bootloader, partition table, otadata and the app — it never touches the SD card or erases
+NVS (NVS holds only a display-detection flag). **Never run `erase-flash` again** unless deliberately
+resetting; it was a one-time step for the stock → CrossLight switch. The 2026-09-18 commits on `crosslight` are local-only until pushed to `fork` (`git log fork/crosslight..crosslight`).
 
 **Plan (decided 2026-09-10):** ship the *full* Bible build for the first on-device run, get it working
 and documented on hardware, then use this doc as the guide for what to cut when a wireless/security

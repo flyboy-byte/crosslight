@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <Logging.h>
 
+#include <cstring>
 #include <iterator>
 
 #include "CrossPointSettings.h"
@@ -46,6 +47,21 @@ void SdCardFontSystem::begin(GfxRenderer& renderer) {
     return static_cast<SdCardFontSystem*>(ctx)->resolveFontId(familyName, pointSize);
   };
   SETTINGS.sdFontResolverCtx = this;
+
+#ifdef OMIT_FONTS
+  // A built-in family choice maps to the SD family of the same name when it's on the
+  // card, since this build only compiled in Noto Serif 14.
+  if (SETTINGS.sdFontFamilyName[0] == '\0') {
+    const char* sdName =
+        SETTINGS.fontFamily == CrossPointSettings::NOTOSANS ? SD_NOTO_SANS_FAMILY : SD_NOTO_SERIF_FAMILY;
+    if (registry_.findFamily(sdName)) {
+      strncpy(SETTINGS.sdFontFamilyName, sdName, sizeof(SETTINGS.sdFontFamilyName) - 1);
+      SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
+      SETTINGS.saveToFile();
+      LOG_INF("SDFS", "Built-in font choice moved to SD family %s", sdName);
+    }
+  }
+#endif
 
   // If user has a saved SD font selection, load it
   if (SETTINGS.sdFontFamilyName[0] != '\0') {
