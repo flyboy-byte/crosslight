@@ -33,6 +33,8 @@
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
+#include "activities/util/LockScreenActivity.h"
+#include "util/DeviceLock.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "images/LoadingIcon.h"
@@ -540,36 +542,57 @@ void setup() {
   // Output polarity is resolved per render by ActivityManager (night mode
   // inverts only the reading surfaces), so nothing to restore here.
 
-  if (recoveryFirmwareMode) {
-    // Skip normal home/reader routing: jump straight into the SD firmware picker.
+  // CrossLight: the startup passphrase stands in front of this routing rather
+  // than on top of it -- see LockScreenActivity. Silent reboots skip it: those
+  // are our own restarts (Wi-Fi teardown after a download), and demanding the
+  // passphrase for one would punish using the device rather than protect it.
+  // Captured BY VALUE: with the passphrase enabled this runs from the lock
+  // screen's callback, long after setup() has returned, so a reference
+  // capture of setup()'s locals (resume, snapshotTarget, needsWakeRefresh,
+  // ...) would dangle. renderer/mappedInputManager/activityManager are
+  // file-scope globals and are not captured.
+  auto routeAfterBoot = [=] {
+    if (recoveryFirmwareMode) {
+      // Skip normal home/reader routing: jump straight into the SD firmware picker.
+      activityManager.replaceActivity(
+          std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInputManager, /*recoveryMode=*/true));
+    } else if (rebootedFromPanic) {
+      // If we rebooted from a panic, go to crash report screen to show the panic info
+      activityManager.goToCrashReport();
+    } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_READER &&
+               !APP_STATE.openEpubPath.empty()) {
+      activityManager.goToReader(APP_STATE.openEpubPath);
+    } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_SETTINGS) {
+      // Back out of the WiFi rows and the user is where they left off, not on Home.
+      activityManager.goToSettings();
+    } else if (resume == BootResume::Silent) {
+      // target == home (or reader with no open book): land on home — don't fall
+      // through to the sleep-wake "resume reader" logic, which fires on stale
+      // openEpubPath + lastSleepFromReader from a prior session.
+      activityManager.goHome();
+    } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
+               mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
+      // Boot to home screen if no book is open, last sleep was not from reader, back button is held, or reader activity
+      // crashed (indicated by readerActivityLoadCount > 0)
+      activityManager.goHome(HomeMenuItem::NONE, needsWakeRefresh);
+    } else {
+      // Clear app state to avoid getting into a boot loop if the epub doesn't load
+      const auto path = APP_STATE.openEpubPath;
+      APP_STATE.openEpubPath = "";
+      APP_STATE.readerActivityLoadCount++;
+      APP_STATE.saveToFile();
+      activityManager.goToReader(path, allowFastInitialReaderRefresh);
+    }
+  };
+
+  DEVICE_LOCK.loadFromFile();
+  const bool wokeFromSleep = resume != BootResume::Splash;
+  if (DEVICE_LOCK.isLocked() && resume != BootResume::Silent && !recoveryFirmwareMode &&
+      (!wokeFromSleep || DEVICE_LOCK.lockOnWake())) {
     activityManager.replaceActivity(
-        std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInputManager, /*recoveryMode=*/true));
-  } else if (rebootedFromPanic) {
-    // If we rebooted from a panic, go to crash report screen to show the panic info
-    activityManager.goToCrashReport();
-  } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_READER &&
-             !APP_STATE.openEpubPath.empty()) {
-    activityManager.goToReader(APP_STATE.openEpubPath);
-  } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_SETTINGS) {
-    // Back out of the WiFi rows and the user is where they left off, not on Home.
-    activityManager.goToSettings();
-  } else if (resume == BootResume::Silent) {
-    // target == home (or reader with no open book): land on home — don't fall
-    // through to the sleep-wake "resume reader" logic, which fires on stale
-    // openEpubPath + lastSleepFromReader from a prior session.
-    activityManager.goHome();
-  } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
-             mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
-    // Boot to home screen if no book is open, last sleep was not from reader, back button is held, or reader activity
-    // crashed (indicated by readerActivityLoadCount > 0)
-    activityManager.goHome(HomeMenuItem::NONE, needsWakeRefresh);
+        std::make_unique<LockScreenActivity>(renderer, mappedInputManager, routeAfterBoot));
   } else {
-    // Clear app state to avoid getting into a boot loop if the epub doesn't load
-    const auto path = APP_STATE.openEpubPath;
-    APP_STATE.openEpubPath = "";
-    APP_STATE.readerActivityLoadCount++;
-    APP_STATE.saveToFile();
-    activityManager.goToReader(path, allowFastInitialReaderRefresh);
+    routeAfterBoot();
   }
 
   if (resume == BootResume::Silent) {

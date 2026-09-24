@@ -12,6 +12,13 @@ permissions:
 
 jobs:
   build-release:
+    # CrossLight: upstream-only. This builds every board and checks the release
+    # tag against `[crosspoint] version` (the first `version =` in
+    # platformio.ini), so on this fork it fails on every release: we tag from
+    # `[crosslight] version` and ship one board, built locally per PLAN.md's
+    # "Releasing CrossLight". Gated rather than deleted so upstream merges keep
+    # applying cleanly to it.
+    if: github.repository == 'crosspoint-reader/crosspoint-reader'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -98,6 +105,9 @@ jobs:
 
   publish-release:
     needs: build-release
+    # CrossLight: see build-release. Without this the job still runs when the
+    # build matrix is skipped, and uploads nothing.
+    if: github.repository == 'crosspoint-reader/crosspoint-reader'
     runs-on: ubuntu-latest
     permissions:
       contents: write

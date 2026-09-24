@@ -28,6 +28,7 @@
 #include "OtaUpdateActivity.h"
 #include "SdCardFontSystem.h"
 #include "SdFirmwareUpdateActivity.h"
+#include "StartupPasswordActivity.h"
 #include "SettingsList.h"
 #include "SilentRestart.h"
 #include "StatusBarSettingsActivity.h"
@@ -108,6 +109,7 @@ void SettingsActivity::rebuildSettingsLists() {
   // asset isn't published yet just report no update available.
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate));
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_STARTUP_PASSWORD, SettingAction::StartupPassword));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KEYBOARD_LAYOUTS, SettingAction::KeyboardLayouts));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_ABOUT, SettingAction::About));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
@@ -399,6 +401,9 @@ void SettingsActivity::toggleCurrentSetting() {
         break;
       case SettingAction::CheckForUpdates:
         startActivityForResult(std::make_unique<OtaUpdateActivity>(renderer, mappedInput), resultHandler);
+        break;
+      case SettingAction::StartupPassword:
+        startActivityForResult(std::make_unique<StartupPasswordActivity>(renderer, mappedInput), resultHandler);
         break;
       case SettingAction::SdFirmwareUpdate:
         startActivityForResult(std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInput), resultHandler);
