@@ -50,6 +50,26 @@ one big drift-merge.
 **Upstream sync log** (what landed, what conflicted, what broke the sim — so a future sync isn't
 surprised by the same class of break):
 
+- **2026-09-24** (`0b6bb004..637ad4a5`, 31 commits): three conflicts, all resolved by keeping both
+  sides. (1) `english.yaml` — both sides appended strings. (2)+(3) `FileBrowserActivity.{h,cpp}` —
+  upstream replaced long-press-to-delete with a proper **entry-actions popup** (Open/Delete/Rename,
+  new `showEntryActions`/`deleteSelected`/`startRename`). Our `.bmp` long-press menu (a
+  `ChoiceActivity` + `imageDeleteChosen` flag) existed *only* because long-press was delete-only, so
+  upstream's structure is strictly better: took it, and moved the wallpaper actions into its popup
+  (image rows now read Open / Set as sleep screen / Add to sleep rotation / Delete / Rename).
+  Dropped `activateSelected(forceDelete)` and `imageDeleteChosen` entirely — our fork got *smaller*.
+  **Three non-conflict breaks cost more time than the conflicts:** the `freeink-sdk` submodule was
+  bumped and the build dies with "Can not create a symbolic link ... not a directory" until `git
+  submodule update --init` runs; the simulator needed `FreeInkFont` + `MemoryManager` added to its
+  `lib_deps` in the **gitignored** `platformio.local.ini` (so this is not recorded in git anywhere but
+  here); and the sim fork needed `HalMemory::PsramBuffer`/`allocatePsram` (cover-grid
+  `HomeCoverCache` holds one by value), an `esp_heap_caps.h` host shim, and a `StaticTask_t` stub —
+  because the new TrueType-on-PSRAM font path and the SDK's `MemoryManager` call `heap_caps_*`
+  **directly, not through the HAL**, which is a new class of sim break to expect again. Notable
+  upstream content: TrueType fonts on PSRAM boards (#3646), a Cover Grid home theme for PSRAM devices
+  (#3657), word/character spacing controls (#3528), an X4 Pro frontlight double-click fix plus a Home
+  key option (#3089), better footnote navigation (#3682), and RTL tap zones (#3709). Flash 46.7% ->
+  49.0% of a slot. Host tests 357 -> 388, all passing.
 - **2026-09-16** (`9e7baf2e..0b6bb004`, 35 commits): merged clean apart from three expected
   conflicts — our `HomeMenuItem::BIBLE` vs upstream's new `LIBRARY` (replacing `RECENTS`), the matching
   `HomeActivity.cpp` menu-item list/count/switch, and `test/CMakeLists.txt`'s `add_subdirectory` list —
