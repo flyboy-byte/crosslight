@@ -61,5 +61,7 @@ class CoverGridHomeUi final : public UiAppHost {
   freeink::ui::CoverGridProps grid;
   freeink::ui::Rect gridBounds{};
   freeink::ui::TabBarProps tabs;
-  std::array<freeink::ui::TabItem, 5> tabItems;
+  // CrossLight: 7, not upstream's 5 -- the tab bar also carries Bible and
+  // Utilities, so switching to this theme cannot hide them (see drawTabs).
+  std::array<freeink::ui::TabItem, 7> tabItems;
 };

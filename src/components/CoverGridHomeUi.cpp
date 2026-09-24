@@ -268,9 +268,14 @@ void CoverGridHomeUi::drawGrid(UiScreen& screen) {
 }
 
 void CoverGridHomeUi::drawTabs(UiScreen& screen, fui::Rect rect) {
-  static constexpr const uint8_t* ICONS[] = {FolderIcon, LibraryIcon, BlocksIcon, TransferIcon, Settings2Icon};
+  // Order must match HomeActivity::indexToMenuItem: file browser, library,
+  // [OPDS], transfer, settings, then CrossLight's Bible and Utilities -- the
+  // tab's value is a flat menu index, so a mismatch opens the wrong screen.
+  static constexpr const uint8_t* ICONS[] = {FolderIcon,    LibraryIcon,   BlocksIcon, TransferIcon,
+                                             Settings2Icon, BookIcon,      BlocksIcon};
+  constexpr int TAB_COUNT = static_cast<int>(std::size(ICONS));
   int count = 0;
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < TAB_COUNT; ++i) {
     if (i == 2 && !hasOpds) continue;
     auto& tab = tabItems[count];
     tab.value = books->size() + count;
