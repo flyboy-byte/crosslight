@@ -1,0 +1,20 @@
+{
+  "_comment": "CrossLight surveillance-device signatures. Copy this to /flock/signatures.json on the SD card. These entries are PLACEHOLDERS with example OUIs (00:00:00) that match nothing real -- fill in current fingerprints from your own research before relying on this. Fingerprints change; keep this file updated. OUIs may be written AA:BB:CC, AABBCC, or AA-BB-CC. A device matches a signature by ANY listed OUI or ANY listed ssid_contains substring (case-insensitive).",
+  "version": 1,
+  "updated": "2026-09-24",
+  "signatures": [
+    {
+      "name": "Example ALPR camera",
+      "category": "alpr",
+      "ouis": ["00:00:00"],
+      "ssid_contains": ["flock"],
+      "_note": "Replace with verified values. ssid_contains is a hint only; a custom SSID will not match."
+    },
+    {
+      "name": "Example audio sensor",
+      "category": "audio",
+      "ouis": ["00:00:00"],
+      "ssid_contains": []
+    }
+  ]
+}

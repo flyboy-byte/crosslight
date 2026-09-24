@@ -1,6 +1,7 @@
 #include "UtilityRegistry.h"
 
 #include "activities/utilities/CalculatorActivity.h"
+#include "activities/utilities/CameraScanActivity.h"
 
 namespace utilities {
 
@@ -11,6 +12,10 @@ const std::vector<Utility> kUtilities = {
     {StrId::STR_CALCULATOR, Blocks,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<CalculatorActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_CAMERA_SCAN, Wifi,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<CameraScanActivity>(renderer, mappedInput);
      }},
 };
 }  // namespace

@@ -69,6 +69,7 @@ add_subdirectory(home_button)
 
 add_subdirectory(inflate_stream)
 add_subdirectory(fs_helpers)
+ add_subdirectory(flock_matcher)
 
 add_subdirectory(absolute_grayscale)
 
