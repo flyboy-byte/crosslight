@@ -1,6 +1,6 @@
 # PLAN.md
 
-Status: **last updated 2026-09-22.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. Items 1-6, 8, 9, 12 of the request list below are done and on the device (fonts on SD, flash 59.1%; wallpaper tool + file-browser wallpaper menu; Bible hub, translation downloads, full-text search, center-column menu tap). **What's left is the utility/Phase 2 work (item 11)**, plus two optional polish items (7: skip the AA pass during rapid page turns; 10: Bible in the reader font). 357 host tests pass. Use a USB-A-to-C cable, not C-to-C.
+Status: **last updated 2026-09-24.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. Items 1-6, 8, 9, 12 of the request list below are done and on the device (fonts on SD; wallpaper tool + file-browser wallpaper menu; Bible hub, translation downloads, full-text search, center-column menu tap). **Built since, not yet flashed: the partition bump (app slots 6.25 -> 7.94MiB, flash 59.1% -> 46.7%) and Bible Memory Work (item 13).** What's left is the rest of the utility/Phase 2 work (item 11), plus two optional polish items (7: skip the AA pass during rapid page turns; 10: Bible in the reader font). 357 host tests pass. Use a USB-A-to-C cable, not C-to-C.
 
 **Logan's request list (2026-09-21) — every item he asked for, with status. Keep this current:**
 
@@ -17,7 +17,8 @@ Status: **last updated 2026-09-22.** X4 Pro (UC8279 panel) runs CrossLight; stoc
 | 9 | WiFi not set up | No code needed: the flash erase removed stock's saved network; add it once in Settings → System → Wi-Fi Networks |
 | 10 | (Found along the way) Bible text uses the UI font (Ubuntu 10), not the reader font/size | Noted; offer the reader font later if wanted |
 | 12 | (Found along the way) WEB and other translations carry paragraph indents/double spaces | **Fixed:** verse whitespace normalized in cache and JSON paths (cache format v2 — old caches rebuild once) |
-| 11 | Feature architecture: many utilities without hurting battery/speed | **Next — the remaining main work.** Budget known: ~2.7MB free flash now, ~4.4MB with stock's partition layout; PSRAM ~8.2MB unused; internal RAM ~200KB free. Plan: load-on-demand vs. resident, radio power management, and the partition change (+1.63MB) before the first radio feature |
+| 11 | Feature architecture: many utilities without hurting battery/speed | **In progress. Partition bump done 2026-09-24.** Nothing mounted the 3.375MiB `spiffs` region (all user data is on SD), so it was split between the two app slots: 0x640000 -> 0x7F0000 each, 6.25 -> 7.94MiB, ending exactly at the 16MB chip boundary with no gaps. Flash went 59.1% -> 46.7% of a slot, ~4.25MiB free. Both OTA slots kept deliberately — they back the SD-card `FirmwareFlasher` path as well as Wi-Fi OTA, and rollback matters on a device whose only port is the magnetic pogo connector; a single-slot layout would buy ~3.4MiB more that we don't need. Needs a **wired** flash, not an OTA update, since the layout moves. Still open: load-on-demand vs. resident tiles, radio power management. PSRAM ~8.2MB unused; internal RAM ~200KB free |
+| 13 | (Asked 2026-09-24) Bible: the Prep Class memory-work booklet as part of the app | **Built, simulator-verified, not yet flashed.** Bible hub -> Memory Work -> lesson list -> a paged reading page per lesson. Courses are *reference* lists (`/Bible/memory/<name>.json`: book/chapter/verse, optional `end`), so the words come from the installed translation via the chapter cache — a few KB on SD, ~0 flash, follows the selected translation, and a second booklet is a file drop rather than a firmware change. Three item shapes preserve the booklet's structure: verse, section heading, free-text note. Source lives at `assets/memory/prep-class.json` (Theme Verse + Lessons 1-8, 40 verses; every reference checked to resolve against the real KJV). Logan chose: no progress/quiz tracking, current translation rather than pinned KJV. **Device step: copy `assets/memory/prep-class.json` to `/Bible/memory/` on the card** |
 
 **User data and updates:** all user data lives on SD under `/.crosspoint/` (settings, `wifi.json`,
 recents, library index, per-book progress/bookmarks, Bible state, KOReader). `pio run -e x4pro -t upload`
@@ -189,6 +190,16 @@ tiles to gate.
 
 ## Decisions made
 
+- **Partition layout: keep both OTA slots, take the space from `spiffs` instead (2026-09-24).** The
+  16MB chip was carved as app0/app1 at 0x640000 each plus a 3.375MiB `spiffs` region that **nothing in
+  the firmware mounts** — all user data is on SD under `/.crosspoint/`, and the only mention of SPIFFS
+  in the tree is a comment. Split it between the app slots (0x7F0000 each, 7.94MiB), which lands app1
+  on 0x800000 and ends exactly at 0x1000000 with no gaps. Considered and rejected: a single-slot
+  layout, worth ~3.4MiB more. The second slot is not just Wi-Fi OTA — `FirmwareFlasher` +
+  `OtaBootSwitch` write it for **SD-card firmware updates** too, and it's what makes a half-written
+  image survivable. On a device whose only port is the finicky magnetic pogo connector, keeping the
+  card-update and rollback paths beats headroom we don't need (46.7% of a slot used after the change).
+  Revisit only if a tile genuinely needs >7.9MiB. **Changing this requires a wired flash, not OTA.**
 - **Base firmware: CrossPoint**, not CrossInk (typography fork) or CrossPlay (apps/games fork).
 - **Bible app is an isolated module** — own app/activity/data tree, not woven into `lib/Epub/` or
   reader internals. Keeps upstream merges cheap; door open to PR a generically useful piece later.
