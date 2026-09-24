@@ -18,8 +18,19 @@
 #include "FirmwareBoardTag.h"
 #include "FirmwareFlasher.h"
 
+// Which GitHub repo the updater checks, and the asset-name prefix it expects.
+// A fork MUST override these (CrossLight does, in platformio.ini): left at the
+// upstream defaults, a fork's device offers upstream's build and installing it
+// silently replaces the fork with stock CrossPoint.
+#ifndef CROSSPOINT_OTA_REPO
+#define CROSSPOINT_OTA_REPO "crosspoint-reader/crosspoint-reader"
+#endif
+#ifndef CROSSPOINT_OTA_ASSET_PREFIX
+#define CROSSPOINT_OTA_ASSET_PREFIX "crosspoint"
+#endif
+
 namespace {
-constexpr char latestReleaseUrl[] = "https://api.github.com/repos/crosspoint-reader/crosspoint-reader/releases/latest";
+constexpr char latestReleaseUrl[] = "https://api.github.com/repos/" CROSSPOINT_OTA_REPO "/releases/latest";
 }  // namespace
 
 OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
@@ -48,7 +59,8 @@ OtaUpdater::OtaUpdaterError OtaUpdater::checkForUpdate() {
       releaseParser.feed(reinterpret_cast<const char*>(data + offset), 1);
       offset++;
       if (releaseParser.foundTag()) {
-        snprintf(assetName, sizeof(assetName), "crosspoint-%s%s.bin", releaseParser.getTagName(), assetSuffix);
+        snprintf(assetName, sizeof(assetName), CROSSPOINT_OTA_ASSET_PREFIX "-%s%s.bin", releaseParser.getTagName(),
+                 assetSuffix);
         releaseParser.setFirmwareAssetName(assetName);
         assetNameSet = true;
       }
