@@ -1,6 +1,10 @@
 # PLAN.md
 
-Status: **last updated 2026-09-24.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. Items 1-6, 8, 9, 12 of the request list below are done and on the device (fonts on SD; wallpaper tool + file-browser wallpaper menu; Bible hub, translation downloads, full-text search, center-column menu tap). **Built since, not yet flashed: the partition bump (app slots 6.25 -> 7.94MiB, flash 59.1% -> 46.7%) and Bible Memory Work (item 13).** What's left is the rest of the utility/Phase 2 work (item 11), plus two optional polish items (7: skip the AA pass during rapid page turns; 10: Bible in the reader font). 357 host tests pass. Use a USB-A-to-C cable, not C-to-C.
+Status: **last updated 2026-09-24 (evening).** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.2 is published on GitHub and written to the SD card as `/firmware.bin`, awaiting install** via Settings → SD Card Firmware Update (Logan stopped before installing it). It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge.
+
+**In progress, uncommitted-then-committed on a branch, NOT built or flashed: item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). Its pure logic is host-tested (13/13) but the *firmware compile was blocked by the auto-mode safety classifier* — the first build of the new Wi-Fi monitor-mode code — so it has never been compiled for the device. See "Item 14: Camera scan" below before touching it.
+
+The 26.9.x release/OTA machinery is new: updates now check `flyboy-byte/crosslight`, and from 26.9.2 on they install over Wi-Fi. Version line is `[crosslight] version` (scheme YY.M.BUILD). See "Releasing CrossLight (Wi-Fi OTA)". Flash 49.1% of a 7.94MiB slot. 388 host tests pass (+13 for Flock = 401 once its build is unblocked). Use a USB-A-to-C cable, not C-to-C. The SD card mounts as a real `mmcblk0` reader when out of the device; in the device, use USB Drive mode.
 
 **Logan's request list (2026-09-21) — every item he asked for, with status. Keep this current:**
 
@@ -17,8 +21,11 @@ Status: **last updated 2026-09-24.** X4 Pro (UC8279 panel) runs CrossLight; stoc
 | 9 | WiFi not set up | No code needed: the flash erase removed stock's saved network; add it once in Settings → System → Wi-Fi Networks |
 | 10 | (Found along the way) Bible text uses the UI font (Ubuntu 10), not the reader font/size | Noted; offer the reader font later if wanted |
 | 12 | (Found along the way) WEB and other translations carry paragraph indents/double spaces | **Fixed:** verse whitespace normalized in cache and JSON paths (cache format v2 — old caches rebuild once) |
-| 11 | Feature architecture: many utilities without hurting battery/speed | **In progress. Partition bump done 2026-09-24.** Nothing mounted the 3.375MiB `spiffs` region (all user data is on SD), so it was split between the two app slots: 0x640000 -> 0x7F0000 each, 6.25 -> 7.94MiB, ending exactly at the 16MB chip boundary with no gaps. Flash went 59.1% -> 46.7% of a slot, ~4.25MiB free. Both OTA slots kept deliberately — they back the SD-card `FirmwareFlasher` path as well as Wi-Fi OTA, and rollback matters on a device whose only port is the magnetic pogo connector; a single-slot layout would buy ~3.4MiB more that we don't need. Needs a **wired** flash, not an OTA update, since the layout moves. Still open: load-on-demand vs. resident tiles, radio power management. PSRAM ~8.2MB unused; internal RAM ~200KB free |
-| 13 | (Asked 2026-09-24) Bible: the Prep Class memory-work booklet as part of the app | **Built, simulator-verified, not yet flashed.** Bible hub -> Memory Work -> lesson list -> a paged reading page per lesson. Courses are *reference* lists (`/Bible/memory/<name>.json`: book/chapter/verse, optional `end`), so the words come from the installed translation via the chapter cache — a few KB on SD, ~0 flash, follows the selected translation, and a second booklet is a file drop rather than a firmware change. Three item shapes preserve the booklet's structure: verse, section heading, free-text note. Source lives at `assets/memory/prep-class.json` (Theme Verse + Lessons 1-8, 40 verses; every reference checked to resolve against the real KJV). Logan chose: no progress/quiz tracking, current translation rather than pinned KJV. **Device step: copy `assets/memory/prep-class.json` to `/Bible/memory/` on the card** |
+| 11 | Feature architecture: many utilities without hurting battery/speed | **In progress. Partition bump done 2026-09-24.** Nothing mounted the 3.375MiB `spiffs` region (all user data is on SD), so it was split between the two app slots: 0x640000 -> 0x7F0000 each, 6.25 -> 7.94MiB, ending exactly at the 16MB chip boundary with no gaps. Flash went 59.1% -> 46.7% of a slot, ~4.25MiB free. Both OTA slots kept deliberately — they back the SD-card `FirmwareFlasher` path as well as Wi-Fi OTA, and rollback matters on a device whose only port is the magnetic pogo connector; a single-slot layout would buy ~3.4MiB more that we don't need. Needs a **wired** flash, not an OTA update, since the layout moves. **The seam is built (2026-09-24):** Home has one **Utilities** entry backed by a registry (`src/utilities/UtilityRegistry.cpp`) — a new tool is one include + one `kUtilities` line, so Home (an upstream-hot file) never changes again; tools construct on open, destroy on exit, nothing runs in the background. Tiles so far: **Calculator** (done, in 26.9.2), **Startup Password** (done, in 26.9.2), **Camera Scan** (item 14, in progress). Still open: radio power management (the download and scan both bring Wi-Fi up on entry and tear it down on exit; no shared policy yet). PSRAM ~8.2MB unused; internal RAM ~200KB free |
+| 13 | (Asked 2026-09-24) Bible: the Prep Class memory-work booklet as part of the app | **Built, simulator-verified, not yet flashed.** Bible hub -> Memory Work -> lesson list -> a paged reading page per lesson. Courses are *reference* lists (`/Bible/memory/<name>.json`: book/chapter/verse, optional `end`), so the words come from the installed translation via the chapter cache — a few KB on SD, ~0 flash, follows the selected translation, and a second booklet is a file drop rather than a firmware change. Three item shapes preserve the booklet's structure: verse, section heading, free-text note. Source lives at `assets/memory/prep-class.json` (Theme Verse + Lessons 1-8, 40 verses; every reference checked to resolve against the real KJV). Logan chose: no progress/quiz tracking, current translation rather than pinned KJV. **Done on device: `prep-class.json` is on the card at `/Bible/memory/`; ships in 26.9.2.** |
+| — | (Asked 2026-09-24) Startup password | **Built, simulator-verified, in 26.9.2.** Settings → System → Startup Password: set/change/remove, optional lock-on-wake. `DeviceLock` store (`/.crosspoint/lock.json`, salted SHA-256, kept out of settings.json). `LockScreenActivity` stands in front of boot routing (main hands it a `routeAfterBoot` lambda captured **by value** — a by-ref capture dangled, since it runs after setup() returns). Back can't escape; changing/removing asks for the current passphrase; silent reboots skip it. It's a screen lock, not encryption — removable FAT card. |
+| — | (Asked 2026-09-24) Ditch Calibre wireless | **Declined by Logan** ("just leave it then… it pissed me off"). Not removed. ~287 lines, single-digit KB; the saving wasn't worth the upstream-merge cost. |
+| 14 | (Asked 2026-09-24) Flock/surveillance camera scanner | **In progress — logic tested (13/13 host), firmware build BLOCKED by the safety classifier, never compiled or flashed.** See "Item 14: Camera scan" below. |
 
 **User data and updates:** all user data lives on SD under `/.crosspoint/` (settings, `wifi.json`,
 recents, library index, per-book progress/bookmarks, Bible state, KOReader). `pio run -e x4pro -t upload`
@@ -233,6 +240,61 @@ the app slot only, never the partition table. That one needs a wired flash.
 
 First release: **26.9.1 (2026-09-24)**, which had to be installed by SD/USB because the firmware then
 on the device still pointed at upstream's feed.
+
+## Item 14: Camera scan (Flock/surveillance-device detector) — IN PROGRESS
+
+**State (2026-09-24 evening): all code written, pure logic host-tested (13/13), but the firmware
+compile was BLOCKED by the auto-mode safety classifier — it has never been built for the device or
+flashed.** The classifier stopped the first `pio run -e x4pro` that would compile the new Wi-Fi
+monitor-mode code. That is a reasonable pause (raw 802.11 sniffing), and per its rules I did not route
+around it. To resume, the build has to be run with permission — Logan can run `!pio run -e x4pro`
+himself, or allow-list the build.
+
+**What it is, and the scope line.** A *passive, receive-only* scanner: it puts the radio in
+promiscuous mode, channel-hops 1-13, and matches 802.11 management frames (beacon / probe req / probe
+resp) against a signature list. It never associates, transmits, deauths, or touches any network — it
+reads what is already broadcast into the air. That keeps it cleanly on the privacy/awareness side of
+the security-tools bucket. The offensive tiles from the old Biscuit list (deauth, captive portal, AP
+cloning) are explicitly NOT part of this and should be a separate, deliberate scope conversation with
+Logan before any are built — fine on his own gear, but not lumped in here.
+
+**Design (why it's shaped this way).** The risky parts are pure functions, host-tested, so nothing
+untested runs in the radio callback:
+- `src/flock/FlockSignature.h` — model (`Signature`, `Observation`) + declarations.
+- `src/flock/FlockMatcher.cpp` — `match()` (OUI + case-insensitive SSID; a signature matches on
+  *either* criterion because vendors randomize one field; a blank signature matches nothing) and
+  `ouiOf()`. Pure, tested.
+- `src/flock/FlockFrame.cpp` — `parseManagementFrame()` (source MAC at offset 10; SSID element walk,
+  with the fixed 12-byte body for beacon/probe-resp and none for probe-req; truncated-element guard
+  against overread). Pure, tested.
+- `src/flock/FlockSignatures.cpp` — JSON load from `/flock/signatures.json` (ArduinoJson,
+  firmware-only, so kept out of the host-tested files).
+- `src/flock/FlockScanner.{h,cpp}` — the radio wrapper, **guarded `#if defined(ARDUINO_ARCH_ESP32)`**
+  so the sim still links (`begin()` returns false → UI shows "radio unavailable"). The promiscuous
+  callback runs in the WiFi task and does the minimum — copy the raw frame + RSSI into a fixed
+  FreeRTOS queue, no allocation; `drain()` on the UI task runs the *tested* parse+match and dedups by
+  MAC (keeps closest RSSI, counts frames, caps at 64).
+- `src/activities/utilities/CameraScanActivity.{h,cpp}` — the screen; `preventAutoSleep()`, hops every
+  ~300ms, Back stops and leaves; states NoSignatures / NoRadio / Scanning.
+- Registered in `UtilityRegistry.cpp` as the second tile (Wifi icon).
+- `assets/flock/signatures.json` — a **placeholder** template (OUIs are `00:00:00`, match nothing).
+  **Deliberate: I would not fabricate real Flock OUIs** — no verified current data, and fake values
+  give false confidence. The engine is real; the fingerprints are the user's to fill in from current
+  research, which is why they live on SD (Flock rotates them). Copy to `/flock/signatures.json`.
+- Tests: `test/flock_matcher/` — 13 tests, all passing (matcher + frame parser).
+
+**When the build is unblocked, remaining work:**
+1. `pio run -e x4pro` — confirm the ESP32 radio calls compile (this is the only unverified part of the
+   code; the ESP-IDF promiscuous API was confirmed present in `esp_wifi.h`).
+2. `pio run -e simulator_x4_pro` and screenshot the NoSignatures / NoRadio / Scanning shell (the sim
+   has no radio, so the scan itself is not sim-testable).
+3. Run the full host suite (expect 401: 388 + 13).
+4. **On-device, serial-log:** does the scan see frames and match? And the key open question —
+   **does normal Wi-Fi work again after a scan without a reboot?** The scanner does a clean
+   `esp_wifi_set_promiscuous(false)` + `WiFi.mode(NULL)` on exit rather than a `silentRestart()`
+   (which the Bible downloader uses for TLS teardown). If OTA/downloads misbehave after a scan, add a
+   `silentRestart()` to `CameraScanActivity::onExit()`.
+5. Populate real signatures before it's useful (currently matches nothing).
 
 ## Decisions made
 
