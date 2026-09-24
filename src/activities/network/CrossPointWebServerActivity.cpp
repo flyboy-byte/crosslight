@@ -456,18 +456,19 @@ void CrossPointWebServerActivity::renderServerRunning() const {
                       EpdFontFamily::BOLD);
     startY += height10 + metrics.verticalSpacing * 2;
 
-    std::string hostnameUrl = std::string("http://") + AP_HOSTNAME + ".local/";
-    std::string ipUrl = tr(STR_OR_HTTP_PREFIX) + connectedIP + "/";
-
-    // Show QR code for URL
+    // CrossLight: the QR carries the numeric IP, not the .local name. Scanning
+    // a .local URL fails on most Android phones (no mDNS resolution in the
+    // browser path, so Chrome treats it as a search), which reads as "the page
+    // just won't load" after the hotspot connects fine. The IP always resolves;
+    // the hostname stays below as the nicer thing to type.
+    const std::string ipUrlPlain = std::string("http://") + connectedIP + "/";
     const Rect qrBoundsUrl(metrics.contentSidePadding, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
-    QrUtils::drawQrCode(renderer, qrBoundsUrl, hostnameUrl);
+    QrUtils::drawQrCode(renderer, qrBoundsUrl, ipUrlPlain);
 
-    // Show IP address as fallback
     renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 80,
-                      hostnameUrl.c_str());
+                      ipUrlPlain.c_str());
     renderer.drawText(SMALL_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100,
-                      ipUrl.c_str());
+                      (std::string(tr(STR_OR_HTTP_PREFIX)) + AP_HOSTNAME + ".local/").c_str());
   } else {
     startY += metrics.verticalSpacing * 2;
 
