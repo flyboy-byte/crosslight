@@ -19,11 +19,12 @@
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
+#include "activities/utilities/UtilitiesActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 5;  // File Browser, Library, File transfer, Settings, Bible
+  int count = 6;  // File Browser, Library, File transfer, Settings, Bible, Utilities
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -197,6 +198,9 @@ void HomeActivity::loop() {
       case HomeMenuItem::BIBLE:
         onBibleOpen();
         break;
+      case HomeMenuItem::UTILITIES:
+        onUtilitiesOpen();
+        break;
       default:
         break;
     }
@@ -309,8 +313,9 @@ void HomeActivity::render(RenderLock&&) {
 
   // Build menu items dynamically
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE), tr(STR_BIBLE)};
-  std::vector<UIIcon> menuIcons = {Folder, Library, Transfer, Settings, Book};
+                                        tr(STR_SETTINGS_TITLE), tr(STR_BIBLE),
+                                        tr(STR_UTILITIES)};
+  std::vector<UIIcon> menuIcons = {Folder, Library, Transfer, Settings, Book, Blocks};
 
   if (hasOpdsServers) {
     menuItems.insert(menuItems.begin() + 2, tr(STR_OPDS_BROWSER));
@@ -361,3 +366,7 @@ void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 
 void HomeActivity::onBibleOpen() { activityManager.goToBible(); }
+
+void HomeActivity::onUtilitiesOpen() {
+  activityManager.replaceActivity(std::make_unique<UtilitiesActivity>(renderer, mappedInput));
+}

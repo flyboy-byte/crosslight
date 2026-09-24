@@ -45,6 +45,8 @@ class HomeActivity final : public Activity {
     if (item == HomeMenuItem::SETTINGS_MENU) return i;
     ++i;
     if (item == HomeMenuItem::BIBLE) return i;
+    i++;
+    if (item == HomeMenuItem::UTILITIES) return i;
     return 0;
   }
 
@@ -56,7 +58,8 @@ class HomeActivity final : public Activity {
     if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
     if (idx == i++) return HomeMenuItem::SETTINGS_MENU;
-    if (idx == i) return HomeMenuItem::BIBLE;
+    if (idx == i++) return HomeMenuItem::BIBLE;
+    if (idx == i) return HomeMenuItem::UTILITIES;
     return HomeMenuItem::NONE;
   }
   void onSelectBook(const std::string& path);
@@ -66,6 +69,7 @@ class HomeActivity final : public Activity {
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
   void onBibleOpen();
+  void onUtilitiesOpen();
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image
