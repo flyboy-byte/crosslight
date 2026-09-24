@@ -208,6 +208,32 @@ that makes room.~~ (superseded by the measured table above.) When it's time, the
 registration seam (noted above) is where tiles get gated in/out; that's the seam to build, once there are
 tiles to gate.
 
+## Releasing CrossLight (Wi-Fi OTA)
+
+The device checks **our** releases, not upstream's: `-DCROSSPOINT_OTA_REPO` /
+`-DCROSSPOINT_OTA_ASSET_PREFIX` in `[env:x4pro]`. Left at upstream's defaults, an upstream release
+would be offered and would replace CrossLight with stock CrossPoint (no Bible app, Memory Work or
+Utilities) — that is why these flags exist.
+
+To cut a release:
+
+1. Bump `[crosslight] version` in `platformio.ini`. Scheme **YY.M.BUILD** (`26.9.1` -> `26.9.2` in the
+   same month, then `26.10.1`, then `27.1.1`). It must *increase numerically*, because the updater
+   compares with `sscanf("%d.%d.%d")` — a bare date could not ship twice in one day, and a leading
+   `v` on the tag would fail to parse.
+2. `pio run -e x4pro`, then copy `.pio/build/x4pro/firmware.bin` to **`crosslight-<version>-x4pro.bin`**
+   (the `x4pro` suffix is the board tag from `FREEINK_DEVICE_X4PRO`; the updater refuses an image whose
+   embedded tag names another board).
+3. `gh release create <version> <that file> --repo flyboy-byte/crosslight` — the tag must equal the
+   version exactly, since the asset name is built from the tag.
+4. Verify: `curl -s .../releases/latest` and check the asset name matches `crosslight-<tag>-x4pro.bin`.
+
+**A firmware that changes `partitions.csv` cannot ship this way** — OTA and the SD-card flasher write
+the app slot only, never the partition table. That one needs a wired flash.
+
+First release: **26.9.1 (2026-09-24)**, which had to be installed by SD/USB because the firmware then
+on the device still pointed at upstream's feed.
+
 ## Decisions made
 
 - **Partition layout: keep both OTA slots, take the space from `spiffs` instead (2026-09-24).** The
