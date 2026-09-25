@@ -35,3 +35,6 @@ lib/EpdFont/scripts/output/
 /sdkconfig.*
 sdkconfig.sticky
 flake.*
+
+# Personal sleep-screen wallpapers (album art etc.) — not for the public fork
+/wallpapers/

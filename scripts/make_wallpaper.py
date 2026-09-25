@@ -113,10 +113,19 @@ def floyd_steinberg(pixels, w, h, levels):
     return out
 
 
-def convert(in_path, out_path, size, mode, fit, background):
+def apply_brightness(img, factor):
+    """Scale luminance by `factor` (1.0 = unchanged). >1 lifts a dark/murky image so
+    it reads better on the reflective panel; <1 darkens. Clamped to 0-255."""
+    if factor == 1.0:
+        return img
+    return img.point(lambda p: max(0, min(255, int(p * factor))))
+
+
+def convert(in_path, out_path, size, mode, fit, background, brightness=1.0):
     img = Image.open(in_path)
     img = ImageOps.exif_transpose(img)  # honour phone orientation tags
     img = img.convert("L")
+    img = apply_brightness(img, brightness)
     img = fit_image(img, size, fit, background)
     w, h = img.size
 
@@ -158,6 +167,8 @@ def main():
                     help="cover = fill & crop (default); contain = fit & letterbox")
     ap.add_argument("--background", type=int, default=255,
                     help="letterbox fill for --fit contain, 0-255 (default 255=white)")
+    ap.add_argument("--brightness", type=float, default=1.0,
+                    help="luminance multiplier before dithering (1.0=none, >1 lightens)")
     args = ap.parse_args()
 
     if args.output and len(args.images) > 1:
@@ -175,7 +186,7 @@ def main():
             os.makedirs(args.outdir, exist_ok=True)
         try:
             w, h, desc = convert(in_path, out_path, args.size, args.mode, args.fit,
-                                 args.background)
+                                 args.background, args.brightness)
             kb = os.path.getsize(out_path) / 1024
             print(f"{in_path}  ->  {out_path}   {w}x{h}  {desc}  ({kb:.0f} KB)")
         except Exception as e:  # noqa: BLE001 - report per-file and keep going
