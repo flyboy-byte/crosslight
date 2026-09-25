@@ -1,6 +1,10 @@
 # PLAN.md
 
-Status: **last updated 2026-09-24 (evening).** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.2 is published on GitHub and written to the SD card as `/firmware.bin`, awaiting install** via Settings → SD Card Firmware Update (Logan stopped before installing it). It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge.
+Status: **last updated 2026-09-25.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.2 is published on GitHub and written to the SD card as `/firmware.bin`, awaiting install** via Settings → SD Card Firmware Update (Logan stopped before installing it). It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge.
+
+**Wallpaper converter added 2026-09-25** (`scripts/make_wallpaper.py`, host-side, no firmware change): image → sleep-screen BMP. Dithers to the panel's 4 native gray levels (0/85/170/255) so the firmware's `nativePalette` fast path renders it pixel-for-pixel; portrait 480x800; `--mode gray4|bw`, `--fit cover|contain`, `--gamma` (~0.65 for the reflective panel), `--brightness`. Six personal wallpapers built into `wallpapers/` (git-ignored — album art). **Still needs a real on-device check** (host-validated only; a device photo Logan shared was a stock image, not a tool output). See [[crosslight-wallpaper-tool]].
+
+**Open bug carried to later: the file-transfer web server won't load on the phone in AP/hotspot mode** — times out on the raw IP too, so it's not the mDNS/name issue the 26.9.2 QR fix addressed. Diagnosis is blocked on serial logs (the web-server logging is `LOG_DBG`, compiled out at `LOG_LEVEL=1`); full ranked hypotheses + the decisive bisecting test are in **"Item 15: File-transfer web server won't load on the phone"** below.
 
 **In progress, uncommitted-then-committed on a branch, NOT built or flashed: item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). Its pure logic is host-tested (13/13) but the *firmware compile was blocked by the auto-mode safety classifier* — the first build of the new Wi-Fi monitor-mode code — so it has never been compiled for the device. See "Item 14: Camera scan" below before touching it.
 
@@ -295,6 +299,63 @@ untested runs in the radio callback:
    (which the Bible downloader uses for TLS teardown). If OTA/downloads misbehave after a scan, add a
    `silentRestart()` to `CameraScanActivity::onExit()`.
 5. Populate real signatures before it's useful (currently matches nothing).
+
+## Item 15: File-transfer web server won't load on the phone — DIAGNOSIS PENDING
+
+**Symptom (Logan, repeated):** open the file-transfer server in **AP/hotspot mode**, connect the phone
+to the `CrossPoint-Reader` Wi-Fi, then browsing to it **just sits and eventually times out** — tried
+both `crosspoint.local` (mDNS) *and* the raw IP. The earlier hotspot-QR fix (encode `http://<ip>/`
+instead of `crosspoint.local`, shipped in 26.9.2) did **not** fix it; the IP times out too. So this is
+not a name-resolution problem — packets aren't completing a request/response.
+
+**What the code actually does (read 2026-09-25, all looks correct):**
+- `CrossPointWebServerActivity::startAccessPoint()` — `WiFi.mode(WIFI_AP)`, open network (`AP_PASSWORD =
+  nullptr`), SSID `CrossPoint-Reader`, **channel 1**, max 4 clients, default SoftAP IP **192.168.4.1**.
+  Then a captive-portal `DNSServer` (`*` → apIP) and mDNS `crosspoint`.
+- `CrossPointWebServer::begin()` — `WebServer` on **:80**, `WiFi.setSleep(false)`, routes registered,
+  WebSocket on :81, discovery UDP. `handleRoot()` serves the gzipped HomePage via `send_P` **from
+  flash** (so serving is low-heap and shouldn't OOM).
+- `handleNotFound()` in AP mode **302-redirects every non-`/api/` path to `/`** (captive-portal auto-open).
+- The activity `loop()` pumps `dnsServer->processNextRequest()` + a tight `handleClient()` loop.
+
+**The diagnosis blocker:** essentially all the web-server logging is `LOG_DBG` (`WEB`/`WEBACT`), which is
+**compiled out at `LOG_LEVEL=1`** — and the release/RC x4pro builds set `LOG_LEVEL=1` (platformio.ini).
+So a serial capture on the shipped 26.9.2 shows almost nothing. **Step 1 is to flash a debug build
+(`LOG_LEVEL=2`)** so `WEB`/`WEBACT` lines appear, then reproduce with the serial monitor
+(`scripts/debugging_monitor.py`).
+
+**The decisive test — this cleanly bisects it.** With a debug build + serial monitor, start the server
+in AP mode, connect the phone, and load the page while watching for:
+- `Access Point started! IP: 192.168.4.1` and `Web server started on port 80` (confirms bring-up), then
+- `handleClient active...` every 10s (confirms the pump runs), and crucially
+- on page-load: does **`Served root page`** (or any DNS/302 line) appear?
+  - **Nothing logs on page-load → the request never reaches the device** = network/association layer
+    (H1/H2 below). This is the most likely branch given "times out on the IP too."
+  - **`Served root page` logs but the phone still times out → serving layer** (H4/H5): gzip/`send_P`
+    stall or the response not completing over the link.
+
+**Ranked hypotheses:**
+- **H1 — phone gets no DHCP lease on the SoftAP** (stuck "obtaining IP address"), so 192.168.4.1 is
+  unreachable. Common ESP32 SoftAP + Android failure. Check the phone's assigned IP (expect 192.168.4.x)
+  and try to `ping 192.168.4.1`.
+- **H2 — Android "no-internet" routing.** Open AP with no internet: some Android builds keep routing
+  over cellular and/or the captive-portal webview hijacks the flow. Mitigation to test: turn **mobile
+  data off** after joining, then load the IP in real Chrome (not the captive-portal popup).
+- **H3 — RF/channel.** SoftAP is hard-pinned to **channel 1**; a busy channel or a phone that parked on
+  5 GHz can make association flaky. Low-cost experiment: try a different `AP_CHANNEL`.
+- **H4 — serving stall/heap.** Free heap after the SD-font-cache release could be low; watch the
+  `[MEM] Free heap` lines around `begin()`; if `Served root page` logs but nothing arrives, suspect this.
+- **H5 — gzip vs a limited webview.** `sendStaticContent()` always sets `Content-Encoding: gzip`; a
+  compliant browser is fine, but Android's captive-portal mini-browser might not be — hence "load the
+  raw IP in full Chrome" as the clean repro, bypassing the captive popup.
+
+**Cheap product-side hardening worth doing regardless (once the branch is known):** consider giving the
+SoftAP a WPA2 password (some phones treat open "no-internet" APs badly), and/or `WiFi.softAPConfig()`
+with an explicit IP/subnet + confirming the DHCP lease range. Do **not** change these blind — get the
+serial log first so we fix the actual branch, not a guess.
+
+**STA-mode note:** it's unconfirmed whether the same failure happens on home Wi-Fi (STA) — if STA works
+and only AP fails, that strongly implicates H1/H2/H3 (the SoftAP path) and narrows the fix.
 
 ## Decisions made
 
