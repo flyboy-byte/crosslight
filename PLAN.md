@@ -373,6 +373,29 @@ tapping it actually connect?** If it won't connect, the fix is the SoftAP config
 explicit softAPConfig), not the HTTP code. Turning mobile data off and loading `192.168.4.1` is the clean
 hotspot repro.
 
+**Association RULED OUT (2026-09-30, Logan tested):** on hotspot the phone **sees `CrossPoint-Reader`,
+connects fine**, and with LTE off it *still* shows `ERR_TOO_MANY_RETRIES` on the AP IP (`192.168.4.1`),
+identical to the screenshot but with the right IP. So H1/H2/H3 are dead. The TCP port is reachable (a
+refused port gives `ERR_CONNECTION_REFUSED`, not RETRIES), so **the server accepts the connection but never
+completes a response** → browser retries → gives up. This is a **server-side HTTP bug**, not Wi-Fi.
+
+**New prime suspect (H6): single-connection `WebServer` vs Chromium parallelism.** The Arduino `WebServer`
+services one client at a time; Chrome/**Brave** open several parallel + speculative/preconnect sockets on
+first load. The ESP can sit holding an empty speculative connection and never service the real `GET /`,
+which presents exactly as retries-then-fail in Brave while the port still answers. Candidate fixes if
+confirmed: try a different browser (Firefox opens fewer preconnects) as a quick check; set the served
+responses to `Connection: close`; or move to an async server (`ESPAsyncWebServer`) — the last is a big
+change, so confirm the cause first. **Secondary suspects still worth checking in the log:** handleRoot
+never firing (routing) vs firing but the gzipped `send_P` not completing (heap/socket).
+
+**Decisive capture (do this first):** flash a **debug build** (x4pro dev env, `LOG_LEVEL=2`), run
+`scripts/debugging_monitor.py`, start the hotspot, connect the phone, load `http://192.168.4.1/`, and read:
+- Does **`Served root page`** print? **No →** the request never reaches the handler (routing/servicing —
+  supports H6). **Yes but browser still fails →** response isn't completing (gzip/socket/keep-alive).
+- Watch the **`WARNING: N ms gap since last handleClient`** lines and the `[MEM] Free heap` values.
+Quick zero-flash triage: **try loading it in Firefox** — if Firefox works and Brave doesn't, H6 is all but
+confirmed.
+
 **Concrete first moves once a debug build is in hand:** (1) log `WiFi.softAPgetStationNum()` on a timer in
 AP mode — if it stays `0` while the phone shows "too many attempts", the phone never associated (proves the
 association-layer branch outright). (2) Candidate association fixes to try in `startAccessPoint()`: give the
