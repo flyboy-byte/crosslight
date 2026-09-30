@@ -362,6 +362,17 @@ serial log first so we fix the actual branch, not a guess.
 **STA-mode note:** it's unconfirmed whether the same failure happens on home Wi-Fi (STA) — if STA works
 and only AP fails, that strongly implicates H1/H2/H3 (the SoftAP path) and narrows the fix.
 
+**Screenshot evidence (2026-09-30):** phone browser at `http://10.107.92.6/` shows Chromium
+**`ERR_TOO_MANY_RETRIES`**, and the status bar shows **LTE with no Wi-Fi icon — the phone is on mobile
+data, not joined to any Wi-Fi.** Also `10.107.92.6` is **not** the SoftAP IP (`192.168.4.1`), so that shot
+is a "join a network"/STA address, not hotspot. Two takeaways: (a) in hotspot mode the phone is very likely
+**never associating** to `CrossPoint-Reader` (matches the "too many attempts" report → association layer,
+H1/H3); (b) any STA-mode attempt fails if the phone is on LTE instead of the same Wi-Fi as the device.
+**Next real-world check (no firmware): does the phone's Wi-Fi list show `CrossPoint-Reader`, and does
+tapping it actually connect?** If it won't connect, the fix is the SoftAP config (WPA2 password / PS-none /
+explicit softAPConfig), not the HTTP code. Turning mobile data off and loading `192.168.4.1` is the clean
+hotspot repro.
+
 **Concrete first moves once a debug build is in hand:** (1) log `WiFi.softAPgetStationNum()` on a timer in
 AP mode — if it stays `0` while the phone shows "too many attempts", the phone never associated (proves the
 association-layer branch outright). (2) Candidate association fixes to try in `startAccessPoint()`: give the

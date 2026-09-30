@@ -38,3 +38,6 @@ flake.*
 
 # Personal sleep-screen wallpapers (album art etc.) — not for the public fork
 /wallpapers/
+
+# Local-only Bible sources (copyrighted NIV text -- never commit/ship)
+/sources/
