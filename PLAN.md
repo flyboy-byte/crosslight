@@ -6,7 +6,7 @@ Status: **last updated 2026-09-25.** X4 Pro (UC8279 panel) runs CrossLight; stoc
 
 **Open bug carried to later: the file-transfer web server won't load on the phone in AP/hotspot mode** — the phone reports **"too many attempts"** while it sits, so this now reads as a Wi-Fi *association* failure (the phone never joins the SoftAP), not an HTTP problem. Diagnosis still needs a debug-build serial log (web logging is `LOG_DBG`, off at `LOG_LEVEL=1`). Full ranked hypotheses + the decisive test are in **"Item 15"** below.
 
-**Next planned update (chosen 2026-09-30): Bible expansion — NIV + Bible Numbers + Historical Calendar, done "everything, phased."** Driven by a ChatGPT research handoff (`docs/crosslight_claude_handoff.md`), audited and corrected against the real code. Phase 1 (code audit) is done; Phase 2 is the NIV desktop converter + preset + docs. NIV text is **never** committed/shipped (copyright) — only the converter/preset/docs are public; Logan converts his own copy to `/Bible/NIV/niv.json`. Full plan, audit results, and phasing in **"Planned update: Bible expansion"** below.
+**Next planned update (chosen 2026-09-30): Bible expansion — NIV + a historical study layer, done "everything, phased."** Driven by a ChatGPT research handoff (`docs/crosslight_claude_handoff.md`), audited and corrected against the real code. The organizing idea (decided 2026-09-30): the study features rebuild **the apparatus early English study Bibles actually shipped with** — the **Geneva Bible (1560)** as the first English study Bible (numbered verses, margins, cross-refs) and the **1611 KJV front-matter almanac** (Golden Number / Dominical Letter / Epact / "To finde Easter for euer"). So **Bible Numbers** = a facts-first concordance-with-commentary, and **Historical Calendar** = the 1611 almanac reconstructed for any year — not a numerology toy. Phase 1 (code audit) is done; Phase 2 is the NIV desktop converter + preset + docs. NIV text is **never** committed/shipped (copyright) — only the converter/preset/docs are public; Logan converts his own copy to `/Bible/NIV/niv.json`. A **Track D** (reader "flow faster/smoother") is a measure-first, profile-on-hardware item. **"Go to Verse" was removed 2026-09-30** (Logan's call). Full plan, audit results, historical framing, and phasing in **"Planned update: Bible expansion"** below.
 
 **In progress, uncommitted-then-committed on a branch, NOT built or flashed: item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). Its pure logic is host-tested (13/13) but the *firmware compile was blocked by the auto-mode safety classifier* — the first build of the new Wi-Fi monitor-mode code — so it has never been compiled for the device. See "Item 14: Camera scan" below before touching it.
 
@@ -455,10 +455,44 @@ preset + docs only; the NIV JSON lives only on the SD card. See [[crosslight-rel
 - **Test verses after install:** Genesis 1, Psalms 23, John 3, Romans 8, Revelation 13, plus random chapters.
 - Blocked on: Logan dropping his NIV file here so the converter targets its exact format.
 
-### Track B — Bible Numbers (data-driven study tool)
+### The organizing idea (decided with Logan 2026-09-30): a historical study Bible, not a numerology toy
+
+Tracks B and C aren't two loose gimmicks — together they rebuild the **study apparatus that early English
+study Bibles actually shipped with**, which is what makes it interesting rather than a novelty. Two concrete
+anchors:
+
+- **The Geneva Bible (1560) was the first English "study Bible."** It was the first English Bible with
+  *numbered verses* (the numbering scheme our reader still uses), the first with cross-references, the first
+  to italicize supplied words, and it carried book "arguments" (prologues), a concordance, and ~300,000 words
+  of marginal notes drawn from Reformation writers. It is the model for "a Bible you *study in*, with a layer
+  around the text." (Sources below.)
+- **The 1611 KJV was bound with a front matter that is pure calendar/computus apparatus.** Its opening leaves
+  held "The Kalendar" (holy days), **"An Almanacke for xxxix yeeres"** (tabulated 1603–1641), **"To finde
+  Easter for euer,"** and the table of Psalms/Lessons for Morning and Evening Prayer. Those tables *are*
+  Golden Number + Dominical (Sunday) Letter + Epact + computus. **Track C is reconstructing what the 1611
+  Bible literally printed in its front pages — not inventing abstract math.**
+
+So the study layer has a spine — **"what did the book itself carry?"** Numbers = the countable/interpretive
+layer readers worked out in the margins; Calendar = the almanac tables printed in the opening leaves. Keep
+the two separate (the handoff is right), but present both under one **Study** area that reads as a
+historically-grounded companion — every claim cited, every interpretation labelled — not a numerology toy.
+
+Sources (research 2026-09-30): 1611 front-matter contents & the Golden-Number/Dominical-Letter columns —
+[CPHC "Easter with the KJV 1611"](https://www.cphc.org.uk/updates/2016/3/19/9cpn5q8ufbga59nzgsgd98iulenb8j),
+[St Aelfric facsimile review](https://saint-aelfric-customary.org/2019/12/07/book-review-the-holy-bible-1611-fascimile-edition/);
+Geneva as first English study Bible —
+[HBU Dunham Bible Museum](https://hc.edu/museums/dunham-bible-museum/tour-of-the-museum/past-exhibits/from-geneva-the-first-english-study-bible/).
+
+### Track B — Bible Numbers (a concordance-with-commentary, data-driven)
 
 - UI category name **"Bible Numbers"** (not "Numerology"). Reuses the existing verse cache for occurrence
   counts — no second Bible parser.
+- **What actually makes it a study tool, not a gimmick:** each number screen *leads with countable facts from
+  the loaded translation* — live occurrence count of the English word(s), and its book/chapter distribution,
+  computed off the verse cache — and only then layers interpretation on top, clearly ranked. So the reader
+  sees the data first and the tradition second, and can jump from any cited reference straight into the reader
+  (reuse `goTo`/`goToVerse`, which already exist). It's a small, honest concordance-with-commentary for a
+  handful of resonant numbers.
 - **Data-driven, not hard-coded in C++.** Per-number JSON (e.g. `/Bible/numbers/7.json`) with an explicit
   `classification` per claim, layered: FACT (countable from text) / LITERARY PATTERN / TRADITIONAL
   INTERPRETATION / SCHOLARLY DEBATE / SPECULATION. The firmware is a renderer/query engine. Never present
@@ -470,22 +504,50 @@ preset + docs only; the NIV JSON lives only on the SD card. See [[crosslight-rel
   underlying Hebrew/Greek number. A count is "occurrences of the English word 'seven' in <translation>",
   labeled as such — not "the biblical number seven."
 
-### Track C — Historical Calendar / Golden Number (separate from numerology)
+### Track C — Historical Calendar (the 1611 almanac, reconstructed — separate from numerology)
 
-- Pure computus math + a little data; **must NOT be filed under Bible Numbers.** Golden Number =
-  `(year mod 19) + 1` (handoff wrote `(year+1) mod 19`, 0→19; both give 13 for 1611 — **verify the exact
-  formula and edge cases when building, don't trust either blindly**). Then evaluate Metonic cycle position,
-  Epact, Dominical Letter, and Easter/computus as later additions.
+- **Concept: pick a year, get the row the 1611 almanac would have shown** — Golden Number, Dominical (Sunday)
+  Letter, Epact, and the computus date of Easter — the same columns "An Almanacke for xxxix yeeres" tabulated
+  for 1603–1641, now for *any* year. Present each with a one-line plain-language note on what the column meant
+  and why a Bible printed it. **Must NOT be filed under Bible Numbers.**
+- **Golden Number:** `(year mod 19) + 1` (handoff wrote `(year+1) mod 19`, 0→19; both give 13 for 1611 —
+  **verify the exact formula and edge cases when building, don't trust either blindly**). Pin with
+  known-answer host tests: 1611 → 13, plus a modern year cross-checked against a published table.
+- **Easter/computus is the headline output.** Note the wrinkle that fits the historical framing: in 1611
+  England was still on the **Julian** calendar (Old Style), so offer both Julian and Gregorian computus and
+  label them — that difference is itself part of the history the tool teaches.
+- Supporting columns: Epact and Dominical Letter (needed for the Easter calc anyway), Metonic-cycle position
+  (Golden Number is just the cycle index). Pure math + a little data → **host-testable** like the reference
+  parser and the Flock matcher.
+- **Parked adjacency (not a phase):** a Geneva-style "book argument" / marginal-note layer could later sit
+  beside the reader, since Geneva is the study-edition model. Data-only, SD-resident, no engine change.
+
+### Track D — Bible reader responsiveness ("flow faster / smoother"), investigation (added 2026-09-30)
+
+Logan's ask: make the Bible app **flow a bit faster and smoother.** This is a **measure-first item, not a
+committed change** — do not optimize by guess. Profile on the real X4 Pro (the simulator structurally cannot
+measure e-ink timing or SD latency — see CLAUDE.md), find the actual bottleneck, then decide. Candidates to
+instrument with `millis()` timing:
+- **Chapter open:** the 16 KB streaming JSON read → binary chapter-cache path. Is first-open reparse the cost,
+  or is it the e-ink refresh that follows? (Cache is `CACHE_VERSION 2`; a cold cache reparses the whole file.)
+- **Page turn:** full vs partial e-ink refresh, and `buildPages()` cost per chapter (pagination + `versePages`).
+- **Hub/menu transitions** after the hub-first change (extra Activity construct/destroy on each open).
+Likely low-risk wins *if the data supports them:* keep the chapter cache warm across hub→reader hops, prefer
+partial refresh on page turns where the panel allows, avoid rebuilding pages when only the page index moved.
+[[verify-dont-assume]] — nothing here ships until a real-hardware measurement names the bottleneck.
 
 ### Phasing (what ships when)
 
 - **Phase 1 — DONE (this audit).** Schema/path/preset/loader/cache confirmed; handoff corrected.
 - **Phase 2 — NIV converter + preset + docs (Track A).** Smallest real win; the next update's headline.
   Also fold in the **web-server AP fix (Item 15)** if the serial diagnosis lands in time.
-- **Phase 3 — Bible Numbers v1 (Track B):** the data schema + renderer + 7, 6/666, 12, 40.
-- **Phase 4 — Historical Calendar (Track C):** Golden Number + Metonic cycle first.
+- **Phase 3 — Bible Numbers v1 (Track B):** the data schema + renderer + 7, 6/666, 12, 40, facts-first layout.
+- **Phase 4 — Historical Calendar (Track C):** Golden Number + Easter/computus (Julian + Gregorian) first,
+  then Epact/Dominical Letter columns.
 - **Phase 5 — advanced:** repeated-word/pattern search, cross-translation comparison, Hebrew/Greek number
-  metadata. Only after the above prove out on hardware.
+  metadata, and the parked Geneva-style note layer. Only after the above prove out on hardware.
+- **Track D (reader responsiveness)** runs alongside, not as a gated phase — it's a profile-then-fix loop that
+  can land in any release once a hardware measurement justifies a specific change.
 
 Every phase ships as a Wi-Fi OTA (26.9.x → bump the version), and each new UI must be simulator-checked
 before it's called done (the number/calendar engines are pure logic → host-testable like the Flock matcher).
@@ -723,7 +785,16 @@ KJV used for all Bible testing.
     Cost on the real target (`pio run -e x4pro`, measured not estimated): flash 82.4% → **82.5%**
     (5,409,174 B of 6,553,600), RAM unchanged at 30.6%. So two Activities plus a store ran ~9KB of
     flash — a useful unit rate for budgeting the remaining Phase 1/2 tiles against the OTA slot.
-12. Verse-reference jump (2026-09-10). New "Go to Verse" row on `BibleMenuActivity` opens
+12. ~~Verse-reference jump (2026-09-10)~~ — **REMOVED 2026-09-30 (Logan's call).** The "Go to Verse"
+    rows were taken off both the Bible hub (`BibleHubActivity`) and the in-reader menu
+    (`BibleMenuActivity`), along with `openVerseJump()`, `InitialAction::VerseJump`, and the
+    keyboard-entry glue (`lastVerseQuery`, `MAX_REFERENCE_LENGTH`). Kept: `goToVerse()` (still used by
+    Search results) and the `src/bible/BibleReference.{h,cpp}` parser + its host test — now unused by the
+    UI but left in place as a self-contained, tested util (cheap to re-wire if wanted). Removal verified:
+    all 11 Bible translation units compile on `-e simulator_x4_pro`. Original design notes retained below
+    for history:
+
+    Verse-reference jump (2026-09-10). "Go to Verse" row on `BibleMenuActivity` opened
     `KeyboardEntryActivity` (the *existing* keyboard, already linked for WiFi/OPDS — this is why the
     feature is nearly flash-free) and parses free text against the loaded book list. The parser lives
     in its own TU, `src/bible/BibleReference.{h,cpp}`, as pure logic with a host unit test
