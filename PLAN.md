@@ -4,7 +4,9 @@ Status: **last updated 2026-09-25.** X4 Pro (UC8279 panel) runs CrossLight; stoc
 
 **Wallpaper converter added 2026-09-25** (`scripts/make_wallpaper.py`, host-side, no firmware change): image → sleep-screen BMP. Dithers to the panel's 4 native gray levels (0/85/170/255) so the firmware's `nativePalette` fast path renders it pixel-for-pixel; portrait 480x800; `--mode gray4|bw`, `--fit cover|contain`, `--gamma` (~0.65 for the reflective panel), `--brightness`. Six personal wallpapers built into `wallpapers/` (git-ignored — album art). **Still needs a real on-device check** (host-validated only; a device photo Logan shared was a stock image, not a tool output). See [[crosslight-wallpaper-tool]].
 
-**Open bug carried to later: the file-transfer web server won't load on the phone in AP/hotspot mode** — times out on the raw IP too, so it's not the mDNS/name issue the 26.9.2 QR fix addressed. Diagnosis is blocked on serial logs (the web-server logging is `LOG_DBG`, compiled out at `LOG_LEVEL=1`); full ranked hypotheses + the decisive bisecting test are in **"Item 15: File-transfer web server won't load on the phone"** below.
+**Open bug carried to later: the file-transfer web server won't load on the phone in AP/hotspot mode** — the phone reports **"too many attempts"** while it sits, so this now reads as a Wi-Fi *association* failure (the phone never joins the SoftAP), not an HTTP problem. Diagnosis still needs a debug-build serial log (web logging is `LOG_DBG`, off at `LOG_LEVEL=1`). Full ranked hypotheses + the decisive test are in **"Item 15"** below.
+
+**Next planned update (chosen 2026-09-30): Bible expansion — NIV + Bible Numbers + Historical Calendar, done "everything, phased."** Driven by a ChatGPT research handoff (`docs/crosslight_claude_handoff.md`), audited and corrected against the real code. Phase 1 (code audit) is done; Phase 2 is the NIV desktop converter + preset + docs. NIV text is **never** committed/shipped (copyright) — only the converter/preset/docs are public; Logan converts his own copy to `/Bible/NIV/niv.json`. Full plan, audit results, and phasing in **"Planned update: Bible expansion"** below.
 
 **In progress, uncommitted-then-committed on a branch, NOT built or flashed: item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). Its pure logic is host-tested (13/13) but the *firmware compile was blocked by the auto-mode safety classifier* — the first build of the new Wi-Fi monitor-mode code — so it has never been compiled for the device. See "Item 14: Camera scan" below before touching it.
 
@@ -302,11 +304,14 @@ untested runs in the radio callback:
 
 ## Item 15: File-transfer web server won't load on the phone — DIAGNOSIS PENDING
 
-**Symptom (Logan, repeated):** open the file-transfer server in **AP/hotspot mode**, connect the phone
-to the `CrossPoint-Reader` Wi-Fi, then browsing to it **just sits and eventually times out** — tried
-both `crosspoint.local` (mDNS) *and* the raw IP. The earlier hotspot-QR fix (encode `http://<ip>/`
-instead of `crosspoint.local`, shipped in 26.9.2) did **not** fix it; the IP times out too. So this is
-not a name-resolution problem — packets aren't completing a request/response.
+**Symptom (Logan, repeated; refined 2026-09-30):** open the file-transfer server in **AP/hotspot mode**,
+connect the phone to the `CrossPoint-Reader` Wi-Fi, then browsing to it **just sits and never loads** —
+tried both `crosspoint.local` (mDNS) *and* the raw IP. The earlier hotspot-QR fix (encode `http://<ip>/`
+instead of `crosspoint.local`, shipped in 26.9.2) did **not** fix it. **Key new detail: the phone itself
+reports "too many attempts" (or similar) while it sits** — i.e. this reads as a **Wi-Fi association/auth
+failure on the phone side, not an HTTP failure.** The phone likely never fully joins the SoftAP, so the
+web server is a red herring — the fix is almost certainly in `startAccessPoint()`, not the HTTP code.
+This bumps H1/H3 below to the top and makes H4/H5 (serving layer) unlikely.
 
 **What the code actually does (read 2026-09-25, all looks correct):**
 - `CrossPointWebServerActivity::startAccessPoint()` — `WiFi.mode(WIFI_AP)`, open network (`AP_PASSWORD =
@@ -356,6 +361,100 @@ serial log first so we fix the actual branch, not a guess.
 
 **STA-mode note:** it's unconfirmed whether the same failure happens on home Wi-Fi (STA) — if STA works
 and only AP fails, that strongly implicates H1/H2/H3 (the SoftAP path) and narrows the fix.
+
+**Concrete first moves once a debug build is in hand:** (1) log `WiFi.softAPgetStationNum()` on a timer in
+AP mode — if it stays `0` while the phone shows "too many attempts", the phone never associated (proves the
+association-layer branch outright). (2) Candidate association fixes to try in `startAccessPoint()`: give the
+AP a **WPA2 password** (some phones handle open "no-internet" APs badly and retry-loop), call
+`esp_wifi_set_ps(WIFI_PS_NONE)`, and/or set an explicit `WiFi.softAPConfig()` IP/subnet so the DHCP range is
+unambiguous. Try these one at a time against the station-count log — do not shotgun them.
+
+## Planned update: Bible expansion — NIV + Bible Numbers + Historical Calendar (planned 2026-09-30)
+
+Origin: a ChatGPT research handoff (`docs/crosslight_claude_handoff.md`) plus Logan's decision to do
+**"everything, phased."** The handoff is a research summary, not gospel — the code audit below was done
+against the real tree and **corrects two of its claims**. Do not re-trust the handoff over the source.
+
+### Code audit results (verified 2026-09-30 against the real tree)
+
+Confirmed TRUE:
+- SD path is `/Bible/<UPPERCASE>/<lowercase>.json` (`BibleTranslations.cpp:58`, `pathFor()`).
+- Canonical schema is `{"books":[{"name","chapters":[{"chapter","verses":[{"verse","text"}]}]}]}` — these
+  are exactly the keys `BibleChapterLoader` recognizes (`keyFor()`, lines ~95-101).
+- Streaming design is real: 16 KB read chunks (`READ_CHUNK_SIZE`), a custom `StreamingJsonParser`, then a
+  compact **binary** chapter cache (`CACHE_VERSION = 2`; book table + chapter blobs). **NIV needs no new
+  engine** — it reuses this loader/cache.
+- Presets exist as `{abbr, name, license}`: kjv, web, asv, ylt, basicenglish, wb, douayrheims, akjv, kjva,
+  weymouth, tyndale, wycliffe.
+
+Corrections to the handoff:
+1. **Downloader uses `api.getbible.net/v2/<abbr>.json`, NOT api.bible** (`downloadUrl()`,
+   `BibleTranslations.cpp:61`). getBible only serves freely-licensed texts, so **NIV cannot use the
+   existing download flow** — it must be user-supplied or desktop-converted.
+2. **Chapter/verse numbers must be JSON numbers, not strings.** The loader reads them only in
+   `onBuildNumber` (`BibleChapterLoader.cpp:436-442`); a string like `"chapter":"23"` (as in
+   `aruljohn/Bible-niv`) hits `onBuildString` and is silently ignored → empty chapters. **The converter
+   MUST cast chapter/verse to ints.** This is mandatory, not optional.
+
+### Legal boundary (decided with Logan 2026-09-30)
+
+NIV is copyrighted (Biblica). Logan has a personal copy from GitHub (candidates: `aruljohn/Bible-niv`,
+`rotarydialer/Sermonator`). **Converting his own copy for his own device = fine (personal use). What we do
+NOT do: commit NIV text into the public fork, or attach it to a GitHub release** — that's redistribution,
+and no GitHub repo's MIT license establishes the right to sublicense the NIV. Public artifacts = converter +
+preset + docs only; the NIV JSON lives only on the SD card. See [[crosslight-releases]].
+
+### Track A — NIV support (architecture: user-supplied + desktop converter)
+
+- **`tools/convert_niv.py`** (host-side, like `scripts/make_wallpaper.py` — no firmware change). Input:
+  the user's authorized NIV source. Auto-detect and support: aruljohn per-book JSON (66 files + `Books.json`
+  for order), the canonical single-file schema, and (lower priority) the Sermonator TXT. Output:
+  `/Bible/NIV/niv.json` in CrossLight canonical schema. **Must cast chapter/verse to numeric.** Validation
+  (fail loudly): exactly 66 books, expected names/order, valid UTF-8, expected chapter counts, contiguous
+  unique chapter+verse numbers, no missing/dup/empty verses. (Validation runs on whatever file Logan
+  supplies — no need to pre-fetch all 66 files into this repo.)
+- **Preset:** add one line `{"niv", "New International Version", "Copyrighted — user-supplied"}` to the
+  preset table. It must **not** auto-download (no getBible entry). Check how the translation menu treats a
+  preset with no download source — may need a "bring your own / not installed" affordance rather than a
+  download button. **Audit target before coding this.**
+- **Docs:** short "Add your own NIV" guide (run converter → copy to `/Bible/NIV/niv.json`).
+- **Test verses after install:** Genesis 1, Psalms 23, John 3, Romans 8, Revelation 13, plus random chapters.
+- Blocked on: Logan dropping his NIV file here so the converter targets its exact format.
+
+### Track B — Bible Numbers (data-driven study tool)
+
+- UI category name **"Bible Numbers"** (not "Numerology"). Reuses the existing verse cache for occurrence
+  counts — no second Bible parser.
+- **Data-driven, not hard-coded in C++.** Per-number JSON (e.g. `/Bible/numbers/7.json`) with an explicit
+  `classification` per claim, layered: FACT (countable from text) / LITERARY PATTERN / TRADITIONAL
+  INTERPRETATION / SCHOLARLY DEBATE / SPECULATION. The firmware is a renderer/query engine. Never present
+  `7 = perfection` or `6 = evil` as absolute.
+- Initial set: **7, 6/666, 12, 40** (then 3, 10, 70/77, 1000). 666: show the textual fact (Rev 13:18), the
+  gematria/isopsephy explanation, major interpretations (incl. Nero Caesar), the 616 variant, and citations
+  — no single interpretation as absolute.
+- **Caveat to bake in:** English lexical occurrence counts differ across translations and differ from the
+  underlying Hebrew/Greek number. A count is "occurrences of the English word 'seven' in <translation>",
+  labeled as such — not "the biblical number seven."
+
+### Track C — Historical Calendar / Golden Number (separate from numerology)
+
+- Pure computus math + a little data; **must NOT be filed under Bible Numbers.** Golden Number =
+  `(year mod 19) + 1` (handoff wrote `(year+1) mod 19`, 0→19; both give 13 for 1611 — **verify the exact
+  formula and edge cases when building, don't trust either blindly**). Then evaluate Metonic cycle position,
+  Epact, Dominical Letter, and Easter/computus as later additions.
+
+### Phasing (what ships when)
+
+- **Phase 1 — DONE (this audit).** Schema/path/preset/loader/cache confirmed; handoff corrected.
+- **Phase 2 — NIV converter + preset + docs (Track A).** Smallest real win; the next update's headline.
+  Also fold in the **web-server AP fix (Item 15)** if the serial diagnosis lands in time.
+- **Phase 3 — Bible Numbers v1 (Track B):** the data schema + renderer + 7, 6/666, 12, 40.
+- **Phase 4 — Historical Calendar (Track C):** Golden Number + Metonic cycle first.
+- **Phase 5 — advanced:** repeated-word/pattern search, cross-translation comparison, Hebrew/Greek number
+  metadata. Only after the above prove out on hardware.
+
+Every phase ships as a Wi-Fi OTA (26.9.x → bump the version), and each new UI must be simulator-checked
+before it's called done (the number/calendar engines are pure logic → host-testable like the Flock matcher).
 
 ## Decisions made
 
