@@ -40,7 +40,7 @@ void BibleHubActivity::buildRows() {
   bookmarkCount = std::to_string(BIBLE_BOOKMARKS.all().size());
 
   rowItems.clear();
-  rowItems.reserve(7);  // add() hands back a reference into the vector
+  rowItems.reserve(6);  // add() hands back a reference into the vector
   auto add = [this](const Row row, const char* label, const bool enabled) -> fui::ListItem& {
     fui::ListItem item;
     item.label = label;
@@ -52,7 +52,6 @@ void BibleHubActivity::buildRows() {
   add(Continue, tr(STR_CONTINUE_READING), haveTranslation).subtitle =
       continueSubtitle.empty() ? nullptr : continueSubtitle.c_str();
   add(SelectBook, tr(STR_SELECT_BOOK), haveTranslation);
-  add(GoToVerse, tr(STR_GO_TO_VERSE), haveTranslation);
   add(Search, tr(STR_SEARCH_BIBLE), haveTranslation);
   add(Bookmarks, tr(STR_BOOKMARKS), haveTranslation && !BIBLE_BOOKMARKS.all().empty()).value = bookmarkCount.c_str();
   add(MemoryWork, tr(STR_MEMORY_WORK), haveTranslation && haveMemoryWork);
@@ -74,9 +73,6 @@ void BibleHubActivity::activateIndex(const int index) {
     case SelectBook:
       activityManager.replaceActivity(
           std::make_unique<BibleReaderActivity>(renderer, mappedInput, Action::BookPicker));
-      return;
-    case GoToVerse:
-      activityManager.replaceActivity(std::make_unique<BibleReaderActivity>(renderer, mappedInput, Action::VerseJump));
       return;
     case Search:
       activityManager.replaceActivity(std::make_unique<BibleReaderActivity>(renderer, mappedInput, Action::Search));

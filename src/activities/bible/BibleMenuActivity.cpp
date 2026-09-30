@@ -26,11 +26,6 @@ void BibleMenuActivity::onEnter() {
   goToBook.actionValue = GoToBook;
   rowItems.push_back(goToBook);
 
-  fui::ListItem goToVerse;
-  goToVerse.label = tr(STR_GO_TO_VERSE);
-  goToVerse.actionValue = GoToVerse;
-  rowItems.push_back(goToVerse);
-
   fui::ListItem bookmarks;
   bookmarks.label = tr(STR_BOOKMARKS);
   bookmarks.value = labels[0].c_str();

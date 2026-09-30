@@ -17,7 +17,6 @@
 #include "activities/reader/ReaderUtils.h"
 #include "activities/util/KeyboardEntryActivity.h"
 #include "bible/BibleBookmarkStore.h"
-#include "bible/BibleReference.h"
 #include "bible/BibleReadingStateStore.h"
 #include "bible/BibleTranslations.h"
 #include "components/UITheme.h"
@@ -137,9 +136,6 @@ bool BibleReaderActivity::handleFormatInput() {
       case InitialAction::BookPicker:
         openBookPicker();
         break;
-      case InitialAction::VerseJump:
-        openVerseJump();
-        break;
       case InitialAction::Bookmarks:
         openBookmarkList();
         break;
@@ -180,9 +176,6 @@ void BibleReaderActivity::openMenu() {
         switch (std::get<MenuResult>(result.data).action) {
           case BibleMenuActivity::GoToBook:
             openBookPicker();
-            break;
-          case BibleMenuActivity::GoToVerse:
-            openVerseJump();
             break;
           case BibleMenuActivity::OpenBookmarks:
             openBookmarkList();
@@ -225,32 +218,6 @@ void BibleReaderActivity::openChapterPicker() {
         currentChapter = chapterResult.chapter;
         currentPageIndex = 0;
         loadCurrentChapter();
-      });
-}
-
-// Free-text reference entry ("John 3:16"), on the same keyboard the WiFi and
-// OPDS screens use. Faster than book picker -> chapter picker for a known
-// reference, and the only way to land on a specific *verse* rather than a
-// chapter's first page.
-void BibleReaderActivity::openVerseJump() {
-  startActivityForResult(
-      std::make_unique<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_VERSE_REFERENCE), lastVerseQuery,
-                                              MAX_REFERENCE_LENGTH),
-      [this](const ActivityResult& result) {
-        if (result.isCancelled) return;
-        const std::string& input = std::get<KeyboardResult>(result.data).text;
-        BibleReferenceQuery query;
-        if (!parseBibleReference(input, books, query)) {
-          // No toast facility exists, so an unparseable reference reopens the
-          // keyboard with the text intact rather than silently doing nothing.
-          // Cancel is the way out; that's why this can't loop forever.
-          lastVerseQuery = input;
-          openVerseJump();
-          return;
-        }
-        lastVerseQuery.clear();
-        goTo(query.book, query.chapter, 0);
-        if (query.verse > 0) goToVerse(query.verse);
       });
 }
 

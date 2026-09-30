@@ -18,9 +18,8 @@ class BibleMenuActivity final : public UiListActivity {
  public:
   enum Action : int {
     GoToBook = 0,
-    GoToVerse = 1,
-    OpenBookmarks = 2,
-    ToggleBookmark = 3,
+    OpenBookmarks = 1,
+    ToggleBookmark = 2,
   };
 
   BibleMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool currentLocationBookmarked,
