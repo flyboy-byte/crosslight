@@ -287,6 +287,15 @@ untested runs in the radio callback:
   **Deliberate: I would not fabricate real Flock OUIs** — no verified current data, and fake values
   give false confidence. The engine is real; the fingerprints are the user's to fill in from current
   research, which is why they live on SD (Flock rotates them). Copy to `/flock/signatures.json`.
+
+**Open build blocker found 2026-09-30 (host/sim only):** the `flock` **namespace** collides with POSIX
+`struct flock` from `<fcntl.h>` — on a host/simulator build, `HalStorage.h` pulls in `<fcntl.h>` (via
+`FsApiConstants.h`), and the two `flock` identifiers clash, so `FlockSignatures.o` and `CameraScanActivity.o`
+fail to compile on `-e simulator_x4_pro`. This is *why the scanner can't be simulator-tested* — separate from
+the on-device firmware build being classifier-blocked. Fix when resumed: **rename the namespace** (e.g.
+`flockcam` / `surveil`) — the ESP32 build doesn't include `<fcntl.h>` the same way so it wasn't caught
+before; a namespace rename is the clean fix and costs nothing on-device. Noticed because it broke the Bible
+Go-to-Verse simulator verification (the Bible TUs themselves built fine; only `src/flock/*` failed).
 - Tests: `test/flock_matcher/` — 13 tests, all passing (matcher + frame parser).
 
 **When the build is unblocked, remaining work:**
