@@ -4,6 +4,7 @@
 #include "activities/utilities/BleScanActivity.h"
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/CameraScanActivity.h"
+#include "activities/utilities/EvilTwinActivity.h"
 #include "activities/utilities/FlashlightActivity.h"
 #include "activities/utilities/PmkidHarvestActivity.h"
 #include "activities/utilities/UnitConverterActivity.h"
@@ -56,6 +57,10 @@ const std::vector<Utility> kUtilities = {
     {StrId::STR_BEACON_FLOOD, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<BeaconFloodActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_EVIL_TWIN, Wifi,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<EvilTwinActivity>(renderer, mappedInput);
      }},
 };
 }  // namespace
