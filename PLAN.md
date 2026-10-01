@@ -309,17 +309,39 @@ regardless of frame subtype, and the matcher already has a tested empty-SSID/OUI
 (`EmptySsidObservationDoesNotMatchSsidRule`).** So the architecture is already correct for this case — no
 code change needed on the detection method itself.
 
-**Signature data: still placeholder, and a verification line was deliberately NOT crossed 2026-09-30.**
-A single `WebFetch` of a `flock-you` fork's README returned what looked like a real, cited OUI list (34
-prefixes, a "firmware dump" source, specific dates). **This was NOT written into `signatures.json`.**
-Reasoning: a page fetch is summarized by a small model, not read directly, and this is a counter-
-surveillance project — a single unverified source could be stale, wrong, or deliberately poisoned by
-someone hostile to the effort, and shipping it as "real" data creates exactly the false-confidence harm
-the placeholder policy exists to prevent. Promoting a one-shot fetch to "verified" is not a call to make
-unilaterally for safety-relevant data. **Open for Logan to decide:** (a) point to a specific source he
-trusts and have it transcribed carefully (reading the raw file directly, cross-checked against 2-3
-independent forks for consistency), or (b) leave the placeholder as-is. Either way, OUIs rotate, so
-whatever goes in needs a stated "as of" date and a note that it will go stale.
+**ITEM 14 DEPRIORITIZED 2026-09-30 — real-world signal reliability is the actual problem, not the code.**
+Logan supplied outside research (not from me) showing modern Flock units have **disabled Bluetooth** (the
+signal early detectors relied on most) and moved to **cellular/LTE backhaul**, leaving Wi-Fi **dormant most
+of the time** — detection now depends on catching faint, sporadic probe requests, which the source material
+says is unreliable even for dedicated drive-by detector hardware. **Decision: stop investing further time
+in signature research; leave the code as-is (built, host-tested, device-build-unblocked, architecture
+sound) and do not resume unless something changes** (better data surfaces, or Logan wants it anyway knowing
+the odds). Caveat worth remembering if resumed: CrossLight's use case (a device carried/sitting with someone
+for a while) has more dwell time to catch an intermittent signal than a car passing at speed, which is the
+scenario most of the critique is written about — so "unreliable for drive-by scanning" isn't necessarily
+"unreliable for CrossLight," but neither of us has evidence either way, so treat it as unproven, not better.
+
+**Signature data research findings, preserved for if this resumes (NOT written into `signatures.json` —
+work stopped here per the deprioritization above):**
+- Verified `b4:1e:52` is IEEE-registered directly to **Flock Safety** (cross-checked against a third-party
+  MAC vendor database independent of the community research project) — real, strong, checkable ground
+  truth, not a heuristic guess.
+- The community "32 field-researched OUI prefixes" (attributed to one researcher, `@NitekryDPaul`, synced
+  2026-07-16, methodology stated as promiscuous-mode traffic analysis) reproduced **identically** across two
+  independently-fetched repos (the original project's own dataset doc, and a downstream fork's compiled
+  source) for the 10+1 prefixes checked — consistent propagation, not independent re-derivation (all
+  downstream copies trace to the same one researcher), and the source itself flags 2 of the 32 as
+  "low confidence" and 1 as unusual ("locally administered" MAC). Spot-checked 2 of these against the
+  third-party vendor database: both resolve to real registered vendors (Liteon Technology Corp for one),
+  consistent with "Flock uses this vendor's radio module" rather than "Flock owns this block" — a weaker
+  but still real class of evidence than the direct IEEE registration above.
+- A **different fork's source file also contained a 10-entry "FS Ext Battery devices" group including
+  `cc:cc:cc`** — not present in the original canonical source and shaped like a leftover placeholder value,
+  not a real finding. **Correctly excluded** — concrete proof the "verify before shipping" caution was the
+  right call, not just theoretical risk-aversion.
+- A single `WebFetch` of a different fork's README (before the above direct-source checks) returned a
+  plausible-looking but unverified 34-prefix list with a "firmware dump" narrative — **this was never
+  written anywhere**, specifically because a page-fetch summary isn't verification for safety-relevant data.
 
 **Host/sim build blocker — FIXED 2026-09-30.** The `flock` **namespace** collided with POSIX `struct flock`
 from `<fcntl.h>` (pulled in by `HalStorage.h` via `FsApiConstants.h` on host builds), so `src/flock/*` and
