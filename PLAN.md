@@ -10,28 +10,32 @@
 the calculator operator-display fix, flashlight + unit-converter utilities, real tile icons, and the README/
 About rewrite. `partitions.csv` unchanged = installs over Wi-Fi OTA. **Awaiting Logan's flash-test.**
 
-**The Bible expansion plan (Phases 1-4, Tracks A-C) is now ALL BUILT, not yet OTA-tagged.** Rides the next
-release (26.10.3): NIV support (Phase 2), Bible Numbers (Phase 3, OTA'd separately as 26.9.3), Historical
-Calendar computus (Phase 4 / Track C part 1, commit `89da088e`), and Daily Psalter reading calendar
-(Phase 4 / Track C part 2, commit `7dedc098`) — the full 1611 front-matter apparatus (Easter almanac +
-monthly lectionary) is reconstructed. Host 555/555, x4pro + sim both green, flash 54.2%, both
-simulator-screenshot-verified.
+**The Bible expansion plan (Phases 1-4, Tracks A-C) is BUILT, RELEASED as 26.10.3, and HARDWARE-TESTED.**
+NIV support (Phase 2), Bible Numbers (Phase 3, OTA'd separately as 26.9.3), Historical Calendar computus
+(Phase 4 / Track C part 1, commit `89da088e`), and Daily Psalter reading calendar (Phase 4 / Track C part 2,
+commit `7dedc098`) — the full 1611 front-matter apparatus (Easter almanac + monthly lectionary) is
+reconstructed. Host 555/555, x4pro + sim both green, flash 54.2%, simulator-screenshot-verified pre-release.
+**Logan flashed 26.10.3 and confirmed 2026-10-01: "it looks great."** General UI/visual confirmation on real
+hardware — the gate Phase 5 was waiting on. (Note: this confirms the UI reads well on the e-ink panel, not a
+line-by-line re-verification of every computus/Psalter value — those are already pinned by the 13 host tests
+added this session, cross-checked against primary sources per [[verify-dont-assume]].)
 
-**What's deliberately NOT built, and why (do not build these without discussing first):**
-- **Phase 5 (advanced: pattern search, cross-translation, Hebrew/Greek metadata, Geneva note layer)** — PLAN
-  pre-registers this as gated "only after the above prove out on hardware." Phases 1-4 haven't been
-  hardware-tested yet (they're sim-verified only). Building Phase 5 now would jump the gate PLAN set up
-  specifically to avoid over-building before real-device feedback.
-- **Track D (reader perf)** — explicitly measure-first: "nothing ships until a real-hardware measurement
-  names the bottleneck." The simulator structurally cannot measure e-ink/SD timing. This needs a session with
-  the physical X4 Pro, not more code.
+**Phase 5 and Track D are now unblocked** (the hardware-proof gate both were waiting on is satisfied):
+- **Phase 5 (advanced):** pattern/repeated-word search, cross-translation comparison, Hebrew/Greek number
+  metadata, the parked Geneva-style note layer. Pick a slice with Logan before building — PLAN scoped these
+  loosely ("only after the above prove out"), not as a committed spec the way Tracks A-C were.
+- **Track D (reader perf):** still needs a `millis()`-instrumented profiling pass on the device itself (chapter
+  open, page turn, hub transitions) before any code changes — "looks great" is a UI read, not a timing
+  measurement. Do the profiling session before optimizing.
 
 **NEXT, per Logan (2026-10-01, do not re-ask):**
 1. ~~Cut release 26.10.2~~ — DONE.
 2. ~~Build Track C (Historical Calendar + Daily Psalter)~~ — DONE 2026-10-01, completing the whole planned
    Bible expansion (Phases 1-4).
-3. **Cut 26.10.3** so Logan can flash-test everything above on real hardware — this is what unblocks Phase 5
-   and Track D (both are gated on hardware feedback this release would produce).
+3. ~~Cut 26.10.3~~ — DONE (tag `26.10.3`, commit `2b7ec2de`). Logan flashed it and confirmed "it looks great"
+   (2026-10-01) — Phase 5 and Track D's hardware-proof gate is now satisfied.
+4. **Pick the next slice with Logan:** a specific Phase 5 feature, or a Track D profiling session. Neither is
+   pre-scoped tightly enough to just start building — ask which, or what's bugging him most on the device.
 
 **Standing physical to-do (when the SD card is next out of the device):** copy `assets/bleaudit/signatures.json`
 → `/bleaudit/signatures.json` so BLE fingerprinting labels devices; and copy `assets/bible_numbers/{3,77,1000}.json`
