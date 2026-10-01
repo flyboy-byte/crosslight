@@ -1,6 +1,9 @@
 # PLAN.md
 
-Status: **last updated 2026-10-01.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.10.1 is published on GitHub** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.1) — the upstream rebase + passive pentest toolkit (slices 1-5, receive-only), over Wi-Fi OTA. Logan is flash-testing it on hardware (the "owed" passive-slice verification). The slice-6 active foundation rides along **dormant** (flag off, no UI, no-op TX). **Prior: 26.9.3** (https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3) — Bible Numbers v1. **26.9.2 is also published and written to the SD card as `/firmware.bin`, still awaiting a wired/SD install** via Settings → SD Card Firmware Update (Logan stopped before installing it) — 26.9.3 supersedes it for anyone already on Wi-Fi OTA, but a device still on pre-26.9.2 needs 26.9.2 installed first to reach the Wi-Fi-OTA track at all. It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge. **`crosslight` rebased onto upstream `develop` again 2026-10-01** (29 commits: SD-card plugin system, EPUB DRM, reader refactors) — not yet in a tagged release. See "Upstream rebase (2026-10-01)" below.
+Status: **last updated 2026-10-01.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.10.1 is published on GitHub** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.1) — the upstream rebase + passive pentest toolkit (slices 1-5, receive-only), over Wi-Fi OTA. **Tested on hardware 2026-10-01: UI good (time-at-top + look both validated by Logan), scans run; BLE
+matching is SD-data-gated** (needs `/bleaudit/signatures.json` copied to the card — see the pentest section).
+A **calculator fix landed after 26.10.1** (operator now shows on the display — commit `29b5b15b`, rides the
+next release, not in 26.10.1). The slice-6 active foundation rides along **dormant** (flag off, no UI, no-op TX). **Prior: 26.9.3** (https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3) — Bible Numbers v1. **26.9.2 is also published and written to the SD card as `/firmware.bin`, still awaiting a wired/SD install** via Settings → SD Card Firmware Update (Logan stopped before installing it) — 26.9.3 supersedes it for anyone already on Wi-Fi OTA, but a device still on pre-26.9.2 needs 26.9.2 installed first to reach the Wi-Fi-OTA track at all. It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge. **`crosslight` rebased onto upstream `develop` again 2026-10-01** (29 commits: SD-card plugin system, EPUB DRM, reader refactors) — not yet in a tagged release. See "Upstream rebase (2026-10-01)" below.
 
 **Wallpaper converter added 2026-09-25** (`scripts/make_wallpaper.py`, host-side, no firmware change): image → sleep-screen BMP. Dithers to the panel's 4 native gray levels (0/85/170/255) so the firmware's `nativePalette` fast path renders it pixel-for-pixel; portrait 480x800; `--mode gray4|bw`, `--fit cover|contain`, `--gamma` (~0.65 for the reflective panel), `--brightness`. Six personal wallpapers built into `wallpapers/` (git-ignored — album art). **Still needs a real on-device check** (host-validated only; a device photo Logan shared was a stock image, not a tool output). See [[crosslight-wallpaper-tool]].
 
@@ -919,9 +922,15 @@ new sources; rebuilt clean on **host (529/529 tests), simulator (SUCCESS), and x
 54.0%, RAM 33.6%)**. The two cloud-agent scratch docs (`crosslight_pentest_research.md`,
 `crosslight_pentest_slice6_scope.md`) and the handoff doc were removed — this section is the source of truth.
 
-**Still owed before a release:** flash + on-hardware verification of all five slices (scan correctness, SD
-writes, radio release on exit) — the same "simulator can't test real RF/SD timing" caveat every radio
-feature here carries. No OTA tag until that's done.
+**On-hardware test 2026-10-01 (26.10.1): UI + scan work; BLE matching is SD-data-gated.** Logan flashed
+26.10.1 and ran the tools. The UI is good (he called out the new time-at-top and overall look), the scans
+run. **But BLE fingerprinting labels nothing** because the matcher loads `/bleaudit/signatures.json` from the
+SD card (`BleSignatures.h` `SIGNATURE_PATH`) and that file isn't on the card yet — the scan works, matching is
+data-gated. **Exact same lesson as Bible Numbers: shipping the firmware ≠ shipping the SD data.** Fix: copy
+`assets/bleaudit/signatures.json` → `/bleaudit/signatures.json` on the device SD next time the card is out
+(Wi-Fi threat detection + PMKID need no data file — they're pattern-based — so only BLE is affected). Logan's
+fine leaving it for now ("thats fine"). Still also owed: on-hardware check of the SD writes (PCAP/hccapx
+files land correctly) and radio release on exit.
 
 **Active/transmit FOUNDATION (Slice 6 primitives) — recovered + MERGED into `crosslight` 2026-10-01; dormant.**
 `FrameBuilder` (pure deauth/disassoc/beacon byte builders), `AttackTx` (the single transmit path), and
