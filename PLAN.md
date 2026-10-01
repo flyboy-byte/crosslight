@@ -1041,8 +1041,24 @@ transmit, and a nearby device's scan list genuinely filling with the flood).
 that linker-wrap pins/patches the Wi-Fi lib — a bigger build-system change than 6b/6c/6d need. Still deferred;
 decide separately once 6c is built and 6b is hardware-verified.
 
-**Next: 6c (evil-twin captive portal).** Different radio mode than 6b (AP/softAP + a web server, not raw STA
-TX) — reuses the hotspot/WebServer plumbing CrossLight already has for file-transfer, not `TxRadio`.
+**6c (Evil Twin) SHIPPED to the tree 2026-10-01 (commit `8c7e86f3`, not yet OTA-tagged).** Clones a
+user-typed SSID (via the existing `KeyboardEntryActivity`) as an open AP, serves a captive-portal landing
+page to anything that joins via the same `DNSServer` wildcard-redirect + `WebServer` mechanism
+`CrossPointWebServerActivity` already uses for the file-transfer hotspot. **Deliberate scope decision, stated
+to Logan rather than silently built:** the landing page is a plain test notice, not a credential-harvesting
+login form — useful for its actual purpose (confirming your own devices/the already-shipped
+`WifiThreatActivity` evil-twin DETECTOR correctly react to an evil twin) without adding a phishing payload to
+a binary that, per the gating-policy revision above, ships on the public release. Same gate as 6b
+(`buildSupportsActiveAudit()` + auto-confirmed `ActiveAuditGate`). Unlike 6b's raw-frame TX, AP mode + the web
+server genuinely work in the simulator (same stack the hotspot already exercises there), so this could in
+principle get deeper sim verification than 6b did — not done this pass, kept to the same no-radio/disabled
+shell-only bar as every other radio tool for now. Host 559/559 (unchanged — no new pure logic), x4pro + sim
+both green (flash 54.3%). **Still owed: on-hardware test** (AP actually broadcasts, a client actually
+associates and gets the landing page, and ideally a second CrossLight device's `WifiThreatActivity` actually
+flags it).
+
+**Next: 6d (BLE advertisement spoof), or decide the 6a deauth/OTA tradeoff.** Neither is as fleshed out as
+6b/6c were before building — check with Logan which to scope next.
 
 ## Backlog (queued 2026-10-01)
 
