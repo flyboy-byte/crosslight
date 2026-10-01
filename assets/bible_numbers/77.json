@@ -1,0 +1,41 @@
+{
+  "_comment": "CrossLight Bible Numbers study data. Copy this directory's files to /Bible/numbers/ on the SD card. Filed under 77 since that is the number Jesus names in most modern translations; see the translation-variance note below for why KJV readers see a different number here.",
+  "number": 77,
+  "name": "Seventy-Seven",
+  "summary": "Seventy-seven (or its multiplied form, four hundred ninety) appears at two sharply contrasting moments: Lamech's boast of unlimited revenge in Genesis, and Jesus' answer about unlimited forgiveness in Matthew -- widely read as Jesus deliberately echoing and inverting Lamech's number.",
+  "terms": ["seventy", "seventy-seven"],
+  "claims": [
+    {
+      "class": "FACT",
+      "text": "Lamech declares that if Cain is avenged sevenfold, he himself will be avenged seventy-sevenfold -- an escalating boast of vengeance.",
+      "refs": [
+        { "book": "Genesis", "chapter": 4, "verse": 24 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "When Peter asks how many times he must forgive someone who sins against him, Jesus answers 'seventy-seven times' (some translations render this 'seventy times seven', i.e. four hundred ninety -- see the translation note below).",
+      "refs": [
+        { "book": "Matthew", "chapter": 18, "verse": 22 }
+      ]
+    },
+    {
+      "class": "PATTERN",
+      "text": "Jesus' answer to Peter is widely read as a deliberate echo of Lamech's number in Genesis 4:24, turning a boast of limitless revenge into a call to limitless forgiveness -- the same number, inverted in meaning. This is a literary/textual connection scholars draw between the two passages, not a claim either text makes explicitly about the other.",
+      "refs": [
+        { "book": "Genesis", "chapter": 4, "verse": 24 },
+        { "book": "Matthew", "chapter": 18, "verse": 22 }
+      ]
+    },
+    {
+      "class": "DEBATE",
+      "text": "The Greek phrase behind Jesus' answer is genuinely ambiguous between two readings: 'seventy-seven times' (the rendering in the NIV, ESV, and NRSV) or 'seventy times seven', i.e. 490 (the rendering in the KJV and NKJV). Either way the point is the same -- a number too large to keep count of, not a literal ceiling -- but which exact number the original Greek intends is a real translation question, not settled by the text alone."
+    }
+  ],
+  "sources": [
+    "Genesis 4:24; Matthew 18:22",
+    "sharethestruggle.org, 'Matthew 18:22: Why Jesus Said Forgive 77 Times'",
+    "aarondowns.substack.com, 'Reversing Lamech's Vengeance'",
+    "ebible.com Q&A on the KJV/NRSV translation difference at Matthew 18:22"
+  ]
+}

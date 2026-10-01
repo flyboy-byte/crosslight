@@ -1,0 +1,39 @@
+{
+  "_comment": "CrossLight Bible Numbers study data. Copy this directory's files to /Bible/numbers/ on the SD card.",
+  "number": 1000,
+  "name": "A Thousand",
+  "summary": "A thousand is used in Scripture less as a precise count and more as a way of expressing an immense, almost incomprehensible span -- most memorably to describe how differently God experiences time.",
+  "terms": ["thousand"],
+  "claims": [
+    {
+      "class": "FACT",
+      "text": "Psalm 90 states that a thousand years are, in God's sight, like a single day that has just passed, or like a few hours of the night.",
+      "refs": [
+        { "book": "Psalms", "chapter": 90, "verse": 4 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "2 Peter restates the same comparison almost word for word: with the Lord a day is like a thousand years, and a thousand years like a day.",
+      "refs": [
+        { "book": "2 Peter", "chapter": 3, "verse": 8 }
+      ]
+    },
+    {
+      "class": "PATTERN",
+      "text": "2 Peter 3:8 is widely read as a direct echo of Psalm 90:4, reused centuries later to answer a different question (why Christ's promised return seemed delayed) -- the same figure of speech applied to a new situation, not a new revelation about a literal unit of time.",
+      "refs": [
+        { "book": "Psalms", "chapter": 90, "verse": 4 },
+        { "book": "2 Peter", "chapter": 3, "verse": 8 }
+      ]
+    },
+    {
+      "class": "TRADITION",
+      "text": "Because of this pairing, 'a thousand years' is often read figuratively elsewhere in Scripture as shorthand for 'a vast, complete span' rather than a literal count of 1000 solar years -- a reading drawn from how the number functions in these two verses, not a rule stated by the text itself."
+    }
+  ],
+  "sources": [
+    "Psalms 90:4; 2 Peter 3:8",
+    "biblehub.com, cross-reference notes on Psalm 90:4 and 2 Peter 3:8"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "_comment": "CrossLight Bible Numbers study data. Copy this directory's files to /Bible/numbers/ on the SD card.",
+  "number": 3,
+  "name": "Three",
+  "summary": "Three recurs as a marker of a completed span -- most often three days -- at several of Scripture's pivotal moments, and underlies the Christian doctrine of the Trinity.",
+  "terms": ["three", "third"],
+  "claims": [
+    {
+      "class": "FACT",
+      "text": "Jonah is described as being in the belly of the great fish three days and three nights.",
+      "refs": [
+        { "book": "Jonah", "chapter": 1, "verse": 17 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "Jesus explicitly compares his own coming death and resurrection to Jonah's three days and three nights.",
+      "refs": [
+        { "book": "Matthew", "chapter": 12, "verse": 40 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "The Gospels place Jesus' resurrection on the third day after his crucifixion.",
+      "refs": [
+        { "book": "Luke", "chapter": 24, "verse": 46 }
+      ]
+    },
+    {
+      "class": "PATTERN",
+      "text": "Threefold repetition appears at other climactic moments, such as the seraphim's threefold 'Holy, holy, holy' describing God -- a literary device used elsewhere in Scripture to mark something as complete or emphatic.",
+      "refs": [
+        { "book": "Isaiah", "chapter": 6, "verse": 3 }
+      ]
+    },
+    {
+      "class": "TRADITION",
+      "text": "Three is foundational to the Christian doctrine of the Trinity -- one God eternally existing as Father, Son, and Holy Spirit. This is a theological formulation developed from the whole of Scripture and later church teaching, not a word count or a single verse's claim."
+    }
+  ],
+  "sources": [
+    "Jonah 1:17; Matthew 12:40; Luke 24:46; Isaiah 6:3",
+    "Christianity.com, 'What Is the Significance of the Number 3 in the Bible?'",
+    "christianwebsite.com, 'Why Are Things Repeated Three Times In The Bible?'"
+  ]
+}
