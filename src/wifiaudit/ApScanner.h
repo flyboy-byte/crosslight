@@ -5,17 +5,19 @@
 
 #include "WifiFrame.h"
 
-// Passive Wi-Fi access-point scanner. Puts the radio in promiscuous (monitor)
-// mode, channel-hops across 2.4GHz, and parses beacons/probe-responses into a
-// list of access points with their strongest observed signal. It only ever
-// receives -- it never associates, transmits, probes, or deauths -- so it
-// records what is already being beaconed into the air. This is a passive tool:
-// it ships in every build, no gating.
+// Passive Wi-Fi management-frame monitor. Puts the radio in promiscuous
+// (monitor) mode, channel-hops across 2.4GHz, parses beacons/probe-responses
+// into a list of access points with their strongest observed signal, and
+// timestamps deauth/disassoc frames so a flood can be detected (see
+// ThreatDetect). It only ever receives -- it never associates, transmits,
+// probes, or deauths -- so it records what is already in the air. Passive: it
+// ships in every build, no gating.
 //
 // Shaped after FlockScanner: the promiscuous callback (WiFi task) copies the
 // raw frame into a fixed, no-allocation queue; drain() on the UI task runs the
-// host-tested parseBeacon() and aggregates. Monitor mode monopolizes the radio,
-// so this runs on its own screen and cannot coexist with any other Wi-Fi use.
+// host-tested parseBeacon()/managementKind() and aggregates. Monitor mode
+// monopolizes the radio, so this runs on its own screen and cannot coexist with
+// any other Wi-Fi use.
 namespace wifiaudit {
 
 struct ApRecord {
@@ -47,13 +49,22 @@ class ApScanner {
   const std::vector<ApRecord>& accessPoints() const { return found; }
   uint32_t framesSeen() const { return frames; }
 
+  // Timestamps (millis) of recently heard deauth/disassoc frames, oldest first,
+  // capped to the most recent MAX_DEAUTH_EVENTS. Feed to ThreatDetect to judge a
+  // flood. Total count seen is deauthsSeen().
+  const std::vector<uint32_t>& deauthEventsMs() const { return deauthEvents; }
+  uint32_t deauthsSeen() const { return deauths; }
+
  private:
   void record(const AccessPoint& ap, int8_t rssi);
+  void recordDeauth(uint32_t nowMs);
 
   std::vector<ApRecord> found;
+  std::vector<uint32_t> deauthEvents;
   bool active = false;
   uint8_t channel = 1;
   uint32_t frames = 0;
+  uint32_t deauths = 0;
 };
 
 }  // namespace wifiaudit

@@ -29,6 +29,21 @@ enum class Encryption : uint8_t {
 // Short, stable label for display and logs ("Open", "WPA2", ...).
 const char* encryptionLabel(Encryption enc);
 
+// The management-frame subtypes this toolkit cares about. Deauth/Disassoc are
+// what a deauth-flood attack sprays; Beacon/ProbeResponse advertise an AP.
+enum class MgmtKind : uint8_t {
+  Other,
+  Beacon,
+  ProbeResponse,
+  Deauth,
+  Disassoc,
+};
+
+// Classify a raw frame by its 802.11 management subtype, or Other if it is not
+// a management frame (or is too short to read). Cheap: reads only the frame
+// control byte. Host-tested.
+MgmtKind managementKind(const uint8_t* buf, size_t len);
+
 struct AccessPoint {
   uint8_t bssid[6] = {};
   std::string ssid;                        // empty = hidden network

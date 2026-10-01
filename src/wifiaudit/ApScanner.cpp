@@ -21,6 +21,10 @@ constexpr uint8_t MAX_CHANNEL = 13;
 // RF environment can't grow it without bound.
 constexpr size_t MAX_APS = 96;
 
+// Keep a bounded window of recent deauth/disassoc timestamps for flood
+// detection; a real flood trips the threshold long before this fills.
+constexpr size_t MAX_DEAUTH_EVENTS = 256;
+
 #if defined(ARDUINO_ARCH_ESP32)
 // Raw frame handed from the WiFi task to the UI task. Fixed size: the callback
 // must not allocate. 512 bytes covers a beacon's header plus the security
@@ -59,7 +63,9 @@ void IRAM_ATTR rxCallback(void* buf, wifi_promiscuous_pkt_type_t type) {
 
 bool ApScanner::begin() {
   found.clear();
+  deauthEvents.clear();
   frames = 0;
+  deauths = 0;
   channel = 1;
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -133,6 +139,12 @@ void ApScanner::record(const AccessPoint& ap, const int8_t rssi) {
   found.push_back(std::move(r));
 }
 
+void ApScanner::recordDeauth(const uint32_t nowMs) {
+  deauths++;
+  if (deauthEvents.size() >= MAX_DEAUTH_EVENTS) deauthEvents.erase(deauthEvents.begin());
+  deauthEvents.push_back(nowMs);
+}
+
 bool ApScanner::drain() {
   bool changed = false;
 #if defined(ARDUINO_ARCH_ESP32)
@@ -140,6 +152,12 @@ bool ApScanner::drain() {
   RawFrame frame;
   while (xQueueReceive(g_queue, &frame, 0) == pdTRUE) {
     frames++;
+    const MgmtKind kind = managementKind(frame.bytes, frame.len);
+    if (kind == MgmtKind::Deauth || kind == MgmtKind::Disassoc) {
+      recordDeauth(millis());
+      changed = true;
+      continue;
+    }
     AccessPoint ap;
     if (!parseBeacon(frame.bytes, frame.len, ap)) continue;
     if (ap.channel == 0) ap.channel = frame.channel;  // fall back to the heard-on channel

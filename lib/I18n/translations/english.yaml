@@ -572,3 +572,8 @@ STR_CAMERA_SCAN_NO_SIGNATURES: "No signatures loaded. Add /flock/signatures.json
 STR_WIFI_SCAN: "Wi-Fi Scan"
 STR_WIFI_SCAN_SCANNING: "Scanning… no access points yet"
 STR_WIFI_SCAN_NO_RADIO: "Radio unavailable"
+STR_WIFI_THREAT: "Wi-Fi Threats"
+STR_WIFI_THREAT_NONE: "Watching… nothing suspicious yet"
+STR_WIFI_THREAT_DEAUTH_FLOOD: "Deauth flood"
+STR_WIFI_THREAT_EVIL_TWIN: "possible evil twin"
+STR_WIFI_THREAT_ENC_MISMATCH: " (encryption differs!)"

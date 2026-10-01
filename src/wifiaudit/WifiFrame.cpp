@@ -11,6 +11,8 @@ constexpr uint8_t FC_TYPE_MGMT = 0x00;       // management
 constexpr uint8_t FC_SUBTYPE_MASK = 0xF0;    // bits 4-7 = subtype
 constexpr uint8_t SUBTYPE_PROBE_RESP = 0x50;  // 5
 constexpr uint8_t SUBTYPE_BEACON = 0x80;     // 8
+constexpr uint8_t SUBTYPE_DEAUTH = 0xC0;     // 12
+constexpr uint8_t SUBTYPE_DISASSOC = 0xA0;   // 10
 
 constexpr size_t MAC_HEADER_LEN = 24;  // frame control..addr3 + seq ctrl
 constexpr size_t ADDR2_OFFSET = 10;    // transmitter address = AP BSSID here
@@ -83,6 +85,24 @@ const char* encryptionLabel(const Encryption enc) {
       return "WPA2/WPA3";
   }
   return "?";
+}
+
+MgmtKind managementKind(const uint8_t* buf, const size_t len) {
+  if (!buf || len < 1) return MgmtKind::Other;
+  const uint8_t fc = buf[0];
+  if ((fc & FC_TYPE_MASK) != FC_TYPE_MGMT) return MgmtKind::Other;
+  switch (fc & FC_SUBTYPE_MASK) {
+    case SUBTYPE_BEACON:
+      return MgmtKind::Beacon;
+    case SUBTYPE_PROBE_RESP:
+      return MgmtKind::ProbeResponse;
+    case SUBTYPE_DEAUTH:
+      return MgmtKind::Deauth;
+    case SUBTYPE_DISASSOC:
+      return MgmtKind::Disassoc;
+    default:
+      return MgmtKind::Other;
+  }
 }
 
 bool parseBeacon(const uint8_t* buf, const size_t len, AccessPoint& out) {

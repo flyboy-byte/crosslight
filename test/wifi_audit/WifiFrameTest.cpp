@@ -178,3 +178,20 @@ TEST(WifiFrame, EncryptionLabels) {
   EXPECT_STREQ(wifiaudit::encryptionLabel(Encryption::Wpa3), "WPA3");
   EXPECT_STREQ(wifiaudit::encryptionLabel(Encryption::Wpa2Wpa3), "WPA2/WPA3");
 }
+
+TEST(WifiFrame, ManagementKindClassifiesSubtypes) {
+  using wifiaudit::MgmtKind;
+  const uint8_t beacon[1] = {0x80};
+  const uint8_t probeResp[1] = {0x50};
+  const uint8_t deauth[1] = {0xC0};
+  const uint8_t disassoc[1] = {0xA0};
+  const uint8_t probeReq[1] = {0x40};  // management, but not one we track
+  const uint8_t dataFrame[1] = {0x08};
+  EXPECT_EQ(wifiaudit::managementKind(beacon, 1), MgmtKind::Beacon);
+  EXPECT_EQ(wifiaudit::managementKind(probeResp, 1), MgmtKind::ProbeResponse);
+  EXPECT_EQ(wifiaudit::managementKind(deauth, 1), MgmtKind::Deauth);
+  EXPECT_EQ(wifiaudit::managementKind(disassoc, 1), MgmtKind::Disassoc);
+  EXPECT_EQ(wifiaudit::managementKind(probeReq, 1), MgmtKind::Other);
+  EXPECT_EQ(wifiaudit::managementKind(dataFrame, 1), MgmtKind::Other);
+  EXPECT_EQ(wifiaudit::managementKind(nullptr, 0), MgmtKind::Other);
+}
