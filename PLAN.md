@@ -27,8 +27,8 @@ the tree; the rest of Phase 5 and all of Track D remain open.
   translation at once. Seeds from the current reading position; tap-selector + physical-button nav for
   chapter/verse. Pure verse-selection core host-tested (`src/bible/BibleCompare.h`, `test/bible_compare`,
   5 cases); host 570/570, x4pro + sim green (flash 54.4%); simulator-verified across two translations with
-  verse nav. **Owed: on-hardware test** (needs a 2nd real translation on the card — only KJV is on it now; add
-  e.g. WEB/ASV via the downloader or desktop convert).
+  verse nav. Released in 26.10.4. **Owed: on-hardware test** — the card now has KJV + ASV + NIV, so Compare has
+  real translations to compare; just needs flashing + a look.
 - **Phase 5 remaining (advanced):** repeated-word/pattern search, Hebrew/Greek number metadata, the parked
   Geneva-style note layer. Not designed yet — pick a slice with Logan.
 - **Track D (reader perf):** his original "flow faster/smoother" ask, still outstanding. Needs a
@@ -43,10 +43,13 @@ mentioned pentest toolkit work and more utilities as live alternatives when aske
 2. ~~Build Track C (Historical Calendar + Daily Psalter)~~ — DONE 2026-10-01, completing the whole planned
    Bible expansion (Phases 1-4).
 3. ~~Cut 26.10.3~~ — DONE (tag `26.10.3`, commit `2b7ec2de`). Logan flashed it and confirmed "it looks great."
+4. ~~Cut 26.10.4~~ — DONE (tag `26.10.4`, commit `5294c709`): active pentest tools (beacon flood / evil twin /
+   BLE spoof) **and** Compare Translations, over Wi-Fi OTA. **Awaiting Logan's flash-test** of all of it.
 
-**Standing physical to-do (when the SD card is next out of the device):** copy `assets/bleaudit/signatures.json`
-→ `/bleaudit/signatures.json` so BLE fingerprinting labels devices; and copy `assets/bible_numbers/{3,77,1000}.json`
-→ `/Bible/numbers/` (only 7/12/40/666 made it on the card so far).
+**Standing physical SD to-do: DONE 2026-10-01** (card was mounted at `/run/media/logan/1096-66DD`). Copied
+`assets/bible_numbers/{3,77,1000}.json` → `/Bible/numbers/` (all 7 now present) and
+`assets/bleaudit/signatures.json` → `/bleaudit/signatures.json` (BLE labels). The card already has KJV + ASV +
+NIV, so Compare Translations has real translations to compare on hardware.
 
 ---
 
