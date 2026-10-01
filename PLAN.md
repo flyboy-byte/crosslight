@@ -724,11 +724,27 @@ personal lab, skip what isn't):**
   toggle, unit converter, a better-looking calculator (current one is functional but plain) — these can
   land before or in parallel with the security toolkit, no dependency between them.
 
-**Not yet started.** This section exists so the scope decision is written down before code, the same way
-the NIV copyright boundary was written down before the converter was built. Next step: pick a first slice
-(a passive Wi-Fi scanner is the natural start — reuses the Flock radio code, ships immediately with no
-gating needed, and other tools build on it) and build it like everything else here: host-tested where
-logic allows, simulator-checked, then a real device build.
+**Passive toolkit built 2026-10-01 (host-tested; device/sim build still owed).** Five passive slices landed
+on `claude/amazing-mendel-ni6blk`, all in the new `src/wifiaudit/` + `src/bleaudit/` modules, 70 host tests
+green:
+1. Wi-Fi AP scanner (SSID/BSSID/channel/encryption) — `WifiScanActivity`.
+2. Threat detection (evil-twin + deauth-flood) — `WifiThreatActivity`.
+3. PCAP capture to SD — `WifiCaptureActivity` (`/wifiaudit/capNNN.pcap`).
+4. EAPOL/PMKID + hashcat 22000 export — `PmkidHarvestActivity` (clientless PMKID live; full handshake via the
+   captured pcap offline).
+5. Passive BLE scanner + fingerprinting — `BleScanActivity` (verified-identifier starter list only).
+
+Two research/handoff docs were added: `docs/crosslight_pentest_research.md` (ESP32-S3 feasibility + tool
+landscape + verified BLE IDs) and `docs/crosslight_pentest_slice6_scope.md` (the active/transmit build
+handoff).
+
+**Active/transmit toolkit (Slice 6) — scoped + scaffolded, not built.** Deauth, beacon flood, evil-twin
+captive portal, BLE adv spoof. The pure transmit primitives (`FrameBuilder`, `AttackTx`, `ActiveAuditGate`)
+are built and host-tested on branch `worktree-agent-a5724a1624b098548` (commit `e2f56c1`), not yet merged.
+Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in local builds (a
+switch Logan owns, not a lock); per-boot confirm friction dropped; the "own gear only" boundary stays.
+Full build plan, per-tool specs, the deauth linker-wrap requirement, and activity scaffolding are in
+`docs/crosslight_pentest_slice6_scope.md`.
 
 ## Decisions made
 
