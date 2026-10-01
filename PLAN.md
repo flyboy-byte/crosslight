@@ -17,7 +17,19 @@ classified. **"Go to Verse" was removed 2026-09-30** (Logan's call). Remaining: 
 Calendar, Track C — computus + reading calendar)** and **Track D (reader perf, measure-first)**. Full plan,
 audit, historical framing, and phasing in **"Planned update: Bible expansion"** below.
 
-**In progress, item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). **2026-09-30: the device build is no longer blocked** — the ESP32 Wi-Fi monitor-mode code compiled cleanly as an ordinary part of the 26.9.3 `pio run -e x4pro` build (verified: `.o` files for all of `src/flock/*` and `CameraScanActivity` present in the build output). Pure logic is host-tested (13/13, now part of 408/408 total). Architecture reviewed and confirmed sound (see below). **Still not flashed/run on real hardware, and signature data is still 100% placeholder** — those are the two remaining gates, not the build. See "Item 14: Camera scan" below before touching it.
+**Item 14, the Flock camera scanner, DEPRIORITIZED 2026-09-30** — real-world signal reliability (modern
+units reportedly disabled Bluetooth and moved to cellular backhaul, leaving Wi-Fi dormant most of the time)
+is the actual limiter, not the code. Code is built, host-tested, device-build-unblocked, architecture
+confirmed sound — left as-is, not resumed without new information. See "Item 14: Camera scan" below.
+
+**New: pentest/security toolkit, scoped 2026-09-30, NOT yet started.** Logan's own hardware, personal
+security-research hobby (Extra-class ham, understands the legal boundaries). Reference project found:
+`dagnazty/Radio-Ink`, a fork of the same upstream CrossLight is built on, with a full Wi-Fi/BLE audit
+toolkit — safety model (public releases carry only passive tools; active/transmit features need a
+compile-time flag plus a per-session on-device confirmation, dev-builds-only) is being adopted directly.
+Reuses `src/flock/*`'s frame-capture engine as the radio foundation. Also bundling in: flashlight toggle,
+unit converter, a nicer calculator — easy utilities with no scope question. Full detail, scope boundary, and
+the reference project's feature list in **"Planned: Pentest/security toolkit"** below.
 
 The 26.9.x release/OTA machinery is new: updates now check `flyboy-byte/crosslight`, and from 26.9.2 on they install over Wi-Fi. Version line is `[crosslight] version` (scheme YY.M.BUILD). See "Releasing CrossLight (Wi-Fi OTA)". **26.9.3 (2026-09-30): flash 49.4% of a 7.94MiB slot; 408/408 host tests pass** (the Flock-blocked count from 26.9.2 is now resolved — see the flock namespace fix below). Use a USB-A-to-C cable, not C-to-C. The SD card mounts as a real `mmcblk0` reader when out of the device; in the device, use USB Drive mode.
 
@@ -665,6 +677,58 @@ partial refresh on page turns where the panel allows, avoid rebuilding pages whe
 
 Every phase ships as a Wi-Fi OTA (26.9.x → bump the version), and each new UI must be simulator-checked
 before it's called done (the number/calendar engines are pure logic → host-testable like the Flock matcher).
+
+## Planned: Pentest/security toolkit (scoped 2026-09-30)
+
+**Origin and authorization context:** Logan is an Extra-class ham radio operator (the top US amateur license
+class — requires real RF-law knowledge), owns the hardware under test (laptops in his dorm), understands the
+legal boundaries, and wants Hak5/DEFCON-style pentest tooling as a personal security-research hobby. This
+is a legitimate "security research / defensive use case" authorization context, not a request to attack
+others' infrastructure. **The one hard boundary that doesn't move regardless of skill:** point it at gear
+you own, never dorm-shared/university network infrastructure or other students' devices — that boundary is
+about whose network it is, not about competence.
+
+**Reference project found 2026-09-30: `dagnazty/Radio-Ink`** — a fork of the *same upstream*
+(`crosspoint-reader`) CrossLight is built on, adding a full Wi-Fi/BLE security-audit toolkit (947 commits).
+Its feature set (passive scanning/recon/detection + gated active/transmit modes) is the shape to build
+toward; not something to merge wholesale (different fork, own conventions), but a strong reference for scope
+and for its safety model specifically.
+
+**Safety model to adopt, copied because it's already proven and resolves the friction-vs-capability
+question cleanly (from Radio-Ink's `SCOPE.md`):** active/transmitting features are gated **two ways** — a
+compile-time flag (their `RADIO_AUDIT_ENABLE_ACTIVE`, off in all public release builds) **and** a per-session
+on-device confirmation prompt. Passive tools ship in every build, including public GitHub releases. **This
+maps directly onto how CrossLight already works:** public OTA releases vs. a local `pio run -e x4pro` build
+Logan compiles himself. Plan: a new build flag (e.g. `CROSSLIGHT_ENABLE_ACTIVE_AUDIT`), left **off** in
+`x4pro-gh_release`/`x4pro-gh_release_rc` (so public releases never carry transmit capability), **on** only
+in a local/dev build; plus a one-time-per-session on-device confirmation screen before any active tool runs.
+No UI friction beyond that — normal scan → select → act flow, not forced manual entry (an earlier, overly
+restrictive proposal here was walked back after Logan correctly pushed back on treating a licensed,
+knowledgeable operator like he needed training wheels).
+
+**Reusable foundation already in this tree:** `src/flock/*`'s promiscuous-mode 802.11 frame capture
+(`FlockScanner`/`FlockFrame`) is the same radio primitive most passive Wi-Fi tools need — frame parsing,
+OUI extraction, SSID extraction are already built, tested, and now building clean on both host and device
+(see Item 14 above). New passive tools are mostly new *matching/reporting* logic on top of frames the radio
+layer already captures, not a new radio engine.
+
+**Scope for CrossLight (adapted from Radio-Ink's list, not copied wholesale — pick what's useful for a
+personal lab, skip what isn't):**
+- **Passive (ships in every build, zero legal ambiguity):** Wi-Fi scan (APs, channels, signal, encryption
+  type), client/probe-request recon, BLE scan + known-device-type identification (trackers, Flipper Zero,
+  etc. — useful personal-safety awareness, same spirit as the Flock work), rogue-AP/KARMA/evil-twin
+  *detection* (as opposed to performing it), deauth-flood *detection*.
+- **Active (gated behind the two-layer flag, dev builds only):** targeted deauth (scan → select → fire, on
+  gear Logan owns), evil-twin/captive-portal (own-network testing), BLE advertisement spoof.
+- **Utilities discussed alongside this (easy, no scope question, build anytime):** flashlight/frontlight
+  toggle, unit converter, a better-looking calculator (current one is functional but plain) — these can
+  land before or in parallel with the security toolkit, no dependency between them.
+
+**Not yet started.** This section exists so the scope decision is written down before code, the same way
+the NIV copyright boundary was written down before the converter was built. Next step: pick a first slice
+(a passive Wi-Fi scanner is the natural start — reuses the Flock radio code, ships immediately with no
+gating needed, and other tools build on it) and build it like everything else here: host-tested where
+logic allows, simulator-checked, then a real device build.
 
 ## Decisions made
 
