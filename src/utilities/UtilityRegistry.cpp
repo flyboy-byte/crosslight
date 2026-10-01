@@ -4,8 +4,8 @@
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/CameraScanActivity.h"
 #include "activities/utilities/FlashlightActivity.h"
-#include "activities/utilities/UnitConverterActivity.h"
 #include "activities/utilities/PmkidHarvestActivity.h"
+#include "activities/utilities/UnitConverterActivity.h"
 #include "activities/utilities/WifiCaptureActivity.h"
 #include "activities/utilities/WifiScanActivity.h"
 #include "activities/utilities/WifiThreatActivity.h"
@@ -16,15 +16,15 @@ namespace {
 // Adding a utility: include its header above and add one line here. Keep the
 // list in the order you want it to appear.
 const std::vector<Utility> kUtilities = {
-    {StrId::STR_CALCULATOR, Blocks,
+    {StrId::STR_CALCULATOR, Calculator,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<CalculatorActivity>(renderer, mappedInput);
      }},
-    {StrId::STR_FLASHLIGHT, Blocks,
+    {StrId::STR_FLASHLIGHT, Flashlight,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<FlashlightActivity>(renderer, mappedInput);
      }},
-    {StrId::STR_UNIT_CONVERTER, Blocks,
+    {StrId::STR_UNIT_CONVERTER, Convert,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<UnitConverterActivity>(renderer, mappedInput);
      }},
