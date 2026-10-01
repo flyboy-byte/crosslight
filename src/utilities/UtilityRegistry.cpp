@@ -3,6 +3,8 @@
 #include "activities/utilities/BleScanActivity.h"
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/CameraScanActivity.h"
+#include "activities/utilities/FlashlightActivity.h"
+#include "activities/utilities/UnitConverterActivity.h"
 #include "activities/utilities/PmkidHarvestActivity.h"
 #include "activities/utilities/WifiCaptureActivity.h"
 #include "activities/utilities/WifiScanActivity.h"
@@ -17,6 +19,14 @@ const std::vector<Utility> kUtilities = {
     {StrId::STR_CALCULATOR, Blocks,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<CalculatorActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_FLASHLIGHT, Blocks,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<FlashlightActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_UNIT_CONVERTER, Blocks,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<UnitConverterActivity>(renderer, mappedInput);
      }},
     {StrId::STR_CAMERA_SCAN, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
