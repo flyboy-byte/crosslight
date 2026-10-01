@@ -612,6 +612,15 @@ partial refresh on page turns where the panel allows, avoid rebuilding pages whe
   baseline) — did **not** hit the auto-mode safety classifier this time. Release:
   https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3. **Remaining for Numbers:** 3, 70/77, 1000
   as later data-only additions (no code change needed — just drop a new `<n>.json`).
+
+  **Lesson learned 2026-09-30, same day: the row shipped silently disabled on first install.** The OTA
+  firmware was correct, but the `/Bible/numbers/*.json` data files only exist in the repo's `assets/` —
+  they are a manual SD copy, same convention as Memory Work and Flock signatures, and that copy step was
+  not done before telling Logan to go try it. Symptom matched a disabled row exactly (same look as
+  Bookmarks/Memory Work when empty): not selectable, side buttons can't highlight it. Fixed same day by
+  copying `assets/bible_numbers/*.json` to the SD. **Process fix: for any feature gated on manual SD data
+  (not just firmware), copy the data to the actual device SD card as part of shipping it, the same way NIV's
+  `niv.json` was copied — don't just tell the user to copy a release's code and leave the data step implicit.**
 - **Phase 4 — Historical Calendar (Track C):** Golden Number + Easter/computus (Julian + Gregorian) first,
   then Epact/Dominical Letter columns. **New research 2026-09-30, from Logan's own 1611 facsimile:** the
   almanac front matter is genuinely two features, not one — (a) Easter/computus math (Golden Number,
