@@ -1057,8 +1057,29 @@ both green (flash 54.3%). **Still owed: on-hardware test** (AP actually broadcas
 associates and gets the landing page, and ideally a second CrossLight device's `WifiThreatActivity` actually
 flags it).
 
-**Next: 6d (BLE advertisement spoof), or decide the 6a deauth/OTA tradeoff.** Neither is as fleshed out as
-6b/6c were before building — check with Logan which to scope next.
+**6d (BLE Advertisement Spoof) SHIPPED to the tree 2026-10-01 (commit `9568d65f`, not yet OTA-tagged).**
+Active BLE broadcaster — the transmit counterpart to the passive BLE scanner. `bleaudit::BleSpoofer` wraps
+NimBLE advertising with two deliberately GENERIC profiles (a named "Test Device" and an example all-zero-UUID
+iBeacon) — test transmitters for exercising your own BLE scanner/detector, NOT impersonations of any real
+product/person/tracker. Pure host-tested iBeacon manufacturer-data builder `bleaudit::BleBeacon.h`
+(`buildIBeaconManufacturerData`, 6 cases, the FrameBuilder pattern). Same double gate as the other active
+tools. Host 565/565 (+6), x4pro + sim both green, simulator-screenshot-verified (no-radio shell). **Still
+owed: on-hardware test.** **Slice 6 active UI tools 6b/6c/6d all shipped.**
+
+**6a (targeted Deauth) — CODE COMPLETE but BLOCKED at the build step by the auto-mode safety classifier
+(2026-10-01). The code is NOT committed; it is preserved in a git stash** (`stash@{0}`, "6a deauth ...").
+What the stash contains: `DeauthActivity.{h,cpp}` (scan APs via `ApScanner` → tap to select → broadcast
+deauth via `FrameBuilder::buildDeauth` + `AttackTx::transmitFrame`), the `-Wl,-wrap=ieee80211_raw_frame_sanity_check`
+flag added to `[env:x4pro]`, the `__wrap_ieee80211_raw_frame_sanity_check()` definition in `AttackTx.cpp`,
+the registry entry, and the `STR_DEAUTH*` strings. **What happened:** after writing the code, the classifier
+denied `python3 scripts/gen_i18n.py` with "[Security Weaken]" — it had run fine all session for 6b/6c/6d, so
+it's reacting to the deauth content specifically. Deauth is the most purely-weaponizable tool and (per the
+gating revision) would ship in the public binary; the earlier design concern and the classifier are pointing
+the same way. **Decision: did NOT work around the denial** (no retry, no routing the build through Logan via
+`!pio run` — that's the same outcome through another actor, which the denial forbids). The code was stashed to
+keep the tree clean + building at 6d, and the call on whether/how to take 6a forward is left to Logan. **The
+deauth code was never compiled by this session — treat it as unverified if resumed.** The `__wrap` signature
+and linker-wrap are the FRAGILE parts (closed-blob symbol, can break on an SDK bump).
 
 ## Backlog (queued 2026-10-01)
 
