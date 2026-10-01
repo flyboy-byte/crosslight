@@ -8,6 +8,7 @@
 #include "activities/bible/BibleReaderActivity.h"
 #include "activities/bible/BibleMemoryWorkActivity.h"
 #include "activities/bible/BibleNumbersActivity.h"
+#include "activities/bible/HistoricalCalendarActivity.h"
 #include "activities/bible/BibleTranslationsActivity.h"
 #include "bible/BibleBookmarkStore.h"
 #include "bible/BibleMemoryWork.h"
@@ -43,7 +44,7 @@ void BibleHubActivity::buildRows() {
   bookmarkCount = std::to_string(BIBLE_BOOKMARKS.all().size());
 
   rowItems.clear();
-  rowItems.reserve(7);  // add() hands back a reference into the vector
+  rowItems.reserve(8);  // add() hands back a reference into the vector
   auto add = [this](const Row row, const char* label, const bool enabled) -> fui::ListItem& {
     fui::ListItem item;
     item.label = label;
@@ -59,6 +60,7 @@ void BibleHubActivity::buildRows() {
   add(Bookmarks, tr(STR_BOOKMARKS), haveTranslation && !BIBLE_BOOKMARKS.all().empty()).value = bookmarkCount.c_str();
   add(MemoryWork, tr(STR_MEMORY_WORK), haveTranslation && haveMemoryWork);
   add(Numbers, tr(STR_BIBLE_NUMBERS), haveTranslation && haveNumbers);
+  add(Calendar, tr(STR_HISTORICAL_CALENDAR), true);  // pure computus -- no translation or SD data needed
   add(Translations, tr(STR_TRANSLATIONS), true).value = translationLabel.c_str();
 }
 
@@ -93,6 +95,10 @@ void BibleHubActivity::activateIndex(const int index) {
           std::make_unique<BibleNumbersActivity>(renderer, mappedInput,
                                                  BibleTranslations::pathFor(BibleTranslations::current())),
           [](const ActivityResult&) {});
+      return;
+    case Calendar:
+      startActivityForResult(std::make_unique<HistoricalCalendarActivity>(renderer, mappedInput),
+                             [](const ActivityResult&) {});
       return;
     case Translations:
       startActivityForResult(std::make_unique<BibleTranslationsActivity>(renderer, mappedInput),
