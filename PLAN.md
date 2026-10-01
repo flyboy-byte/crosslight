@@ -970,10 +970,9 @@ once the OTA tradeoff is weighed.
 These three want an on-hardware test like the pentest tools got — cut a **26.10.2** release when ready (bundle
 with any other near-term work). Remaining backlog below.
 
-- **Custom tile icons for the utilities** (polish). Flashlight + unit converter + calculator all reuse the
-  generic `Blocks` icon because `UIIcon` (`src/components/themes/BaseTheme.h`) has no light/convert/calc glyph.
-  Adding proper ones means the icon SVG + manifest pipeline (`src/components/icons/`) — a small dedicated task,
-  do it alongside or after the README/About polish.
+- ~~**Custom tile icons for the utilities**~~ **DONE 2026-10-01** — added Lucide flashlight/calculator/
+  arrow-left-right via the icon manifest + `gen_icons.py`, new `Flashlight`/`Calculator`/`Convert` `UIIcon`
+  values + mappings in `UiAppHelpers.h`, tiles repointed. Device flash 54.1%.
 - **Next real feature work** (Logan's "keep building out" direction): the Slice 6 active tools — review the
   recovered `FrameBuilder`/`AttackTx` byte layouts, build 6b/6c first, decide the deauth/OTA tradeoff. Plus,
   whenever the SD card is out: copy `assets/bleaudit/signatures.json` → `/bleaudit/` so BLE matching works.
