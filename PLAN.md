@@ -14,9 +14,14 @@ active tools still dormant/un-built, rode along in the base.)
 
 **NEXT, per Logan (2026-10-01, do not re-ask):**
 1. ~~Cut release 26.10.2~~ — DONE 2026-10-01 (commit `56c87907`, tag `26.10.2`).
-2. **Pivot back to the Bible track** — Phase 4 Historical Calendar (Easter computus + 1611 reading calendar,
-   Track C) or Track D reader perf (measure-first). See `[[crosslight-bible-expansion]]` and "Planned update:
-   Bible expansion" below. **This is where to pick up next.**
+2. ~~Pivot to Bible Track C (Phase 4) — computus half~~ — DONE 2026-10-01 (commit `89da088e`): Historical
+   Calendar activity (Golden Number, Epact, Sunday Letter, Easter Old/New Style), pure engine host-tested
+   (7 cases), hub row, simulator-verified. **Built-but-unreleased — rides the next OTA tag (26.10.3).**
+3. **Where to pick up next — pick one:**
+   - **Track C second half: the 1611 reading calendar** (a day→readings lectionary, Memory-Work-shaped JSON).
+     Logan may supply specifics from his physical 1611 facsimile; not blocking.
+   - **Cut 26.10.3** to flash-test the Historical Calendar.
+   - **Track D reader perf** — device-profiling session (needs the X4 Pro in hand; sim can't measure e-ink/SD).
 
 **Standing physical to-do (when the SD card is next out of the device):** copy `assets/bleaudit/signatures.json`
 → `/bleaudit/signatures.json` so BLE fingerprinting labels devices; and copy `assets/bible_numbers/{3,77,1000}.json`
@@ -689,8 +694,18 @@ partial refresh on page turns where the panel allows, avoid rebuilding pages whe
   copying `assets/bible_numbers/*.json` to the SD. **Process fix: for any feature gated on manual SD data
   (not just firmware), copy the data to the actual device SD card as part of shipping it, the same way NIV's
   `niv.json` was copied — don't just tell the user to copy a release's code and leave the data step implicit.**
-- **Phase 4 — Historical Calendar (Track C):** Golden Number + Easter/computus (Julian + Gregorian) first,
-  then Epact/Dominical Letter columns. **New research 2026-09-30, from Logan's own 1611 facsimile:** the
+- **Phase 4 — Historical Calendar (Track C): computus half SHIPPED to the tree 2026-10-01 (commit
+  `89da088e`, not yet OTA-tagged).** `src/bible/HistoricalCalendar.h` (pure, inline, dependency-free so it's
+  host-testable like the Numbers parser) computes Golden Number, Julian Epact, Gregorian Dominical/Sunday
+  Letter, and Easter in both the Julian (Old Style) and Gregorian (New Style) calendars.
+  `HistoricalCalendarActivity` is a year-keypad screen (defaults to the current year via `halClock.localTime`,
+  else 1611) reached from a new always-enabled "Historical Calendar" hub row. `test/historical_calendar/`
+  pins it (7 cases) against known modern Easters, Orthodox-via-+13-offset, and the 1611 row. **Verify-don't-
+  assume paid off: the ChatGPT handoff's "Golden Number 1611 = 13" is WRONG — it's 16** (13 is 1608);
+  recorded in the header and tests. Host 549/549, x4pro + sim both build green; simulator-screenshot-verified
+  (default-year render and the 1611 almanac row). Needed one sim HAL stub (`HalClock::localTime`, mirrored in
+  the simulator repo, commit `f03286c`). **Remaining in Track C: the reading-calendar half** (below). **New
+  research 2026-09-30, from Logan's own 1611 facsimile:** the
   almanac front matter is genuinely two features, not one — (a) Easter/computus math (Golden Number,
   Dominical Letter, Epact, "To finde Easter for euer"), and (b) **a yearly Scripture-reading calendar**
   ("The Table and Kalender... of Psalmes and Lessons... at Morning and Euening prayer"), which Logan
