@@ -632,8 +632,14 @@ partial refresh on page turns where the panel allows, avoid rebuilding pages whe
   and `Ref::reference()` — both made header-inline specifically so they're testable without ArduinoJson
   stubs). 408/408 host tests pass. Real-device build: flash 49.4% of the x4pro slot (up from 49.1%
   baseline) — did **not** hit the auto-mode safety classifier this time. Release:
-  https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3. **Remaining for Numbers:** 3, 70/77, 1000
-  as later data-only additions (no code change needed — just drop a new `<n>.json`).
+  https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3. **Planned initial set now COMPLETE
+  (2026-09-30): added 3, 77, 1000** as pure data drops — no code or firmware change, exactly as the
+  architecture intended. All 7 (3, 7, 12, 40, 77, 666, 1000) validated and committed. **STILL NEEDS: a
+  second SD copy** — these three were written while the card was back in the device; only the original 4
+  (7/12/40/666) have actually been copied to `/Bible/numbers/` on the card so far. Copy
+  `assets/bible_numbers/3.json`, `77.json`, `1000.json` next time the card is out. Further numbers (e.g.
+  10, 6/666-adjacent variants) can be added the same way, anytime, no release needed if OTA'd code already
+  supports the schema (it does).
 
   **Lesson learned 2026-09-30, same day: the row shipped silently disabled on first install.** The OTA
   firmware was correct, but the `/Bible/numbers/*.json` data files only exist in the repo's `assets/` —
