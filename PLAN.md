@@ -17,7 +17,7 @@ classified. **"Go to Verse" was removed 2026-09-30** (Logan's call). Remaining: 
 Calendar, Track C — computus + reading calendar)** and **Track D (reader perf, measure-first)**. Full plan,
 audit, historical framing, and phasing in **"Planned update: Bible expansion"** below.
 
-**In progress, uncommitted-then-committed on a branch, NOT built or flashed: item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). Its pure logic is host-tested (13/13) but the *firmware compile was blocked by the auto-mode safety classifier* — the first build of the new Wi-Fi monitor-mode code — so it has never been compiled for the device. See "Item 14: Camera scan" below before touching it.
+**In progress, item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). **2026-09-30: the device build is no longer blocked** — the ESP32 Wi-Fi monitor-mode code compiled cleanly as an ordinary part of the 26.9.3 `pio run -e x4pro` build (verified: `.o` files for all of `src/flock/*` and `CameraScanActivity` present in the build output). Pure logic is host-tested (13/13, now part of 408/408 total). Architecture reviewed and confirmed sound (see below). **Still not flashed/run on real hardware, and signature data is still 100% placeholder** — those are the two remaining gates, not the build. See "Item 14: Camera scan" below before touching it.
 
 The 26.9.x release/OTA machinery is new: updates now check `flyboy-byte/crosslight`, and from 26.9.2 on they install over Wi-Fi. Version line is `[crosslight] version` (scheme YY.M.BUILD). See "Releasing CrossLight (Wi-Fi OTA)". **26.9.3 (2026-09-30): flash 49.4% of a 7.94MiB slot; 408/408 host tests pass** (the Flock-blocked count from 26.9.2 is now resolved — see the flock namespace fix below). Use a USB-A-to-C cable, not C-to-C. The SD card mounts as a real `mmcblk0` reader when out of the device; in the device, use USB Drive mode.
 
@@ -297,15 +297,29 @@ untested runs in the radio callback:
   give false confidence. The engine is real; the fingerprints are the user's to fill in from current
   research, which is why they live on SD (Flock rotates them). Copy to `/flock/signatures.json`.
 
-**Open note (2026-09-30, Logan): is the current data adequate? No — flagged honestly.** As shipped the
-scanner has a real, tested *matching engine* (OUI + SSID-substring match, MAC dedup, RSSI tracking — host
-tests 8/8) but **zero real detection value**, because `signatures.json` is 100% placeholder. Before this is
-actually useful: either (a) Logan supplies verified signature data from research he trusts, or (b) a
-dedicated, careful research pass finds legitimately documented OUIs/SSID patterns (public teardowns, FCC
-filings, community-maintained lists) — never guessed or inferred values. Also still open and un-investigated:
-whether the *detector design itself* (promiscuous-mode frame sniff + OUI/SSID matching) is even the right
-approach for the devices it's meant to catch — that needs its own look before trusting the architecture, not
-just the data. Do this as a deliberate pass when Item 14 resumes, not folded into an unrelated change.
+**Architecture review — DONE 2026-09-30, design confirmed sound.** Checked whether promiscuous-mode frame
+sniffing + OUI/SSID matching is even the right method (Logan's question). Public research converges on
+exactly this method (`colonelpanichacks/flock-you` and several independent forks — all passive, OUI +
+SSID-pattern matching on captured 802.11 frames, no transmission). One real finding worth acting on:
+researchers report these devices moved from AP/beacon mode to **station-mode wildcard probe requests**
+(empty SSID, ~125ms interval) around December 2025 — meaning SSID-substring matching alone would
+increasingly miss them. **Checked against our own code (verified by reading the source, not fetched
+data): `FlockFrame.cpp` already parses Probe Request (subtype `0x40`) correctly, extracts the source MAC
+regardless of frame subtype, and the matcher already has a tested empty-SSID/OUI-only path
+(`EmptySsidObservationDoesNotMatchSsidRule`).** So the architecture is already correct for this case — no
+code change needed on the detection method itself.
+
+**Signature data: still placeholder, and a verification line was deliberately NOT crossed 2026-09-30.**
+A single `WebFetch` of a `flock-you` fork's README returned what looked like a real, cited OUI list (34
+prefixes, a "firmware dump" source, specific dates). **This was NOT written into `signatures.json`.**
+Reasoning: a page fetch is summarized by a small model, not read directly, and this is a counter-
+surveillance project — a single unverified source could be stale, wrong, or deliberately poisoned by
+someone hostile to the effort, and shipping it as "real" data creates exactly the false-confidence harm
+the placeholder policy exists to prevent. Promoting a one-shot fetch to "verified" is not a call to make
+unilaterally for safety-relevant data. **Open for Logan to decide:** (a) point to a specific source he
+trusts and have it transcribed carefully (reading the raw file directly, cross-checked against 2-3
+independent forks for consistency), or (b) leave the placeholder as-is. Either way, OUIs rotate, so
+whatever goes in needs a stated "as of" date and a note that it will go stale.
 
 **Host/sim build blocker — FIXED 2026-09-30.** The `flock` **namespace** collided with POSIX `struct flock`
 from `<fcntl.h>` (pulled in by `HalStorage.h` via `FsApiConstants.h` on host builds), so `src/flock/*` and
