@@ -1,0 +1,43 @@
+{
+  "_comment": "CrossLight Bible Numbers study data. Copy this directory's files to /Bible/numbers/ on the SD card. This number in particular should never be reduced to a single answer -- it is presented here across FACT, DEBATE, and TRADITION deliberately.",
+  "number": 666,
+  "name": "666",
+  "summary": "Revelation gives 666 as the number of the beast and explicitly invites the reader to calculate it -- a puzzle built into the text itself, not a number this app can resolve for you. Scholars generally read it as gematria (letters read as numbers), most commonly pointing to a Roman emperor, but the text does not name its target and real manuscript evidence is split on the number itself.",
+  "terms": ["666", "616"],
+  "claims": [
+    {
+      "class": "FACT",
+      "text": "Revelation states the number of the beast is 666, and calls for wisdom to calculate it, describing it as 'the number of a man'.",
+      "refs": [
+        { "book": "Revelation", "chapter": 13, "verse": 18 }
+      ]
+    },
+    {
+      "class": "DEBATE",
+      "text": "The leading scholarly explanation is gematria: the Greek form of Nero's name and title, 'Neron Kaisar', transliterated into Hebrew letters, sums to 666. This is the most widely cited reading but remains an inference about authorial intent, since the text itself does not name Nero.",
+      "refs": [
+        { "book": "Revelation", "chapter": 13, "verse": 18 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "Some early and significant manuscripts (including the papyrus P115 and Codex C) give the number as 616, not 666. This is a real, documented textual variant, not a modern reinterpretation.",
+      "refs": [
+        { "book": "Revelation", "chapter": 13, "verse": 18 }
+      ]
+    },
+    {
+      "class": "DEBATE",
+      "text": "616 is explained the same way as 666: it is the sum for the Latin spelling of Nero's name ('Nero Caesar') transliterated into Hebrew, rather than the Greek spelling. Both readings point to the same figure by a different transliteration, which is one reason many scholars find the Nero reading persuasive despite the variant."
+    },
+    {
+      "class": "TRADITION",
+      "text": "Across Christian history the number has also been applied to many later figures and institutions, well beyond the first-century setting Revelation was written in. CrossLight does not endorse any of these later identifications -- they are a separate interpretive tradition from the first-century gematria reading above, and are noted here only because they are part of how this number has been read historically."
+    }
+  ],
+  "sources": [
+    "Revelation 13:18",
+    "Luther Seminary, 'The Number of the Beast in Revelation 13 in Light of Papyri'",
+    "Wikipedia, '666 (number)', manuscript and gematria sections"
+  ]
+}

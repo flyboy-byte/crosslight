@@ -1,0 +1,47 @@
+{
+  "_comment": "CrossLight Bible Numbers study data. Copy this directory's files to /Bible/numbers/ on the SD card.",
+  "number": 12,
+  "name": "Twelve",
+  "summary": "Twelve organizes two of Scripture's central communities -- the tribes descended from Jacob's twelve sons, and the twelve apostles Jesus named -- and the New Testament draws an explicit line between them.",
+  "terms": ["twelve"],
+  "claims": [
+    {
+      "class": "FACT",
+      "text": "Jacob (renamed Israel) had twelve sons, whose descendants became the twelve tribes of Israel.",
+      "refs": [
+        { "book": "Genesis", "chapter": 49, "verse": 28 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "At Sinai, Moses built an altar with twelve pillars representing the twelve tribes as part of the covenant ceremony.",
+      "refs": [
+        { "book": "Exodus", "chapter": 24, "verse": 4 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "Jesus selected twelve men to be his closest followers, given authority to preach and heal.",
+      "refs": [
+        { "book": "Matthew", "chapter": 10, "verse": 1, "end": 4 }
+      ]
+    },
+    {
+      "class": "PATTERN",
+      "text": "The New Testament itself connects the two groups directly: Jesus tells the twelve they will judge the twelve tribes of Israel, and Revelation's New Jerusalem has twelve gates named for the twelve tribes and twelve foundations named for the twelve apostles.",
+      "refs": [
+        { "book": "Matthew", "chapter": 19, "verse": 28 },
+        { "book": "Revelation", "chapter": 21, "verse": 12, "end": 14 }
+      ]
+    },
+    {
+      "class": "TRADITION",
+      "text": "Twelve is traditionally read as a number of completeness and ordered authority, especially in matters of governance -- a reading drawn from its consistent use for a whole, organized community (a nation, a leadership body), not from a verse that defines the number this way."
+    }
+  ],
+  "sources": [
+    "Genesis 49:28; Exodus 24:4; Matthew 10:1-4, 19:28; Revelation 21:12-14",
+    "St. Paul Center, 'Why Twelve?: The Apostles and the New Israel'",
+    "BibleHub topical study, 'The Number Twelve'"
+  ]
+}

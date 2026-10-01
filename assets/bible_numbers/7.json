@@ -1,0 +1,54 @@
+{
+  "_comment": "CrossLight Bible Numbers study data. Copy this directory's files to /Bible/numbers/ on the SD card. Every claim is classified -- FACT (countable/stated in the text), PATTERN (a repeated structural feature), TRADITION (a theological/literary association), DEBATE (contested among scholars), or SPECULATION -- so a reading never gets presented as settled fact it isn't.",
+  "number": 7,
+  "name": "Seven",
+  "summary": "Seven is the most frequent and most structurally used number in the Hebrew and Christian Scriptures, running from the seven days of creation to the sevenfold visions of Revelation. English translations use several related words (seven, seventh, sevenfold), so an occurrence count below is a count of English words in the installed translation, not a count of a single underlying Hebrew or Greek term.",
+  "terms": ["seven", "seventh", "sevenfold"],
+  "claims": [
+    {
+      "class": "FACT",
+      "text": "Genesis frames the creation week as six days of work followed by a seventh day on which God rested, blessed, and made holy -- the origin of the Sabbath pattern.",
+      "refs": [
+        { "book": "Genesis", "chapter": 2, "verse": 2, "end": 3 }
+      ]
+    },
+    {
+      "class": "PATTERN",
+      "text": "Scholars studying the structure of Genesis 1:1-2:3 note it follows a sevenfold literary pattern common to ancient Near Eastern narrative, independent of any single word count -- the text is built in seven movements, not just seven days.",
+      "refs": [
+        { "book": "Genesis", "chapter": 1, "verse": 1, "end": 31 }
+      ]
+    },
+    {
+      "class": "FACT",
+      "text": "The flood narrative uses seven repeatedly: seven pairs of clean animals are taken aboard, and seven days separate the command from the flood's start.",
+      "refs": [
+        { "book": "Genesis", "chapter": 7, "verse": 2, "end": 4 }
+      ]
+    },
+    {
+      "class": "PATTERN",
+      "text": "Revelation is organized around four sevens -- seven churches, seven seals, seven trumpets, and seven bowls -- a deliberate structural device rather than an incidental word count.",
+      "refs": [
+        { "book": "Revelation", "chapter": 1, "verse": 4 }
+      ]
+    },
+    {
+      "class": "PATTERN",
+      "text": "Matthew's genealogy of Jesus is explicitly organized into three sets of fourteen generations. Fourteen is twice seven, and in Hebrew gematria (letters read as numbers) David's name (dalet-vav-dalet = 4+6+4) itself totals fourteen -- so the arrangement is widely read as reinforcing Jesus' Davidic lineage through the structure, not just the names. That the arrangement is deliberate is a near-universal scholarly reading of the text, but it remains an inference about authorial intent, not a claim the text states outright.",
+      "refs": [
+        { "book": "Matthew", "chapter": 1, "verse": 17 }
+      ]
+    },
+    {
+      "class": "TRADITION",
+      "text": "Seven is traditionally associated with completeness, wholeness, and holiness -- a reading drawn from its repeated use at structurally complete or climactic moments (creation's completion, the flood's resolution, Revelation's full unfolding), rather than from any verse that defines the number this way."
+    }
+  ],
+  "sources": [
+    "Genesis 1:1-2:3, 2:2-3, 7:2-4; Matthew 1:17; Revelation 1:4",
+    "thetorah.com, 'Seven: The Biblical Number'",
+    "ASA/PSCF (2024), scholarly analysis of the sevenfold structure of Genesis 1:1-2:3",
+    "BibleHub topical study on Matthew 1:17's three sets of fourteen and the David gematria"
+  ]
+}

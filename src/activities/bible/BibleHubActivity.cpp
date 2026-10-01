@@ -7,9 +7,11 @@
 #include "activities/ActivityManager.h"
 #include "activities/bible/BibleReaderActivity.h"
 #include "activities/bible/BibleMemoryWorkActivity.h"
+#include "activities/bible/BibleNumbersActivity.h"
 #include "activities/bible/BibleTranslationsActivity.h"
 #include "bible/BibleBookmarkStore.h"
 #include "bible/BibleMemoryWork.h"
+#include "bible/BibleNumbers.h"
 #include "bible/BibleReadingStateStore.h"
 #include "bible/BibleTranslations.h"
 #include "components/UITheme.h"
@@ -30,6 +32,7 @@ void BibleHubActivity::buildRows() {
   const std::string abbr = BibleTranslations::current();
   const bool haveTranslation = !abbr.empty();
   const bool haveMemoryWork = !bible_memory::availableCourses().empty();
+  const bool haveNumbers = !bible_numbers::availableStudies().empty();
 
   translationLabel = haveTranslation ? BibleTranslations::shortLabel(abbr) : "";
   continueSubtitle.clear();
@@ -40,7 +43,7 @@ void BibleHubActivity::buildRows() {
   bookmarkCount = std::to_string(BIBLE_BOOKMARKS.all().size());
 
   rowItems.clear();
-  rowItems.reserve(6);  // add() hands back a reference into the vector
+  rowItems.reserve(7);  // add() hands back a reference into the vector
   auto add = [this](const Row row, const char* label, const bool enabled) -> fui::ListItem& {
     fui::ListItem item;
     item.label = label;
@@ -55,6 +58,7 @@ void BibleHubActivity::buildRows() {
   add(Search, tr(STR_SEARCH_BIBLE), haveTranslation);
   add(Bookmarks, tr(STR_BOOKMARKS), haveTranslation && !BIBLE_BOOKMARKS.all().empty()).value = bookmarkCount.c_str();
   add(MemoryWork, tr(STR_MEMORY_WORK), haveTranslation && haveMemoryWork);
+  add(Numbers, tr(STR_BIBLE_NUMBERS), haveTranslation && haveNumbers);
   add(Translations, tr(STR_TRANSLATIONS), true).value = translationLabel.c_str();
 }
 
@@ -83,6 +87,12 @@ void BibleHubActivity::activateIndex(const int index) {
     case MemoryWork:
       startActivityForResult(std::make_unique<BibleMemoryWorkActivity>(renderer, mappedInput),
                              [](const ActivityResult&) {});
+      return;
+    case Numbers:
+      startActivityForResult(
+          std::make_unique<BibleNumbersActivity>(renderer, mappedInput,
+                                                 BibleTranslations::pathFor(BibleTranslations::current())),
+          [](const ActivityResult&) {});
       return;
     case Translations:
       startActivityForResult(std::make_unique<BibleTranslationsActivity>(renderer, mappedInput),
