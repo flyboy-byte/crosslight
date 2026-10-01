@@ -26,8 +26,8 @@ CameraScanActivity::CameraScanActivity(GfxRenderer& renderer, MappedInputManager
 void CameraScanActivity::onEnter() {
   Activity::onEnter();
 
-  std::vector<flock::Signature> sigs;
-  if (!flock::loadSignatures(flock::SIGNATURE_PATH, sigs)) {
+  std::vector<flockcam::Signature> sigs;
+  if (!flockcam::loadSignatures(flockcam::SIGNATURE_PATH, sigs)) {
     state = State::NoSignatures;
     requestUpdate();
     return;

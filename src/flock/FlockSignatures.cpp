@@ -6,7 +6,7 @@
 
 #include <cctype>
 
-namespace flock {
+namespace flockcam {
 
 namespace {
 constexpr size_t MAX_SIGNATURE_BYTES = 64 * 1024;
@@ -75,4 +75,4 @@ bool loadSignatures(const char* path, std::vector<Signature>& out) {
   return !out.empty();
 }
 
-}  // namespace flock
+}  // namespace flockcam

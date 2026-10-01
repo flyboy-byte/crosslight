@@ -16,7 +16,7 @@
 // into the image. This header is the pure model plus the matcher; JSON loading
 // is separate (FlockSignatures.cpp) so the matcher stays dependency-free and
 // host-testable.
-namespace flock {
+namespace flockcam {
 
 struct Signature {
   std::string name;      // human label, e.g. "Flock Falcon"
@@ -57,4 +57,4 @@ uint32_t ouiOf(const uint8_t mac[6]);
 // SSID.
 bool parseManagementFrame(const uint8_t* buf, size_t len, Observation& out);
 
-}  // namespace flock
+}  // namespace flockcam

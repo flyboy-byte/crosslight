@@ -12,7 +12,7 @@
 #include <freertos/queue.h>
 #endif
 
-namespace flock {
+namespace flockcam {
 
 namespace {
 // The highest 2.4GHz channel to sweep. 1-13 covers the world; 14 is Japan-only
@@ -159,4 +159,4 @@ bool FlockScanner::drain() {
   return changed;
 }
 
-}  // namespace flock
+}  // namespace flockcam

@@ -25,7 +25,7 @@ class CameraScanActivity final : public Activity {
  private:
   enum class State { NoSignatures, NoRadio, Scanning };
 
-  flock::FlockScanner scanner;
+  flockcam::FlockScanner scanner;
   State state = State::Scanning;
   uint32_t startedMs = 0;
   uint32_t lastHopMs = 0;

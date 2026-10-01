@@ -16,7 +16,7 @@
 // RSSI into a fixed queue, no allocation. drain() runs on the UI task and does
 // the real work with the host-tested parseManagementFrame()/match(), so nothing
 // untested runs in the radio callback.
-namespace flock {
+namespace flockcam {
 
 struct Detection {
   std::string name;   // signature label
@@ -62,4 +62,4 @@ class FlockScanner {
   uint32_t frames = 0;
 };
 
-}  // namespace flock
+}  // namespace flockcam

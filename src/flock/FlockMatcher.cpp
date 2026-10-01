@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace flock {
+namespace flockcam {
 
 uint32_t ouiOf(const uint8_t mac[6]) {
   return (static_cast<uint32_t>(mac[0]) << 16) | (static_cast<uint32_t>(mac[1]) << 8) | mac[2];
@@ -39,4 +39,4 @@ int match(const std::vector<Signature>& signatures, const Observation& obs) {
   return -1;
 }
 
-}  // namespace flock
+}  // namespace flockcam

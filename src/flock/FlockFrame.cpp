@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace flock {
+namespace flockcam {
 
 namespace {
 // 802.11 frame control, first two bytes of the header.
@@ -56,4 +56,4 @@ bool parseManagementFrame(const uint8_t* buf, const size_t len, Observation& out
   return true;
 }
 
-}  // namespace flock
+}  // namespace flockcam
