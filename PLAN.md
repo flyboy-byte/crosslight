@@ -678,6 +678,93 @@ partial refresh on page turns where the panel allows, avoid rebuilding pages whe
 Every phase ships as a Wi-Fi OTA (26.9.x → bump the version), and each new UI must be simulator-checked
 before it's called done (the number/calendar engines are pure logic → host-testable like the Flock matcher).
 
+## Pentest/security toolkit — PR #1 review (2026-10-01)
+
+**Status: cloud-agent session (pointed at `docs/crosslight_pentest_handoff.md`) opened
+`flyboy-byte/crosslight#1`, branch `claude/amazing-mendel-ni6blk`, against this plan. Reviewed in a
+worktree — not yet merged.** This section is the review; "Planned: Pentest/security toolkit" below it is
+the original scope doc (still accurate, read it first for context).
+
+### What's in the PR
+
+Slices 1-5 of the passive toolkit, each its own module: `src/wifiaudit/` (AP scanner, evil-twin/deauth-flood
+threat detection, PCAP capture to SD, EAPOL/PMKID + hashcat-22000 harvest) and `src/bleaudit/` (passive BLE
+scanner + device fingerprinting). Plus two docs (`docs/crosslight_pentest_research.md` — landscape/hardware-fit
+research; `docs/crosslight_pentest_slice6_scope.md` — handoff for the active/transmit tools, not built here)
+and a PLAN.md update. 4057 insertions, 49 files. All five tiles wired into `UtilityRegistry.cpp` correctly
+(one include + one entry each, `HomeActivity.cpp` untouched, matching the established pattern).
+
+### Independently verified (built and checked myself, in a worktree, not just reading the PR's own claims)
+
+- **Simulator build: SUCCESS** (`pio run -e simulator_x4_pro`, after symlinking `simulator/` and running
+  `git submodule update --init --recursive` — neither done by the PR's own CI since it had no PlatformIO).
+- **Device build: FAILS.** `src/bleaudit/BleScanner.cpp` includes `<NimBLEDevice.h>`, but **`NimBLE-Arduino`
+  was never added to `platformio.ini`'s `lib_deps`.** This is the exact gap the PR's own checklist predicted
+  ("no PlatformIO in the build environment... device/sim build not run"). **Concrete fix needed before
+  merge:** add the NimBLE-Arduino lib dep to the `x4pro` env (and `simulator_x4_pro` if BLE needs a host
+  stub there — check whether `BleScanner` is guarded for non-ESP32 builds the way `FlockScanner` is).
+- **Host tests: 478/478 pass** (408 prior baseline + 70 new — matches the PR's claim exactly). Ran the full
+  suite myself via `cmake --build . && ctest`, not just trusted the PR description.
+- **BLE signature data (`assets/bleaudit/signatures.json`) is genuinely well-sourced, not fabricated.**
+  Fetched the actual raw Bluetooth SIG assigned-numbers registry (`company_identifiers.yaml`,
+  `member_uuids.yaml` from the official `bluetooth-SIG/public` Bitbucket repo, via `curl`, not an
+  AI-summarized fetch — learned that lesson from the Flock OUI episode) and independently confirmed all 6
+  entries: `0x004C`=Apple Inc. ✓, `0x0006`=Microsoft ✓, `0xFEED`=Tile Inc. ✓, `0xFD5A`/`0xFD59`=Samsung
+  Electronics ✓, `0xFEAA`=Google LLC (Eddystone) ✓, `0xFE2C`=Google LLC (Fast Pair) ✓. The 7th entry (Flipper
+  Zero, matched by BLE local-name substring) is correctly labeled as a heuristic, not a registry fact. This
+  is a materially different, better-grounded situation than the Flock OUI research — a stable public
+  standard, not field-sniffed/rotating data.
+- **No transmit code present** — grepped the new files for `esp_wifi_80211_tx`/`send`/`transmit` patterns;
+  none found. Matches the PR's claim that slices 1-5 are receive-only.
+- **No copyleft contamination found** (shallow check: grepped for Marauder/Bruce/GPL/AGPL references in the
+  new source — none). The research doc explicitly and correctly flags Marauder (GPL-3.0) and Bruce
+  (AGPL-3.0) as copyleft-contaminating for this MIT tree and recommends Ghost ESP/Radio-Ink (MIT) as code
+  references instead — good practice, worth preserving as new code gets added.
+- **8 files need `clang-format`** (minor, mechanical): `Eapol.{h,cpp}`, `HarvestScanner.{h,cpp}`,
+  `WifiFrame.{h,cpp}`, `ThreatDetect.h`, `BleMatcher.cpp`.
+- **`partitions.csv` untouched**, no other upstream-hot files touched beyond the expected `UtilityRegistry.cpp`.
+
+### Gating decision — RESOLVED with Logan directly 2026-10-01 (not just the agent's call)
+
+The PR's slice-6 scope doc unilaterally dropped the per-boot confirmation prompt that
+`docs/crosslight_pentest_handoff.md` had specified as the second gate layer, using Logan's own
+"don't need training wheels" reasoning from the *manual-MAC-entry* discussion — a different question the
+agent wasn't present for. Flagged this distinction to Logan directly (forced manual entry = pointless
+friction, correctly dropped; a one-tap per-boot confirmation = a real guard against misclicks, a different
+thing) and asked for his own ratification rather than letting it stand by inheritance.
+
+**Logan's explicit answer: drop it. "the agent was correct. i dont need a babysitter. especially if u build
+a good ui."** So: confirmed final gating is **compile-time flag only**
+(`CROSSLIGHT_ENABLE_ACTIVE_AUDIT`, off in `gh_release*`, on in local/dev builds) — no per-boot UI
+confirmation screen. `ActiveAuditGate` may stay in the tree as inert defense-in-depth (per the scope doc) or
+be simplified away entirely; Logan's "especially if u build a good ui" is a design note for whoever builds
+slice 6 — deliberate navigation to reach an active tool (not a shortcut from Home) does real work here
+instead of a confirmation dialog.
+
+### Not yet reviewed by me — on the table for next session
+
+- **The slice-6 foundation branch, `worktree-agent-a5724a1624b098548`** (commit `e2f56c1`): pure transmit
+  primitives (`FrameBuilder`, `ActiveAuditGate`, `AttackTx`), claimed 53/53 host tests in its own run — **not
+  independently built or reviewed by me.** Do that before merging it, same rigor as the PR review above.
+- **The deauth linker-bypass tradeoff.** `docs/crosslight_pentest_research.md` is clear-eyed about this:
+  deauth needs `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks it on purpose)
+  and that **"complicates OTA (pinned/patched lib)."** This is a real engineering/architecture decision, not
+  a detail — may be worth building 6b (beacon flood) and 6c (evil-twin) first since neither needs the patch,
+  and deciding on 6a (deauth) separately once the OTA-complication tradeoff is weighed.
+- **On-device verification** of slices 1-5 (scan correctness, SD writes, radio release on exit) — same
+  caveat every radio feature in this project has carried (simulator can't test real RF/SD timing).
+
+### Next steps (the "rebase, fix issues, get it up to date" pass)
+
+1. Add `NimBLE-Arduino` to `lib_deps` (x4pro env; check simulator env needs a stub/guard like `FlockScanner`'s
+   `#if defined(ARDUINO_ARCH_ESP32)` pattern).
+2. Run `clang-format` on the 8 flagged files.
+3. Rebuild simulator + device + host tests clean after the above two fixes.
+4. Independently review/build/test the slice-6 foundation branch before merging it.
+5. Decide the deauth/OTA tradeoff; build 6b/6c first if deauth is deferred.
+6. Flash and verify slices 1-5 on real hardware.
+7. Merge PR #1 once the device build is green.
+
 ## Planned: Pentest/security toolkit (scoped 2026-09-30)
 
 **Origin and authorization context:** Logan is an Extra-class ham radio operator (the top US amateur license
