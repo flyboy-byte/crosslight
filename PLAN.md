@@ -20,22 +20,25 @@ hardware — the gate Phase 5 was waiting on. (Note: this confirms the UI reads 
 line-by-line re-verification of every computus/Psalter value — those are already pinned by the 13 host tests
 added this session, cross-checked against primary sources per [[verify-dont-assume]].)
 
-**Phase 5 and Track D are now unblocked** (the hardware-proof gate both were waiting on is satisfied):
+**Phase 5 and Track D are unblocked but PAUSED by Logan's call (2026-10-01): "lets stop on bible for now."**
+The hardware-proof gate both were waiting on is satisfied (26.10.3 flashed, confirmed "it looks great"), so
+either can resume anytime with no further unblocking needed — but **do not pick up Phase 5 or Track D without
+Logan raising the Bible track again.** When he does, see the two options below; neither is pre-scoped enough
+to start cold.
 - **Phase 5 (advanced):** pattern/repeated-word search, cross-translation comparison, Hebrew/Greek number
-  metadata, the parked Geneva-style note layer. Pick a slice with Logan before building — PLAN scoped these
-  loosely ("only after the above prove out"), not as a committed spec the way Tracks A-C were.
-- **Track D (reader perf):** still needs a `millis()`-instrumented profiling pass on the device itself (chapter
-  open, page turn, hub transitions) before any code changes — "looks great" is a UI read, not a timing
-  measurement. Do the profiling session before optimizing.
+  metadata, the parked Geneva-style note layer. Needs Logan to pick a slice — none are designed yet.
+- **Track D (reader perf):** his original "flow faster/smoother" ask, still outstanding. Needs a
+  `millis()`-instrumented profiling pass on the device (chapter open, page turn, hub transitions) before any
+  optimization code — measure first, "looks great" is a UI read, not a timing measurement.
 
-**NEXT, per Logan (2026-10-01, do not re-ask):**
+**NEXT (2026-10-01, do not re-ask): Bible track is on hold. Pick up whatever Logan raises instead** — he
+mentioned pentest toolkit work and more utilities as live alternatives when asked what's next.
+
+**Prior milestones (all done):**
 1. ~~Cut release 26.10.2~~ — DONE.
 2. ~~Build Track C (Historical Calendar + Daily Psalter)~~ — DONE 2026-10-01, completing the whole planned
    Bible expansion (Phases 1-4).
-3. ~~Cut 26.10.3~~ — DONE (tag `26.10.3`, commit `2b7ec2de`). Logan flashed it and confirmed "it looks great"
-   (2026-10-01) — Phase 5 and Track D's hardware-proof gate is now satisfied.
-4. **Pick the next slice with Logan:** a specific Phase 5 feature, or a Track D profiling session. Neither is
-   pre-scoped tightly enough to just start building — ask which, or what's bugging him most on the device.
+3. ~~Cut 26.10.3~~ — DONE (tag `26.10.3`, commit `2b7ec2de`). Logan flashed it and confirmed "it looks great."
 
 **Standing physical to-do (when the SD card is next out of the device):** copy `assets/bleaudit/signatures.json`
 → `/bleaudit/signatures.json` so BLE fingerprinting labels devices; and copy `assets/bible_numbers/{3,77,1000}.json`
