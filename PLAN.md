@@ -977,17 +977,15 @@ with any other near-term work). Remaining backlog below.
 - **Next real feature work** (Logan's "keep building out" direction): the Slice 6 active tools — review the
   recovered `FrameBuilder`/`AttackTx` byte layouts, build 6b/6c first, decide the deauth/OTA tradeoff. Plus,
   whenever the SD card is out: copy `assets/bleaudit/signatures.json` → `/bleaudit/` so BLE matching works.
-- **README overhaul, using the `readme` skill.** Current README is upstream CrossPoint's; CrossLight needs
-  its own landing page (what the fork is, the X4 Pro target, the Bible app + Memory Work + Bible Numbers, the
-  Utilities/pentest toolkit with its scope/authorization framing, the OTA/release story, build + simulator
-  setup). Invoke the `readme` skill when doing this — it carries the structure + a browser verification loop.
-- **Better "About" screen** (do as part of the README-per-skill task — same "explain what CrossLight is"
-  content, two surfaces). The current About is just `About / Open-source e-reader firmware` — generic and
-  doesn't even say it's CrossLight. Should name the fork, the X4 Pro, the CrossLight version (already in
-  `platformio.ini` `[crosslight] version`, surfaced via `CROSSPOINT_VERSION`), and credit upstream
-  CrossPoint. Find the About activity/string in `src/activities/settings/` (it's an upstream string, so this
-  likely means a CrossLight override, not editing the shared one — check how other CrossLight-specific UI
-  text is handled before touching `english.yaml`'s upstream keys).
+- ~~**README overhaul, using the `readme` skill.**~~ **DONE 2026-10-01** — rewrote `README.md` from upstream
+  CrossPoint's into a CrossLight landing page (house style: centered hero, honest status table, ASCII stack
+  diagram, install/build/simulator, Wi-Fi/BLE scope note, upstream credit). Browser-verified via the skill's
+  script (3 alerts, 3 collapsibles, 3 tables, clean heading hierarchy).
+- ~~**Better "About".**~~ **DONE 2026-10-01** — "About" turned out to mean the **GitHub repo About sidebar**
+  (it was upstream's "Open-source e-reader firmware" with the homepage pointing at upstream's commercial
+  site), not the device screen. Fixed via `gh repo edit`: accurate description, 7 topics
+  (bible/crosspoint/e-ink/e-reader/esp32-s3/firmware/xteink), stale homepage cleared. (The *device's*
+  `AboutActivity` is already a rich hardware/firmware spec list — it was never the generic text Logan saw.)
 
 ## Decisions made
 
