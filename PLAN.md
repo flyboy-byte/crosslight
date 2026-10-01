@@ -915,6 +915,11 @@ build (SUCCESS — flash 51.3%, RAM 31.5%, no regression in headroom).
 
 ## Planned: Pentest/security toolkit (scoped 2026-09-30)
 
+> **The toolkit now has a dedicated continuation handoff: [`docs/crosslight/pentest/`](docs/crosslight/pentest/README.md)**
+> (STATUS, ARCHITECTURE, TOOLING, ROADMAP) — written for Codex/another agent to carry the hacking tools
+> forward. That folder is the source of truth for the toolkit's current state and open work; the sections
+> below remain as the original scoping/history.
+
 **Origin and authorization context:** Logan is an Extra-class ham radio operator (the top US amateur license
 class — requires real RF-law knowledge), owns the hardware under test (laptops in his dorm), understands the
 legal boundaries, and wants Hak5/DEFCON-style pentest tooling as a personal security-research hobby. This
