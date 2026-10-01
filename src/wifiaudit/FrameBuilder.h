@@ -53,7 +53,6 @@ size_t buildDisassoc(uint8_t* out, size_t cap, const uint8_t bssid[6], const uin
 // fixed timestamp/interval/capability fields, then the SSID, Supported Rates and
 // DS Parameter Set information elements. Returns the total length (51 + ssidLen),
 // or 0 if `cap` is too small, `ssid` is null, or `ssidLen` exceeds MAX_SSID_LEN.
-size_t buildBeacon(uint8_t* out, size_t cap, const uint8_t bssid[6], const char* ssid, size_t ssidLen,
-                   uint8_t channel);
+size_t buildBeacon(uint8_t* out, size_t cap, const uint8_t bssid[6], const char* ssid, size_t ssidLen, uint8_t channel);
 
 }  // namespace wifiaudit

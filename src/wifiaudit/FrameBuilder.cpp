@@ -44,10 +44,10 @@ void writeMacHeader(uint8_t* out, const uint8_t fc0, const uint8_t addr1[6], con
   out[1] = 0x00;  // FC flags
   out[2] = 0x00;  // duration
   out[3] = 0x00;
-  std::memcpy(out + 4, addr1, 6);    // addr1 (destination)
-  std::memcpy(out + 10, addr2, 6);   // addr2 (source / transmitter)
-  std::memcpy(out + 16, addr3, 6);   // addr3 (BSSID)
-  out[22] = 0x00;                    // sequence control
+  std::memcpy(out + 4, addr1, 6);   // addr1 (destination)
+  std::memcpy(out + 10, addr2, 6);  // addr2 (source / transmitter)
+  std::memcpy(out + 16, addr3, 6);  // addr3 (BSSID)
+  out[22] = 0x00;                   // sequence control
   out[23] = 0x00;
 }
 
@@ -59,7 +59,7 @@ size_t buildDeauthLike(uint8_t* out, const size_t cap, const uint8_t fc0, const 
   // addr1 = destination (the client, or broadcast); addr2 = addr3 = the BSSID we
   // are impersonating, so the client believes its AP disconnected it.
   writeMacHeader(out, fc0, client, bssid, bssid);
-  out[24] = static_cast<uint8_t>(reasonCode & 0xFF);         // reason code, little-endian
+  out[24] = static_cast<uint8_t>(reasonCode & 0xFF);  // reason code, little-endian
   out[25] = static_cast<uint8_t>((reasonCode >> 8) & 0xFF);
   return DEAUTH_FRAME_LEN;
 }

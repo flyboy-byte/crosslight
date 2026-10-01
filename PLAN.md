@@ -923,21 +923,23 @@ new sources; rebuilt clean on **host (529/529 tests), simulator (SUCCESS), and x
 writes, radio release on exit) — the same "simulator can't test real RF/SD timing" caveat every radio
 feature here carries. No OTA tag until that's done.
 
-**Active/transmit toolkit (Slice 6) — code RECOVERED + pushed, NOT reviewed/built/merged by me.** The pure
-transmit primitives (`FrameBuilder`, `AttackTx`, `ActiveAuditGate` + their two tests + CMake wiring, 9 files /
-490 lines, agent-claimed 53/53 host tests) live on branch `worktree-agent-a5724a1624b098548`
-(commit `e2f56c1`). **Timeline worth remembering:** the agent first reported this branch "parked, ready to
-merge" while it was a *local-only* commit in an ephemeral cloud container; a later session couldn't reach it
-(`git cat-file` → not a valid object), so this doc briefly (correctly, at the time) said it was gone and must
-be rebuilt. Then the *original* container was still alive, Logan had the agent push it, and **verified
-2026-10-01: branch + `e2f56c1` are now genuinely on the fork remote and fetched locally** — 9 files diffing
-cleanly against `crosslight` (only the `test/wifi_audit/CMakeLists.txt` edit is shared). So it's recovered,
-not rebuilt. **Still true:** I have NOT independently reviewed or built this code, and it's based on
-*pre-rebase* `crosslight` — review + rebuild-test it with the same rigor as the PR #1 review before merging,
-and expect the CMakeLists edit to need re-applying onto current `crosslight`. (Lesson, now durable in memory:
-a sub/cloud-agent saying "built X on branch Y" means nothing until Y is confirmed *pushed and reachable* —
-"I read the files so they exist" ≠ stored.) Planned active tools: 6a targeted deauth, 6b beacon flood, 6c
-evil-twin captive portal, 6d BLE adv spoof. Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in
+**Active/transmit FOUNDATION (Slice 6 primitives) — recovered + MERGED into `crosslight` 2026-10-01; dormant.**
+`FrameBuilder` (pure deauth/disassoc/beacon byte builders), `AttackTx` (the single transmit path), and
+`ActiveAuditGate` (per-boot bool) + their two tests, from branch `worktree-agent-a5724a1624b098548`
+(`e2f56c1`). **Timeline worth remembering:** the agent first called this "parked, ready to merge" while it was
+a *local-only* commit in an ephemeral cloud container; a later session couldn't reach it (`git cat-file` → not
+a valid object), so this doc briefly (correctly then) said it was gone. The original container was still
+alive, the agent pushed it, and it's now genuinely on the remote — recovered, not rebuilt. Merged cleanly onto
+the rebased `crosslight` (zero conflicts), clang-formatted, and **builds green on all three targets: host
+542/542 (13 new slice-6 tests), simulator + x4pro device SUCCESS, flash/RAM UNCHANGED (54.0% / 33.6%).**
+Why zero size impact: it's **fully dormant** — `AttackTx::transmitFrame` is a hardcoded `return false` unless
+`CROSSLIGHT_ENABLE_ACTIVE_AUDIT` is defined (no env defines it), and nothing in the UI invokes `FrameBuilder`
+yet, so it's dead-stripped. Merging it foreclosed no decision: no linker-wrap, no activities, flag off.
+**Still owed before any of it can actually transmit:** (1) a byte-level correctness review of the frame
+layouts (I merged on build+test-green, have NOT line-reviewed the deauth/beacon byte construction); (2) the
+UI activities (6a-6d); (3) the compile flag + deauth linker-wrap decision below. (Lesson, now in memory: a
+sub/cloud-agent saying "built X on branch Y" means nothing until Y is confirmed *pushed and reachable*.)
+Planned active tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d BLE adv spoof. Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in
 local builds (a switch Logan owns, not a lock); per-boot confirm friction dropped (Logan's call — "i dont
 need a babysitter"); the "own gear only" boundary stays. **Key engineering decision still open: the deauth
 path.** Deauth/disassoc need `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks
