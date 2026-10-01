@@ -745,10 +745,11 @@ instead of a confirmation dialog.
 
 ### Not yet reviewed by me — on the table for next session
 
-- **The slice-6 transmit primitives** (`FrameBuilder`, `ActiveAuditGate`, `AttackTx`): the agent claimed a
-  host-tested branch (`worktree-agent-a5724a1624b098548`, `e2f56c1`), but **it was never pushed and is gone**
-  (verified 2026-10-01 — see the Slice 6 note in "Planned: Pentest/security toolkit"). Must be rebuilt from
-  the specs, not reviewed. Nothing to merge.
+- **The slice-6 transmit primitives** (`FrameBuilder`, `ActiveAuditGate`, `AttackTx` + tests):
+  on branch `worktree-agent-a5724a1624b098548` (`e2f56c1`), **recovered and pushed to the fork 2026-10-01**
+  (after a scare where it was briefly unreachable — see the Slice 6 note in "Planned"). **Not independently
+  built or reviewed by me**, and based on pre-rebase `crosslight`. Review + rebuild-test with the same rigor
+  as the PR review before merging; `test/wifi_audit/CMakeLists.txt` is the one shared edit to re-apply.
 - **The deauth linker-bypass tradeoff.** `docs/crosslight_pentest_research.md` is clear-eyed about this:
   deauth needs `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks it on purpose)
   and that **"complicates OTA (pinned/patched lib)."** This is a real engineering/architecture decision, not
@@ -765,10 +766,11 @@ instead of a confirmation dialog.
    sources + the new utility activities formatted (clang-format 22 flagged more than the PR's original 8).
 3. ~~Rebuild simulator + device + host clean~~ **DONE 2026-10-01** — host 529/529, simulator SUCCESS, x4pro
    SUCCESS (flash 54.0%, RAM 33.6%). **PR #1 (passive slices 1-5) merged into `crosslight`.**
-4. ~~Review the slice-6 foundation branch~~ **N/A — it was never pushed and is gone** (verified 2026-10-01;
-   `e2f56c1` unreachable). Slice 6 transmit code must be rebuilt from the specs, not recovered.
+4. Independently review + rebuild-test the slice-6 foundation branch (`worktree-agent-a5724a1624b098548`,
+   `e2f56c1` — recovered + pushed 2026-10-01) before merging it; re-apply its `test/wifi_audit/CMakeLists.txt`
+   edit onto current `crosslight`.
 5. Decide the deauth/OTA tradeoff; build 6b/6c first if deauth is deferred (see Slice 6 notes above).
-   **← next real engineering decision when active tools are picked up.**
+   **← the real engineering decision when active tools are picked up.**
 6. Flash and verify passive slices 1-5 on real hardware (still owed — no OTA tag until done).
 7. ~~Merge PR #1~~ **DONE** (merged to branch 2026-10-01; release gated on item 6).
 
@@ -921,15 +923,21 @@ new sources; rebuilt clean on **host (529/529 tests), simulator (SUCCESS), and x
 writes, radio release on exit) — the same "simulator can't test real RF/SD timing" caveat every radio
 feature here carries. No OTA tag until that's done.
 
-**Active/transmit toolkit (Slice 6) — scoped only; the code was NEVER pushed and is GONE.** The cloud agent
-*claimed* to have built the pure transmit primitives (`FrameBuilder`, `AttackTx`, `ActiveAuditGate`,
-host-tested 53/53) on a branch `worktree-agent-a5724a1624b098548` (commit `e2f56c1`) — but **verified
-2026-10-01: that commit and branch exist nowhere reachable** (not on the fork remote, not in local history;
-`git cat-file -t e2f56c1` → "Not a valid object name"). They only ever lived in the agent's ephemeral
-worktree and were never pushed. **So Slice 6's transmit code must be rebuilt from scratch** when tackled —
-only the *specs* survive (in the merged commit `a9848986`'s scaffold text and here). Don't waste time hunting
-for the branch. Planned active tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d
-BLE adv spoof. Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in
+**Active/transmit toolkit (Slice 6) — code RECOVERED + pushed, NOT reviewed/built/merged by me.** The pure
+transmit primitives (`FrameBuilder`, `AttackTx`, `ActiveAuditGate` + their two tests + CMake wiring, 9 files /
+490 lines, agent-claimed 53/53 host tests) live on branch `worktree-agent-a5724a1624b098548`
+(commit `e2f56c1`). **Timeline worth remembering:** the agent first reported this branch "parked, ready to
+merge" while it was a *local-only* commit in an ephemeral cloud container; a later session couldn't reach it
+(`git cat-file` → not a valid object), so this doc briefly (correctly, at the time) said it was gone and must
+be rebuilt. Then the *original* container was still alive, Logan had the agent push it, and **verified
+2026-10-01: branch + `e2f56c1` are now genuinely on the fork remote and fetched locally** — 9 files diffing
+cleanly against `crosslight` (only the `test/wifi_audit/CMakeLists.txt` edit is shared). So it's recovered,
+not rebuilt. **Still true:** I have NOT independently reviewed or built this code, and it's based on
+*pre-rebase* `crosslight` — review + rebuild-test it with the same rigor as the PR #1 review before merging,
+and expect the CMakeLists edit to need re-applying onto current `crosslight`. (Lesson, now durable in memory:
+a sub/cloud-agent saying "built X on branch Y" means nothing until Y is confirmed *pushed and reachable* —
+"I read the files so they exist" ≠ stored.) Planned active tools: 6a targeted deauth, 6b beacon flood, 6c
+evil-twin captive portal, 6d BLE adv spoof. Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in
 local builds (a switch Logan owns, not a lock); per-boot confirm friction dropped (Logan's call — "i dont
 need a babysitter"); the "own gear only" boundary stays. **Key engineering decision still open: the deauth
 path.** Deauth/disassoc need `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks
