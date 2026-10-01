@@ -471,10 +471,14 @@ preset + docs only; the NIV JSON lives only on the SD card. See [[crosslight-rel
   (fail loudly): exactly 66 books, expected names/order, valid UTF-8, expected chapter counts, contiguous
   unique chapter+verse numbers, no missing/dup/empty verses. (Validation runs on whatever file Logan
   supplies — no need to pre-fetch all 66 files into this repo.)
-- **Preset:** add one line `{"niv", "New International Version", "Copyrighted — user-supplied"}` to the
-  preset table. It must **not** auto-download (no getBible entry). Check how the translation menu treats a
-  preset with no download source — may need a "bring your own / not installed" affordance rather than a
-  download button. **Audit target before coding this.**
+- **Preset is OPTIONAL — proven 2026-09-30.** `BibleTranslations::installed()` *scans `/Bible/` for
+  folders* and shows any `/Bible/<ABBR>/<abbr>.json` it finds; it does **not** gate on the preset table.
+  So **the converted file alone makes NIV appear** (as the bare label "NIV") and be selectable, with no
+  firmware change — and it's already on the device SD at `/Bible/NIV/niv.json`. Adding
+  `{"niv", "New International Version", "Copyrighted — user-supplied"}` to `PRESETS` is pure polish: it
+  upgrades the display name (`displayName()` falls back to `upper(abbr)` without it) and carries a license
+  string. If added, it must **not** auto-download (no getBible entry); check the menu doesn't render a
+  download button for it. Ship it in a future OTA, not a blocker.
 - **Docs:** short "Add your own NIV" guide (run converter → copy to `/Bible/NIV/niv.json`).
 - **Test verses after install:** Genesis 1, Psalms 23, John 3, Romans 8, Revelation 13, plus random chapters.
 - Blocked on: Logan dropping his NIV file here so the converter targets its exact format.
