@@ -2,6 +2,7 @@
 
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/CameraScanActivity.h"
+#include "activities/utilities/PmkidHarvestActivity.h"
 #include "activities/utilities/WifiCaptureActivity.h"
 #include "activities/utilities/WifiScanActivity.h"
 #include "activities/utilities/WifiThreatActivity.h"
@@ -31,6 +32,10 @@ const std::vector<Utility> kUtilities = {
     {StrId::STR_WIFI_CAPTURE, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<WifiCaptureActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_PMKID_HARVEST, Wifi,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<PmkidHarvestActivity>(renderer, mappedInput);
      }},
 };
 }  // namespace
