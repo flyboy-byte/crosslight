@@ -161,8 +161,10 @@ void BleScanner::record(const uint8_t* address, const int8_t rssi, const BleAdve
   if (found.size() >= MAX_DETECTIONS) return;
 
   Detection d;
-  d.name = signatures[matchedIndex].name;
+  d.name = matchedIndex >= 0 ? signatures[matchedIndex].name : "";  // empty => label by manufacturer in the UI
   d.serviceInfo = describe(adv);
+  d.hasCompanyId = adv.hasCompanyId;
+  d.companyId = adv.companyId;
   std::memcpy(d.address, disp, 6);
   d.rssi = rssi;
   d.count = 1;
@@ -183,7 +185,9 @@ bool BleScanner::drain() {
     BleAdvertisement parsed;
     if (!parseAdvertisement(adv.bytes, adv.len, parsed)) continue;
     const int idx = matchBle(signatures, parsed);
-    if (idx < 0) continue;
+    // Record a curated-signature match, or any advertiser carrying a company id
+    // (the UI labels those by manufacturer via the BLE company-id db).
+    if (idx < 0 && !parsed.hasCompanyId) continue;
     record(adv.address, adv.rssi, parsed, idx);
     changed = true;
   }

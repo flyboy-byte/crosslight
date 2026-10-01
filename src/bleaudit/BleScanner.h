@@ -20,8 +20,10 @@
 namespace bleaudit {
 
 struct Detection {
-  std::string name;         // signature label of the match
+  std::string name;         // curated-signature label, or empty when only a company id identified it
   std::string serviceInfo;  // compact "what was seen": local name, company, service, Apple type
+  uint16_t companyId = 0;   // advertised BLE company id, for manufacturer lookup (VendorDb btcid.bin)
+  bool hasCompanyId = false;
   uint8_t address[6] = {};  // BLE device address, MSB-first for display
   int8_t rssi = 0;          // strongest RSSI seen for this device (closer = higher)
   uint32_t count = 0;       // advertisements matched from this device

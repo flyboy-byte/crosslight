@@ -1,7 +1,12 @@
 #pragma once
 
+#include <cstdint>
+#include <string>
+#include <unordered_map>
+
 #include "activities/Activity.h"
 #include "bleaudit/BleScanner.h"
+#include "util/VendorDb.h"
 
 // The screen behind the "BLE Scan" utility: a passive, receive-only sweep for BLE
 // device advertisements matching loaded signatures (see BleScanner). Shows how
@@ -25,8 +30,14 @@ class BleScanActivity final : public Activity {
  private:
   enum class State { NoSignatures, NoRadio, Scanning };
 
+  // Manufacturer name for a BLE company id, cached (one on-SD lookup each).
+  const std::string& manufacturerFor(uint16_t companyId);
+
   bleaudit::BleScanner scanner;
   State state = State::Scanning;
   uint32_t startedMs = 0;
   uint32_t lastPaintMs = 0;
+
+  VendorDb cidDb;
+  std::unordered_map<uint16_t, std::string> cidCache;
 };

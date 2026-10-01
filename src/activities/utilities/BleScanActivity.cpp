@@ -4,6 +4,8 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 
+#include <cstdint>
+#include <string>
 #include <vector>
 
 #include "MappedInputManager.h"
@@ -34,6 +36,7 @@ void BleScanActivity::onEnter() {
     requestUpdate();
     return;
   }
+  cidDb.open("/vendordb/btcid.bin");  // optional: manufacturer labels when the db is on the card
   state = State::Scanning;
   startedMs = lastPaintMs = millis();
   requestUpdate();
@@ -44,7 +47,14 @@ void BleScanActivity::onExit() {
   // and release the radio. Whether normal BLE/Wi-Fi works again without a reboot
   // is the key on-device check for this feature.
   scanner.end();
+  cidDb.close();
   Activity::onExit();
+}
+
+const std::string& BleScanActivity::manufacturerFor(const uint16_t companyId) {
+  auto it = cidCache.find(companyId);
+  if (it == cidCache.end()) it = cidCache.emplace(companyId, cidDb.lookup(companyId)).first;
+  return it->second;
 }
 
 void BleScanActivity::loop() {
@@ -102,8 +112,12 @@ void BleScanActivity::render(RenderLock&&) {
   } else {
     for (const auto& d : hits) {
       if (y > renderer.getScreenHeight() - lineH * 3) break;
+      // Curated signature name wins; otherwise label by advertised manufacturer.
+      std::string label = d.name;
+      if (label.empty() && d.hasCompanyId) label = manufacturerFor(d.companyId);
+      if (label.empty()) label = "(unknown)";
       char line[96];
-      snprintf(line, sizeof(line), "%s  %02X:%02X:%02X:%02X:%02X:%02X", d.name.c_str(), d.address[0], d.address[1],
+      snprintf(line, sizeof(line), "%s  %02X:%02X:%02X:%02X:%02X:%02X", label.c_str(), d.address[0], d.address[1],
                d.address[2], d.address[3], d.address[4], d.address[5]);
       renderer.drawText(UI_10_FONT_ID, pad, y, line, true, EpdFontFamily::BOLD);
       y += lineH;

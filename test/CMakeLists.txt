@@ -78,6 +78,7 @@ add_subdirectory(bible_numbers)
 add_subdirectory(historical_calendar)
 add_subdirectory(bible_psalter_readings)
 add_subdirectory(bible_compare)
+add_subdirectory(vendor_lookup)
 add_subdirectory(txt_to_html)
 
 add_subdirectory(absolute_grayscale)

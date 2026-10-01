@@ -1,6 +1,10 @@
 #pragma once
 
+#include <string>
+#include <unordered_map>
+
 #include "activities/Activity.h"
+#include "util/VendorDb.h"
 #include "wifiaudit/ApScanner.h"
 
 // The screen behind the "Wi-Fi Scan" utility: a passive, receive-only sweep of
@@ -24,9 +28,16 @@ class WifiScanActivity final : public Activity {
  private:
   enum class State { NoRadio, Scanning };
 
+  // Resolve a BSSID's OUI to a vendor name, cached so each OUI is a single
+  // on-SD lookup. Empty vendor (db absent or unknown OUI) just shows no label.
+  const std::string& vendorFor(const uint8_t bssid[6]);
+
   wifiaudit::ApScanner scanner;
   State state = State::Scanning;
   uint32_t startedMs = 0;
   uint32_t lastHopMs = 0;
   uint32_t lastPaintMs = 0;
+
+  VendorDb ouiDb;
+  std::unordered_map<uint32_t, std::string> ouiCache;
 };

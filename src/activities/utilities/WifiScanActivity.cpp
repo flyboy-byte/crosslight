@@ -26,6 +26,8 @@ WifiScanActivity::WifiScanActivity(GfxRenderer& renderer, MappedInputManager& ma
 void WifiScanActivity::onEnter() {
   Activity::onEnter();
 
+  ouiDb.open("/vendordb/oui.bin");  // optional: vendor labels when the db is on the card
+
   if (!scanner.begin()) {
     state = State::NoRadio;
     requestUpdate();
@@ -40,7 +42,15 @@ void WifiScanActivity::onExit() {
   // Receive-only: no association to drop, just leave promiscuous mode and
   // release the radio.
   scanner.end();
+  ouiDb.close();
   Activity::onExit();
+}
+
+const std::string& WifiScanActivity::vendorFor(const uint8_t bssid[6]) {
+  const uint32_t key = vendordb::ouiKey(bssid);
+  auto it = ouiCache.find(key);
+  if (it == ouiCache.end()) it = ouiCache.emplace(key, ouiDb.lookup(key)).first;
+  return it->second;
 }
 
 void WifiScanActivity::loop() {
@@ -109,6 +119,11 @@ void WifiScanActivity::render(RenderLock&&) {
       renderer.drawText(UI_10_FONT_ID, pad, y, ap.ssid.empty() ? "(hidden)" : ap.ssid.c_str(), true,
                         EpdFontFamily::BOLD);
       y += lineH;
+      const std::string& vendor = vendorFor(ap.bssid);
+      if (!vendor.empty()) {
+        renderer.drawText(UI_10_FONT_ID, pad, y, ("  " + vendor).c_str());
+        y += lineH;
+      }
       char detail[96];
       snprintf(detail, sizeof(detail), "  %02X:%02X:%02X:%02X:%02X:%02X  ch%u  %s  %ddBm", ap.bssid[0], ap.bssid[1],
                ap.bssid[2], ap.bssid[3], ap.bssid[4], ap.bssid[5], static_cast<unsigned>(ap.channel),
