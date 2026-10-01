@@ -34,6 +34,7 @@ lib/EpdFont/scripts/output/
 /dependencies.lock
 /sdkconfig.*
 sdkconfig.sticky
+sdkconfig.x4pro
 flake.*
 
 # Personal sleep-screen wallpapers (album art etc.) — not for the public fork

@@ -1,13 +1,13 @@
 add_executable(BibleChapterLoaderTest
   BibleChapterLoaderTest.cpp
   ${REPO_ROOT}/src/bible/BibleChapterLoader.cpp
-  ${REPO_ROOT}/lib/JsonParser/StreamingJsonParser.cpp
+  ${REPO_ROOT}/freeink-sdk/libs/network/JsonSax/src/StreamingJsonParser.cpp
 )
 
 target_include_directories(BibleChapterLoaderTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/stubs
   ${REPO_ROOT}/src/bible
-  ${REPO_ROOT}/lib/JsonParser
+  ${REPO_ROOT}/freeink-sdk/libs/network/JsonSax/include
 )
 
 target_compile_definitions(BibleChapterLoaderTest PRIVATE
