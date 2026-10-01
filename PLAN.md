@@ -958,13 +958,25 @@ once the OTA tradeoff is weighed.
 
 ## Backlog (queued 2026-10-01)
 
-**After the 26.10.1 on-hardware test passes, the direction is: keep building this out.** Confirmed with
-Logan — a good flash-test of the passive toolkit is the green light to continue (next real work: the Slice 6
-active tools — review the recovered `FrameBuilder`/`AttackTx` byte layouts, then build 6b/6c first and decide
-the deauth/OTA tradeoff — plus the still-planned easy utilities: flashlight toggle, unit converter, nicer
-calculator). If the test surfaces bugs, those come first. Nothing below blocks that; these are polish tasks to
-slot in.
+**26.10.1 test passed → kept building (easy utilities, Logan's pick 2026-10-01).** Shipped since 26.10.1,
+**unreleased, all on `crosslight`, host 542/542 + sim + device green:**
+- **Calculator** now shows the pending operation on the display (commit `29b5b15b`) — the `2/2` "can't see the
+  `/`" bug.
+- **Flashlight** utility (`FlashlightActivity`) — frontlight to full brightness, tap to toggle, restores
+  prior state on exit, holds off auto-sleep while lit.
+- **Unit converter** (`UnitConverterActivity`) — Length/Mass/Temp/Volume/Speed, tap-cycle category + units,
+  digit keypad, live result; affine `scale+offset` model so C/F/K work from the same data table.
 
+These three want an on-hardware test like the pentest tools got — cut a **26.10.2** release when ready (bundle
+with any other near-term work). Remaining backlog below.
+
+- **Custom tile icons for the utilities** (polish). Flashlight + unit converter + calculator all reuse the
+  generic `Blocks` icon because `UIIcon` (`src/components/themes/BaseTheme.h`) has no light/convert/calc glyph.
+  Adding proper ones means the icon SVG + manifest pipeline (`src/components/icons/`) — a small dedicated task,
+  do it alongside or after the README/About polish.
+- **Next real feature work** (Logan's "keep building out" direction): the Slice 6 active tools — review the
+  recovered `FrameBuilder`/`AttackTx` byte layouts, build 6b/6c first, decide the deauth/OTA tradeoff. Plus,
+  whenever the SD card is out: copy `assets/bleaudit/signatures.json` → `/bleaudit/` so BLE matching works.
 - **README overhaul, using the `readme` skill.** Current README is upstream CrossPoint's; CrossLight needs
   its own landing page (what the fork is, the X4 Pro target, the Bible app + Memory Work + Bible Numbers, the
   Utilities/pentest toolkit with its scope/authorization framing, the OTA/release story, build + simulator
