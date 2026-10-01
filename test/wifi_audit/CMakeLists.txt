@@ -3,10 +3,14 @@ add_executable(WifiAuditTest
   ThreatDetectTest.cpp
   PcapTest.cpp
   EapolTest.cpp
+  FrameBuilderTest.cpp
+  ActiveAuditGateTest.cpp
   ${REPO_ROOT}/src/wifiaudit/WifiFrame.cpp
   ${REPO_ROOT}/src/wifiaudit/ThreatDetect.cpp
   ${REPO_ROOT}/src/wifiaudit/Pcap.cpp
   ${REPO_ROOT}/src/wifiaudit/Eapol.cpp
+  ${REPO_ROOT}/src/wifiaudit/FrameBuilder.cpp
+  ${REPO_ROOT}/src/wifiaudit/ActiveAuditGate.cpp
 )
 
 target_include_directories(WifiAuditTest PRIVATE
