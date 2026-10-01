@@ -5,11 +5,12 @@
 
 #include "MappedInputManager.h"
 #include "activities/ActivityManager.h"
-#include "activities/bible/BibleReaderActivity.h"
 #include "activities/bible/BibleMemoryWorkActivity.h"
 #include "activities/bible/BibleNumbersActivity.h"
-#include "activities/bible/HistoricalCalendarActivity.h"
+#include "activities/bible/BibleReaderActivity.h"
 #include "activities/bible/BibleTranslationsActivity.h"
+#include "activities/bible/DailyPsalterActivity.h"
+#include "activities/bible/HistoricalCalendarActivity.h"
 #include "bible/BibleBookmarkStore.h"
 #include "bible/BibleMemoryWork.h"
 #include "bible/BibleNumbers.h"
@@ -44,7 +45,7 @@ void BibleHubActivity::buildRows() {
   bookmarkCount = std::to_string(BIBLE_BOOKMARKS.all().size());
 
   rowItems.clear();
-  rowItems.reserve(8);  // add() hands back a reference into the vector
+  rowItems.reserve(9);  // add() hands back a reference into the vector
   auto add = [this](const Row row, const char* label, const bool enabled) -> fui::ListItem& {
     fui::ListItem item;
     item.label = label;
@@ -61,6 +62,7 @@ void BibleHubActivity::buildRows() {
   add(MemoryWork, tr(STR_MEMORY_WORK), haveTranslation && haveMemoryWork);
   add(Numbers, tr(STR_BIBLE_NUMBERS), haveTranslation && haveNumbers);
   add(Calendar, tr(STR_HISTORICAL_CALENDAR), true);  // pure computus -- no translation or SD data needed
+  add(Psalter, tr(STR_DAILY_PSALTER), true);         // fixed table -- no translation or SD data needed
   add(Translations, tr(STR_TRANSLATIONS), true).value = translationLabel.c_str();
 }
 
@@ -77,8 +79,7 @@ void BibleHubActivity::activateIndex(const int index) {
       activityManager.replaceActivity(std::make_unique<BibleReaderActivity>(renderer, mappedInput, Action::Resume));
       return;
     case SelectBook:
-      activityManager.replaceActivity(
-          std::make_unique<BibleReaderActivity>(renderer, mappedInput, Action::BookPicker));
+      activityManager.replaceActivity(std::make_unique<BibleReaderActivity>(renderer, mappedInput, Action::BookPicker));
       return;
     case Search:
       activityManager.replaceActivity(std::make_unique<BibleReaderActivity>(renderer, mappedInput, Action::Search));
@@ -91,13 +92,16 @@ void BibleHubActivity::activateIndex(const int index) {
                              [](const ActivityResult&) {});
       return;
     case Numbers:
-      startActivityForResult(
-          std::make_unique<BibleNumbersActivity>(renderer, mappedInput,
-                                                 BibleTranslations::pathFor(BibleTranslations::current())),
-          [](const ActivityResult&) {});
+      startActivityForResult(std::make_unique<BibleNumbersActivity>(
+                                 renderer, mappedInput, BibleTranslations::pathFor(BibleTranslations::current())),
+                             [](const ActivityResult&) {});
       return;
     case Calendar:
       startActivityForResult(std::make_unique<HistoricalCalendarActivity>(renderer, mappedInput),
+                             [](const ActivityResult&) {});
+      return;
+    case Psalter:
+      startActivityForResult(std::make_unique<DailyPsalterActivity>(renderer, mappedInput),
                              [](const ActivityResult&) {});
       return;
     case Translations:

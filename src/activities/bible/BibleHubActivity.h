@@ -16,7 +16,7 @@ class BibleHubActivity final : public UiListActivity {
   void onEnter() override;
 
  private:
-  enum Row : int16_t { Continue, SelectBook, Search, Bookmarks, MemoryWork, Numbers, Calendar, Translations };
+  enum Row : int16_t { Continue, SelectBook, Search, Bookmarks, MemoryWork, Numbers, Calendar, Psalter, Translations };
 
   int listCount() const override { return static_cast<int>(rowItems.size()); }
   void buildScreen(UiScreen& screen) override;
