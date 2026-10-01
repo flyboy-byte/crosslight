@@ -29,7 +29,8 @@ constexpr uint8_t IE_SUPPORTED_RATES = 0x01;
 constexpr uint8_t IE_DS_PARAM = 0x03;
 
 // Supported Rates IE value: 1/2/5.5/11 Mbps as basic rates (high bit set) plus
-// 6/12/24/54 Mbps -- a plausible 802.11b/g rate set that clients accept.
+// 18/24/36/54 Mbps -- a plausible 802.11b/g rate set that clients accept.
+// (Rates are in 500 kbps units: 0x24=36->18, 0x30=48->24, 0x48=72->36, 0x6c=108->54.)
 constexpr uint8_t SUPPORTED_RATES[8] = {0x82, 0x84, 0x8b, 0x96, 0x24, 0x30, 0x48, 0x6c};
 
 constexpr uint8_t BROADCAST_ADDR[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

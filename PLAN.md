@@ -944,10 +944,16 @@ the rebased `crosslight` (zero conflicts), clang-formatted, and **builds green o
 Why zero size impact: it's **fully dormant** — `AttackTx::transmitFrame` is a hardcoded `return false` unless
 `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` is defined (no env defines it), and nothing in the UI invokes `FrameBuilder`
 yet, so it's dead-stripped. Merging it foreclosed no decision: no linker-wrap, no activities, flag off.
-**Still owed before any of it can actually transmit:** (1) a byte-level correctness review of the frame
-layouts (I merged on build+test-green, have NOT line-reviewed the deauth/beacon byte construction); (2) the
-UI activities (6a-6d); (3) the compile flag + deauth linker-wrap decision below. (Lesson, now in memory: a
-sub/cloud-agent saying "built X on branch Y" means nothing until Y is confirmed *pushed and reachable*.)
+**Byte-level correctness review DONE 2026-10-01:** line-reviewed `FrameBuilder` against IEEE 802.11 — FC
+subtypes (0xC0 deauth / 0xA0 disassoc / 0x80 beacon), MAC addressing (addr1=dest, addr2/addr3=BSSID for the
+spoofed-source deauth), little-endian reason code, and the beacon fixed body + SSID/Rates/DS info elements are
+all well-formed and correctly bounded (`DEAUTH_FRAME_LEN`=26, SSID capped at 32), matching the `WifiFrame`
+parser and pinned by thorough host tests. `AttackTx` confirmed a no-op without the flag. One comment nit fixed
+(Supported Rates were labeled 6/12/24/54 Mbps; they decode to 18/24/36/54). **Frames are correct — safe to
+un-gate from a correctness standpoint when the time comes.** **Still owed before any of it can transmit:**
+(1) the UI activities (6a-6d); (2) the compile flag + deauth linker-wrap decision below. (Lesson, now in
+memory: a sub/cloud-agent saying "built X on branch Y" means nothing until Y is confirmed *pushed and
+reachable*.)
 Planned active tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d BLE adv spoof. Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in
 local builds (a switch Logan owns, not a lock); per-boot confirm friction dropped (Logan's call — "i dont
 need a babysitter"); the "own gear only" boundary stays. **Key engineering decision still open: the deauth
