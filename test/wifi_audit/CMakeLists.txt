@@ -5,6 +5,7 @@ add_executable(WifiAuditTest
   EapolTest.cpp
   FrameBuilderTest.cpp
   ActiveAuditGateTest.cpp
+  RandomMacTest.cpp
   ${REPO_ROOT}/src/wifiaudit/WifiFrame.cpp
   ${REPO_ROOT}/src/wifiaudit/ThreatDetect.cpp
   ${REPO_ROOT}/src/wifiaudit/Pcap.cpp

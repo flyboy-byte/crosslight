@@ -23,4 +23,17 @@ namespace wifiaudit {
 // returns false.
 bool transmitFrame(const uint8_t* buf, size_t len);
 
+// True only when THIS BUILD has both compile guards (ESP32 target + the active-
+// audit flag), independent of the per-boot ActiveAuditGate. Lets a UI branch
+// cleanly between "no radio" (host/sim), "disabled in this build" (an env that
+// doesn't define CROSSLIGHT_ENABLE_ACTIVE_AUDIT), and actually running --
+// rather than attempting to transmit and silently getting 0% delivered.
+constexpr bool buildSupportsActiveAudit() {
+#if defined(ARDUINO_ARCH_ESP32) && defined(CROSSLIGHT_ENABLE_ACTIVE_AUDIT)
+  return true;
+#else
+  return false;
+#endif
+}
+
 }  // namespace wifiaudit

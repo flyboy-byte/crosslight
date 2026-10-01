@@ -1,5 +1,6 @@
 #include "UtilityRegistry.h"
 
+#include "activities/utilities/BeaconFloodActivity.h"
 #include "activities/utilities/BleScanActivity.h"
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/CameraScanActivity.h"
@@ -51,6 +52,10 @@ const std::vector<Utility> kUtilities = {
     {StrId::STR_BLE_SCAN, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<BleScanActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_BEACON_FLOOD, Wifi,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<BeaconFloodActivity>(renderer, mappedInput);
      }},
 };
 }  // namespace
