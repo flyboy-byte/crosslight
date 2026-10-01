@@ -1,0 +1,49 @@
+{
+  "_comment": "CrossLight BLE device signatures. Copy this to /bleaudit/signatures.json on the SD card. This is a VERIFIED STARTER LIST: every entry is a well-documented, strongly-sourced public identifier (each carries a 'source' field). It is meant to be extended -- add your own verified fingerprints from your own research. Low-confidence or unverified identifiers (e.g. a Tile manufacturer company ID, Pwnagotchi) were DELIBERATELY OMITTED rather than guessed; do not add an ID you cannot source. company_id and service_uuids are hex strings ('0x004C', '004C', or '4C'). A device matches a signature by its manufacturer company ID, OR any listed service UUID, OR any listed name_contains substring (case-insensitive).",
+  "version": 1,
+  "updated": "2026-10-01",
+  "signatures": [
+    {
+      "name": "Apple device",
+      "category": "manufacturer",
+      "company_id": "0x004C",
+      "source": "Bluetooth SIG Assigned Numbers, Company Identifiers: 0x004C = Apple, Inc. (covers iPhone/Watch/AirPods/FindMy advertisements; see per-device appleType byte)."
+    },
+    {
+      "name": "Microsoft Swift Pair",
+      "category": "pairing",
+      "company_id": "0x0006",
+      "source": "Bluetooth SIG Assigned Numbers, Company Identifiers: 0x0006 = Microsoft; used by Swift Pair accessory beacons."
+    },
+    {
+      "name": "Tile tracker",
+      "category": "tracker",
+      "service_uuids": ["0xFEED"],
+      "source": "Bluetooth SIG 16-bit UUIDs (member service UUIDs): 0xFEED = Tile, Inc."
+    },
+    {
+      "name": "Samsung SmartTag",
+      "category": "tracker",
+      "service_uuids": ["0xFD5A", "0xFD59"],
+      "source": "Bluetooth SIG 16-bit UUIDs (member service UUIDs): 0xFD5A and 0xFD59 = Samsung Electronics Co., Ltd. (SmartThings/SmartTag)."
+    },
+    {
+      "name": "Eddystone beacon",
+      "category": "beacon",
+      "service_uuids": ["0xFEAA"],
+      "source": "Google Eddystone protocol specification: service UUID 0xFEAA (also registered to Google in the Bluetooth SIG 16-bit UUID list)."
+    },
+    {
+      "name": "Google Fast Pair",
+      "category": "pairing",
+      "service_uuids": ["0xFE2C"],
+      "source": "Bluetooth SIG 16-bit UUIDs (member service UUIDs): 0xFE2C = Google LLC; used by Fast Pair advertisements."
+    },
+    {
+      "name": "Flipper Zero",
+      "category": "tool",
+      "name_contains": ["Flipper"],
+      "source": "Flipper Zero advertises a BLE local name beginning with 'Flipper' (default device name 'Flipper <name>'). name_contains is a hint: a user-renamed device will not match."
+    }
+  ]
+}
