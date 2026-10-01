@@ -2,24 +2,21 @@
 
 ## ▶ RESUME HERE (post-compaction anchor, 2026-10-01)
 
-**Working tree is clean, everything pushed to `fork/crosslight`.** Latest commit `72ea3599`.
+**Working tree is clean, everything pushed to `fork/crosslight`.** Latest commit `56c87907`.
 
 **Shipped on hardware:** 26.10.1 (upstream rebase + passive pentest slices 1-5). Tested — UI good, scans run.
 
-**Built since 26.10.1, committed, NOT YET RELEASED** (all green: host 542/542, sim, x4pro device, flash 54.1%):
-- Calculator operator-on-display fix
-- Flashlight utility, Unit converter utility
-- Real tile icons (flashlight/calculator/convert)
-- README full rewrite + GitHub About fixed (description/topics/homepage)
-- Slice-6 FrameBuilder byte-reviewed → frames correct (active tools still dormant/un-built)
+**RELEASED 2026-10-01: 26.10.2** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.2) — bundles
+the calculator operator-display fix, flashlight + unit-converter utilities, real tile icons, and the README/
+About rewrite. `partitions.csv` unchanged = installs over Wi-Fi OTA. **Awaiting Logan's flash-test.** Built
+green: host 542/542, sim, x4pro device, flash 54.1%. (Slice-6 FrameBuilder byte-reviewed → frames correct;
+active tools still dormant/un-built, rode along in the base.)
 
-**NEXT, per Logan (2026-10-01, do not re-ask these):**
-1. **Cut release 26.10.2** — bundles everything above so Logan can flash-test it. Follow "Releasing
-   CrossLight (Wi-Fi OTA)" below: bump `[crosslight] version` 26.10.1 → 26.10.2, `pio run -e x4pro`, rename to
-   `crosslight-26.10.2-x4pro.bin`, `gh release create`. `partitions.csv` unchanged = OTA-safe.
-2. **Then probably pivot back to the Bible track** — Phase 4 Historical Calendar (Easter computus + 1611
-   reading calendar) or Track D reader perf. See `[[crosslight-bible-expansion]]` and "Planned update: Bible
-   expansion" below.
+**NEXT, per Logan (2026-10-01, do not re-ask):**
+1. ~~Cut release 26.10.2~~ — DONE 2026-10-01 (commit `56c87907`, tag `26.10.2`).
+2. **Pivot back to the Bible track** — Phase 4 Historical Calendar (Easter computus + 1611 reading calendar,
+   Track C) or Track D reader perf (measure-first). See `[[crosslight-bible-expansion]]` and "Planned update:
+   Bible expansion" below. **This is where to pick up next.**
 
 **Standing physical to-do (when the SD card is next out of the device):** copy `assets/bleaudit/signatures.json`
 → `/bleaudit/signatures.json` so BLE fingerprinting labels devices; and copy `assets/bible_numbers/{3,77,1000}.json`
