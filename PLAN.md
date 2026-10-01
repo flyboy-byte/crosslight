@@ -1,6 +1,6 @@
 # PLAN.md
 
-Status: **last updated 2026-09-30.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.3 is published on GitHub** (https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3) — Bible Numbers v1, available over Wi-Fi OTA. **26.9.2 is also published and written to the SD card as `/firmware.bin`, still awaiting a wired/SD install** via Settings → SD Card Firmware Update (Logan stopped before installing it) — 26.9.3 supersedes it for anyone already on Wi-Fi OTA, but a device still on pre-26.9.2 needs 26.9.2 installed first to reach the Wi-Fi-OTA track at all. It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge.
+Status: **last updated 2026-10-01.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.3 is published on GitHub** (https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3) — Bible Numbers v1, available over Wi-Fi OTA. **26.9.2 is also published and written to the SD card as `/firmware.bin`, still awaiting a wired/SD install** via Settings → SD Card Firmware Update (Logan stopped before installing it) — 26.9.3 supersedes it for anyone already on Wi-Fi OTA, but a device still on pre-26.9.2 needs 26.9.2 installed first to reach the Wi-Fi-OTA track at all. It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge. **`crosslight` rebased onto upstream `develop` again 2026-10-01** (29 commits: SD-card plugin system, EPUB DRM, reader refactors) — not yet in a tagged release. See "Upstream rebase (2026-10-01)" below.
 
 **Wallpaper converter added 2026-09-25** (`scripts/make_wallpaper.py`, host-side, no firmware change): image → sleep-screen BMP. Dithers to the panel's 4 native gray levels (0/85/170/255) so the firmware's `nativePalette` fast path renders it pixel-for-pixel; portrait 480x800; `--mode gray4|bw`, `--fit cover|contain`, `--gamma` (~0.65 for the reflective panel), `--brightness`. Six personal wallpapers built into `wallpapers/` (git-ignored — album art). **Still needs a real on-device check** (host-validated only; a device photo Logan shared was a stock image, not a tool output). See [[crosslight-wallpaper-tool]].
 
@@ -764,6 +764,86 @@ instead of a confirmation dialog.
 5. Decide the deauth/OTA tradeoff; build 6b/6c first if deauth is deferred.
 6. Flash and verify slices 1-5 on real hardware.
 7. Merge PR #1 once the device build is green.
+
+## Upstream rebase (2026-10-01) — DONE
+
+`crosslight` merged onto `develop` after fast-forwarding `develop` to `origin/develop` (29 new upstream
+commits: SD-card plugin system, EPUB content-protection/DRM, the `ReaderSession`/`CatalogActivity` refactor,
+`TxtToHtml` rendering, assorted fixes). This was the "rebase our code, fix issues, get it up to date" step
+of Logan's plan, done *before* starting the PR #1 pentest-toolkit fix list above (self-aware ordering: check
+upstream's implementation against ours on every conflict, take theirs when it's genuinely better, not just
+different). Commit `84237e0e` on `crosslight`, pushed to `fork/crosslight`.
+
+**Where upstream's implementation won over ours (adopted, didn't keep our version):**
+- **StreamingJsonParser** — upstream moved its copy into the `freeink-sdk` submodule (`libs/network/JsonSax`)
+  with full RFC 8259 `\uXXXX` decoding (surrogate pairs, multi-byte UTF-8, malformed/truncated-escape
+  detection, chunked-feed state). Our in-tree copy (`lib/JsonParser/StreamingJsonParser.{cpp,h}`) only
+  handled ASCII `A`-style escapes. Deleted ours, `BibleChapterLoader.cpp` now pulls from freeink-sdk
+  like everything else does.
+- **HttpDownloader.cpp** — upstream rewrote it entirely around `freeink::fetchResumable` (resumable Range
+  downloads, 401/403 UNAUTHORIZED distinction, cleaner redirect handling). Our side was just the
+  pre-rewrite code with no CrossLight-specific logic in it — took upstream's wholesale.
+
+**Where both sides were additive (kept both, no real conflict in intent):**
+- `main.cpp`'s boot routing: kept our `LockScreenActivity`/`routeAfterBoot` wrapper (startup passphrase
+  gate), folded upstream's new `SILENT_REBOOT_TARGET_JOIN_NETWORK` branch into the wrapped `routeAfterBoot`
+  lambda so it isn't lost.
+- `HomeActivity`/`SettingsActivity`: our Bible/Utilities rows + upstream's Plugins row; our StartupPassword
+  setting + upstream's Plugins setting. Both kept.
+
+**A real mistake caught before it shipped:** `git checkout --theirs freeink-sdk` on a submodule gitlink is a
+silent no-op (`git checkout` doesn't resolve submodule conflicts that way) — it left the working tree on
+whatever commit was already checked out, which happened to be a stale, unrelated, *older* freeink-sdk commit
+(`deb62ab7`, 2026-09-22) rather than the one upstream's `develop` actually pins (`23392260`, 2026-09-30).
+Caught because the build then failed on APIs (`FONT_LABEL`, `ListProps::toggleCheckbox`) that upstream's
+just-merged UI code uses and genuinely exist at `23392260` — the stale pointer, not a real incompatibility.
+Fixed by checking out the commit directly inside the submodule. Lesson: never trust `checkout --theirs/--ours`
+on a gitlink path; verify with `git ls-tree <ref> -- <submodule-path>` on both sides and resolve by checking
+out the target commit inside the submodule itself.
+
+**Also fixed, surfaced by the rebase itself:**
+- Duplicate `STR_DOWNLOAD_COMPLETE` key in `english.yaml` (both sides added it independently, same value).
+- `test/bible_chapter_loader/CMakeLists.txt` and `test/streaming_json_parser/CMakeLists.txt` still pointed
+  at the deleted `lib/JsonParser` copy; repointed at `freeink-sdk`. The `streaming_json_parser` one had been
+  silently auto-merged to upstream's content by git (we'd never touched that file ourselves, so there was no
+  conflict to force a manual look) — a reminder that a clean 3-way auto-merge on a file you do depend on is
+  not automatically a safe merge, just a mechanically unambiguous one.
+
+**Simulator-side work (separate repo, `flyboy-byte/crosslight-simulator`, commit `e80550e`, pushed):**
+upstream's new plugin system and `TrustedTime` touch real network (TLS via wolfSSL, HTTP arg handling) and
+ESP32 HAL surface the simulator fork had never needed before. Rather than exclude it from the sim build,
+built it out properly since `CrossPointWebServer.cpp`'s plugin endpoints and `HomeActivity`'s
+`anyPluginInstalled()` are now load-bearing, not optional:
+- `Client.h`, `IPAddress.h`, `WiFiClient.h` — split out to match the real Arduino network-client header
+  layout that freeink's `SecureClient` derives from (avoiding a `WiFi.h` ↔ `NetworkClient.h` ↔ `Client.h`
+  include cycle).
+- `NetworkClient` now derives from `Client`; `available()`/`read()`/`peek()` became real `recv()`/
+  `ioctl(FIONREAD)` calls instead of permanent `0`/`-1` stubs — freeink's `SecureHttpClient` actually calls
+  these at runtime for plugin-catalog HTTP(S) fetches, not just at compile time.
+- `WebServer`: added the real ESP32 WebServer's protected `RequestArgument`/`_currentArgs`/`_postArgs`
+  fields (unused placeholders backing an override that frees request memory between requests — a real
+  embedded concern, a no-op on host).
+- `HalStorage::readFileToString`/`replaceFile`, `HalFile::truncate`, `HalGPIO::getFactoryMac`,
+  `esp_wifi_get_ps`, `esp_random.h`, `Preferences.h` (in-process key/value map, not persisted across sim
+  restarts — fine for exercising logic within one run), `esp_sntp.h`'s `configTzTime` — new real-HAL/ESP32
+  surface from the plugin system and `TrustedTime`.
+- `Arduino.h` now pulls in `freertos/FreeRTOS.h` (matching real ESP32 Arduino's transitive include) so
+  `portMUX_TYPE`/`portENTER_CRITICAL` resolve the same way `test/test_trusted_time.py`'s own host-stub
+  `Arduino.h` already assumes they do — **first attempt added the include directly to `TrustedTime.cpp`
+  instead, which built the simulator fine but broke that host test** (its stub set has no
+  `freertos/FreeRTOS.h`). Moved the include into the simulator's `Arduino.h` instead, leaving the shared
+  firmware file untouched. Caught by running the full host suite again after the simulator went green,
+  not just trusting "the thing I was working on now works."
+- `WString.h`: `reserve`/`remove`/`begin`/`end` — ArduinoJson's Arduino-`String` converter and new
+  plugin-system code need these.
+- `platformio.local.ini`: added the freeink-sdk libs the new code needs (`SecureNet`, `JsonSax`,
+  `CatalogList`, `ContentProtection`) and `wolfssl/Arduino-wolfSSL @ 5.7.2` + its build flags (mirrors the
+  relevant subset of `[env:x4pro]`'s), plus `-include sys/time.h` for a `gettimeofday` portability gap in
+  that vendored library on plain native Linux (third-party code, fixed via a force-include flag rather than
+  editing the vendored source).
+
+**Verified clean on all three targets:** 459/459 host tests, simulator build+link (SUCCESS), `x4pro` device
+build (SUCCESS — flash 51.3%, RAM 31.5%, no regression in headroom).
 
 ## Planned: Pentest/security toolkit (scoped 2026-09-30)
 
