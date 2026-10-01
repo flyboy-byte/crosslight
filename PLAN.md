@@ -1,16 +1,25 @@
 # PLAN.md
 
-Status: **last updated 2026-09-25.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.2 is published on GitHub and written to the SD card as `/firmware.bin`, awaiting install** via Settings → SD Card Firmware Update (Logan stopped before installing it). It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge.
+Status: **last updated 2026-09-30.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.3 is published on GitHub** (https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3) — Bible Numbers v1, available over Wi-Fi OTA. **26.9.2 is also published and written to the SD card as `/firmware.bin`, still awaiting a wired/SD install** via Settings → SD Card Firmware Update (Logan stopped before installing it) — 26.9.3 supersedes it for anyone already on Wi-Fi OTA, but a device still on pre-26.9.2 needs 26.9.2 installed first to reach the Wi-Fi-OTA track at all. It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge.
 
 **Wallpaper converter added 2026-09-25** (`scripts/make_wallpaper.py`, host-side, no firmware change): image → sleep-screen BMP. Dithers to the panel's 4 native gray levels (0/85/170/255) so the firmware's `nativePalette` fast path renders it pixel-for-pixel; portrait 480x800; `--mode gray4|bw`, `--fit cover|contain`, `--gamma` (~0.65 for the reflective panel), `--brightness`. Six personal wallpapers built into `wallpapers/` (git-ignored — album art). **Still needs a real on-device check** (host-validated only; a device photo Logan shared was a stock image, not a tool output). See [[crosslight-wallpaper-tool]].
 
 **Item 15 (web server won't load on phone) — RESOLVED 2026-09-30, not a firmware bug.** The page loads fine in Chromium (laptop) and Vanadium (phone); the earlier `ERR_TOO_MANY_RETRIES` was **Brave-specific** (its parallel/speculative sockets starve the single-connection Arduino `WebServer`). No code change. Optional someday-maybe hardening (async server) noted in **"Item 15"** below.
 
-**Next planned update (chosen 2026-09-30): Bible expansion — NIV + a historical study layer, done "everything, phased."** Driven by a ChatGPT research handoff (`docs/crosslight_claude_handoff.md`), audited and corrected against the real code. The organizing idea (decided 2026-09-30): the study features rebuild **the apparatus early English study Bibles actually shipped with** — the **Geneva Bible (1560)** as the first English study Bible (numbered verses, margins, cross-refs) and the **1611 KJV front-matter almanac** (Golden Number / Dominical Letter / Epact / "To finde Easter for euer"). So **Bible Numbers** = a facts-first concordance-with-commentary, and **Historical Calendar** = the 1611 almanac reconstructed for any year — not a numerology toy. Phase 1 (code audit) is done; Phase 2 is the NIV desktop converter + preset + docs. NIV text is **never** committed/shipped (copyright) — only the converter/preset/docs are public; Logan converts his own copy to `/Bible/NIV/niv.json`. A **Track D** (reader "flow faster/smoother") is a measure-first, profile-on-hardware item. **"Go to Verse" was removed 2026-09-30** (Logan's call). Full plan, audit results, historical framing, and phasing in **"Planned update: Bible expansion"** below.
+**Bible expansion update, "everything, phased" (chosen 2026-09-30): Phases 1-3 SHIPPED.** Driven by a
+ChatGPT research handoff (`docs/crosslight_claude_handoff.md`), audited and corrected against the real
+code. Organizing idea: rebuild **the apparatus early English study Bibles actually shipped with** — the
+**Geneva Bible (1560)** as the first English study Bible, and the **1611 KJV front-matter almanac**
+(confirmed against Logan's own 1611 facsimile: it's genuinely two features, Easter/computus AND a yearly
+reading calendar). **Phase 1 (audit) and Phase 2 (NIV)** are done — NIV is on the device SD, no firmware
+change needed. **Phase 3 (Bible Numbers v1) shipped as OTA 26.9.3** — 7/12/40/666, facts-first, every claim
+classified. **"Go to Verse" was removed 2026-09-30** (Logan's call). Remaining: **Phase 4 (Historical
+Calendar, Track C — computus + reading calendar)** and **Track D (reader perf, measure-first)**. Full plan,
+audit, historical framing, and phasing in **"Planned update: Bible expansion"** below.
 
 **In progress, uncommitted-then-committed on a branch, NOT built or flashed: item 14, the Flock camera scanner** (passive Wi-Fi surveillance-device detector). Its pure logic is host-tested (13/13) but the *firmware compile was blocked by the auto-mode safety classifier* — the first build of the new Wi-Fi monitor-mode code — so it has never been compiled for the device. See "Item 14: Camera scan" below before touching it.
 
-The 26.9.x release/OTA machinery is new: updates now check `flyboy-byte/crosslight`, and from 26.9.2 on they install over Wi-Fi. Version line is `[crosslight] version` (scheme YY.M.BUILD). See "Releasing CrossLight (Wi-Fi OTA)". Flash 49.1% of a 7.94MiB slot. 388 host tests pass (+13 for Flock = 401 once its build is unblocked). Use a USB-A-to-C cable, not C-to-C. The SD card mounts as a real `mmcblk0` reader when out of the device; in the device, use USB Drive mode.
+The 26.9.x release/OTA machinery is new: updates now check `flyboy-byte/crosslight`, and from 26.9.2 on they install over Wi-Fi. Version line is `[crosslight] version` (scheme YY.M.BUILD). See "Releasing CrossLight (Wi-Fi OTA)". **26.9.3 (2026-09-30): flash 49.4% of a 7.94MiB slot; 408/408 host tests pass** (the Flock-blocked count from 26.9.2 is now resolved — see the flock namespace fix below). Use a USB-A-to-C cable, not C-to-C. The SD card mounts as a real `mmcblk0` reader when out of the device; in the device, use USB Drive mode.
 
 **Logan's request list (2026-09-21) — every item he asked for, with status. Keep this current:**
 
@@ -288,14 +297,23 @@ untested runs in the radio callback:
   give false confidence. The engine is real; the fingerprints are the user's to fill in from current
   research, which is why they live on SD (Flock rotates them). Copy to `/flock/signatures.json`.
 
-**Open build blocker found 2026-09-30 (host/sim only):** the `flock` **namespace** collides with POSIX
-`struct flock` from `<fcntl.h>` — on a host/simulator build, `HalStorage.h` pulls in `<fcntl.h>` (via
-`FsApiConstants.h`), and the two `flock` identifiers clash, so `FlockSignatures.o` and `CameraScanActivity.o`
-fail to compile on `-e simulator_x4_pro`. This is *why the scanner can't be simulator-tested* — separate from
-the on-device firmware build being classifier-blocked. Fix when resumed: **rename the namespace** (e.g.
-`flockcam` / `surveil`) — the ESP32 build doesn't include `<fcntl.h>` the same way so it wasn't caught
-before; a namespace rename is the clean fix and costs nothing on-device. Noticed because it broke the Bible
-Go-to-Verse simulator verification (the Bible TUs themselves built fine; only `src/flock/*` failed).
+**Open note (2026-09-30, Logan): is the current data adequate? No — flagged honestly.** As shipped the
+scanner has a real, tested *matching engine* (OUI + SSID-substring match, MAC dedup, RSSI tracking — host
+tests 8/8) but **zero real detection value**, because `signatures.json` is 100% placeholder. Before this is
+actually useful: either (a) Logan supplies verified signature data from research he trusts, or (b) a
+dedicated, careful research pass finds legitimately documented OUIs/SSID patterns (public teardowns, FCC
+filings, community-maintained lists) — never guessed or inferred values. Also still open and un-investigated:
+whether the *detector design itself* (promiscuous-mode frame sniff + OUI/SSID matching) is even the right
+approach for the devices it's meant to catch — that needs its own look before trusting the architecture, not
+just the data. Do this as a deliberate pass when Item 14 resumes, not folded into an unrelated change.
+
+**Host/sim build blocker — FIXED 2026-09-30.** The `flock` **namespace** collided with POSIX `struct flock`
+from `<fcntl.h>` (pulled in by `HalStorage.h` via `FsApiConstants.h` on host builds), so `src/flock/*` and
+`CameraScanActivity.o` failed to compile on `-e simulator_x4_pro`. **Fix: renamed the namespace `flock`
+→ `flockcam`** (`"flock"`/`"FLOCK"` SSID-match *string literals* left unchanged). Simulator now builds
+SUCCESS; `FlockMatcher` host tests pass 8/8. **The scanner is now simulator-testable.** NOTE: this does not
+unblock the *on-device* firmware build — that remains gated by the auto-mode safety classifier (needs
+`!pio run -e x4pro` with permission). But the UI/logic can now be exercised in the sim.
 - Tests: `test/flock_matcher/` — 13 tests, all passing (matcher + frame parser).
 
 **When the build is unblocked, remaining work:**
@@ -567,11 +585,28 @@ partial refresh on page turns where the panel allows, avoid rebuilding pages whe
 ### Phasing (what ships when)
 
 - **Phase 1 — DONE (this audit).** Schema/path/preset/loader/cache confirmed; handoff corrected.
-- **Phase 2 — NIV converter + preset + docs (Track A).** Smallest real win; the next update's headline.
-  Also fold in the **web-server AP fix (Item 15)** if the serial diagnosis lands in time.
-- **Phase 3 — Bible Numbers v1 (Track B):** the data schema + renderer + 7, 6/666, 12, 40, facts-first layout.
+- **Phase 2 — DONE 2026-09-30 (Track A).** NIV converter built/tested; `niv.json` copied to the device SD
+  at `/Bible/NIV/niv.json` and validated there. No firmware preset needed — `installed()` scans `/Bible/`
+  for folders, so NIV already shows up and is selectable. The preset remains optional polish.
+- **Phase 3 — SHIPPED 2026-09-30, OTA 26.9.3 (Track B): Bible Numbers v1.** `src/bible/BibleNumbers.{h,cpp}`
+  + `BibleNumbersActivity`/`BibleNumberDetailActivity`, a new Bible-hub row (gated on data present), 4
+  number studies (7, 12, 40, 666) in `assets/bible_numbers/` (copy to `/Bible/numbers/` on SD). Every claim
+  classified FACT/PATTERN/TRADITION/DEBATE/SPECULATION; cited verses load live off the chapter cache, same
+  dedup technique as Memory Work. Host tests: `test/bible_numbers/` (7 cases, pins `classificationFromString`
+  and `Ref::reference()` — both made header-inline specifically so they're testable without ArduinoJson
+  stubs). 408/408 host tests pass. Real-device build: flash 49.4% of the x4pro slot (up from 49.1%
+  baseline) — did **not** hit the auto-mode safety classifier this time. Release:
+  https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3. **Remaining for Numbers:** 3, 70/77, 1000
+  as later data-only additions (no code change needed — just drop a new `<n>.json`).
 - **Phase 4 — Historical Calendar (Track C):** Golden Number + Easter/computus (Julian + Gregorian) first,
-  then Epact/Dominical Letter columns.
+  then Epact/Dominical Letter columns. **New research 2026-09-30, from Logan's own 1611 facsimile:** the
+  almanac front matter is genuinely two features, not one — (a) Easter/computus math (Golden Number,
+  Dominical Letter, Epact, "To finde Easter for euer"), and (b) **a yearly Scripture-reading calendar**
+  ("The Table and Kalender... of Psalmes and Lessons... at Morning and Euening prayer"), which Logan
+  confirmed his copy also has. Track C should ship both: the computus calculator, and a reading-plan
+  feature shaped like Memory Work (a JSON day→reading list) modeled on the 1611's own lectionary table
+  rather than invented. Logan may supply specifics from his physical copy to ground the exact format;
+  not blocking — build from solid modern computus sources either way if he doesn't.
 - **Phase 5 — advanced:** repeated-word/pattern search, cross-translation comparison, Hebrew/Greek number
   metadata, and the parked Geneva-style note layer. Only after the above prove out on hardware.
 - **Track D (reader responsiveness)** runs alongside, not as a gated phase — it's a profile-then-fix loop that
