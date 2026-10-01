@@ -745,9 +745,10 @@ instead of a confirmation dialog.
 
 ### Not yet reviewed by me — on the table for next session
 
-- **The slice-6 foundation branch, `worktree-agent-a5724a1624b098548`** (commit `e2f56c1`): pure transmit
-  primitives (`FrameBuilder`, `ActiveAuditGate`, `AttackTx`), claimed 53/53 host tests in its own run — **not
-  independently built or reviewed by me.** Do that before merging it, same rigor as the PR review above.
+- **The slice-6 transmit primitives** (`FrameBuilder`, `ActiveAuditGate`, `AttackTx`): the agent claimed a
+  host-tested branch (`worktree-agent-a5724a1624b098548`, `e2f56c1`), but **it was never pushed and is gone**
+  (verified 2026-10-01 — see the Slice 6 note in "Planned: Pentest/security toolkit"). Must be rebuilt from
+  the specs, not reviewed. Nothing to merge.
 - **The deauth linker-bypass tradeoff.** `docs/crosslight_pentest_research.md` is clear-eyed about this:
   deauth needs `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks it on purpose)
   and that **"complicates OTA (pinned/patched lib)."** This is a real engineering/architecture decision, not
@@ -764,9 +765,10 @@ instead of a confirmation dialog.
    sources + the new utility activities formatted (clang-format 22 flagged more than the PR's original 8).
 3. ~~Rebuild simulator + device + host clean~~ **DONE 2026-10-01** — host 529/529, simulator SUCCESS, x4pro
    SUCCESS (flash 54.0%, RAM 33.6%). **PR #1 (passive slices 1-5) merged into `crosslight`.**
-4. Independently review/build/test the slice-6 foundation branch (`worktree-agent-a5724a1624b098548`) before
-   merging it. **← next up**
+4. ~~Review the slice-6 foundation branch~~ **N/A — it was never pushed and is gone** (verified 2026-10-01;
+   `e2f56c1` unreachable). Slice 6 transmit code must be rebuilt from the specs, not recovered.
 5. Decide the deauth/OTA tradeoff; build 6b/6c first if deauth is deferred (see Slice 6 notes above).
+   **← next real engineering decision when active tools are picked up.**
 6. Flash and verify passive slices 1-5 on real hardware (still owed — no OTA tag until done).
 7. ~~Merge PR #1~~ **DONE** (merged to branch 2026-10-01; release gated on item 6).
 
@@ -919,19 +921,21 @@ new sources; rebuilt clean on **host (529/529 tests), simulator (SUCCESS), and x
 writes, radio release on exit) — the same "simulator can't test real RF/SD timing" caveat every radio
 feature here carries. No OTA tag until that's done.
 
-**Active/transmit toolkit (Slice 6) — scoped + scaffolded, NOT built, NOT merged.** The pure transmit
-primitives (`FrameBuilder`, `AttackTx`, `ActiveAuditGate`) are host-tested (53/53 in the agent's own
-unverified run) on branch `worktree-agent-a5724a1624b098548` (commit `e2f56c1`) — **not independently
-reviewed/built by me yet; do that with the same rigor as the PR review before merging.** Planned active
-tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d BLE adv spoof. Gating resolved:
-compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in local builds (a switch Logan owns,
-not a lock); per-boot confirm friction dropped (Logan's call — "i dont need a babysitter"); the "own gear
-only" boundary stays. **Key engineering decision still open: the deauth path.** Deauth/disassoc need
-`-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks raw deauth on purpose), and
-that linker-wrap pins/patches the Wi-Fi lib, which **complicates the OTA release path**. 6b/6c/6d do NOT need
-the wrap — may be worth building those first and deciding deauth (6a) separately once the OTA tradeoff is
-weighed. (This detail was in the now-deleted `slice6_scope.md`; preserved here since it's a real decision,
-not scratch. The branch itself still holds the full build scaffolding in git history.)
+**Active/transmit toolkit (Slice 6) — scoped only; the code was NEVER pushed and is GONE.** The cloud agent
+*claimed* to have built the pure transmit primitives (`FrameBuilder`, `AttackTx`, `ActiveAuditGate`,
+host-tested 53/53) on a branch `worktree-agent-a5724a1624b098548` (commit `e2f56c1`) — but **verified
+2026-10-01: that commit and branch exist nowhere reachable** (not on the fork remote, not in local history;
+`git cat-file -t e2f56c1` → "Not a valid object name"). They only ever lived in the agent's ephemeral
+worktree and were never pushed. **So Slice 6's transmit code must be rebuilt from scratch** when tackled —
+only the *specs* survive (in the merged commit `a9848986`'s scaffold text and here). Don't waste time hunting
+for the branch. Planned active tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d
+BLE adv spoof. Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in
+local builds (a switch Logan owns, not a lock); per-boot confirm friction dropped (Logan's call — "i dont
+need a babysitter"); the "own gear only" boundary stays. **Key engineering decision still open: the deauth
+path.** Deauth/disassoc need `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks
+raw deauth on purpose), and that linker-wrap pins/patches the Wi-Fi lib, which **complicates the OTA release
+path**. 6b/6c/6d do NOT need the wrap — likely worth building those first and deciding deauth (6a) separately
+once the OTA tradeoff is weighed.
 
 ## Decisions made
 
