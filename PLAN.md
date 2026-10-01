@@ -2,26 +2,36 @@
 
 ## ▶ RESUME HERE (post-compaction anchor, 2026-10-01)
 
-**Working tree is clean, everything pushed to `fork/crosslight`.** Latest commit `56c87907`.
+**Working tree is clean, everything pushed to `fork/crosslight`.** Latest commit `7dedc098`.
 
 **Shipped on hardware:** 26.10.1 (upstream rebase + passive pentest slices 1-5). Tested — UI good, scans run.
 
 **RELEASED 2026-10-01: 26.10.2** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.2) — bundles
 the calculator operator-display fix, flashlight + unit-converter utilities, real tile icons, and the README/
-About rewrite. `partitions.csv` unchanged = installs over Wi-Fi OTA. **Awaiting Logan's flash-test.** Built
-green: host 542/542, sim, x4pro device, flash 54.1%. (Slice-6 FrameBuilder byte-reviewed → frames correct;
-active tools still dormant/un-built, rode along in the base.)
+About rewrite. `partitions.csv` unchanged = installs over Wi-Fi OTA. **Awaiting Logan's flash-test.**
+
+**The Bible expansion plan (Phases 1-4, Tracks A-C) is now ALL BUILT, not yet OTA-tagged.** Rides the next
+release (26.10.3): NIV support (Phase 2), Bible Numbers (Phase 3, OTA'd separately as 26.9.3), Historical
+Calendar computus (Phase 4 / Track C part 1, commit `89da088e`), and Daily Psalter reading calendar
+(Phase 4 / Track C part 2, commit `7dedc098`) — the full 1611 front-matter apparatus (Easter almanac +
+monthly lectionary) is reconstructed. Host 555/555, x4pro + sim both green, flash 54.2%, both
+simulator-screenshot-verified.
+
+**What's deliberately NOT built, and why (do not build these without discussing first):**
+- **Phase 5 (advanced: pattern search, cross-translation, Hebrew/Greek metadata, Geneva note layer)** — PLAN
+  pre-registers this as gated "only after the above prove out on hardware." Phases 1-4 haven't been
+  hardware-tested yet (they're sim-verified only). Building Phase 5 now would jump the gate PLAN set up
+  specifically to avoid over-building before real-device feedback.
+- **Track D (reader perf)** — explicitly measure-first: "nothing ships until a real-hardware measurement
+  names the bottleneck." The simulator structurally cannot measure e-ink/SD timing. This needs a session with
+  the physical X4 Pro, not more code.
 
 **NEXT, per Logan (2026-10-01, do not re-ask):**
-1. ~~Cut release 26.10.2~~ — DONE 2026-10-01 (commit `56c87907`, tag `26.10.2`).
-2. ~~Pivot to Bible Track C (Phase 4) — computus half~~ — DONE 2026-10-01 (commit `89da088e`): Historical
-   Calendar activity (Golden Number, Epact, Sunday Letter, Easter Old/New Style), pure engine host-tested
-   (7 cases), hub row, simulator-verified. **Built-but-unreleased — rides the next OTA tag (26.10.3).**
-3. **Where to pick up next — pick one:**
-   - **Track C second half: the 1611 reading calendar** (a day→readings lectionary, Memory-Work-shaped JSON).
-     Logan may supply specifics from his physical 1611 facsimile; not blocking.
-   - **Cut 26.10.3** to flash-test the Historical Calendar.
-   - **Track D reader perf** — device-profiling session (needs the X4 Pro in hand; sim can't measure e-ink/SD).
+1. ~~Cut release 26.10.2~~ — DONE.
+2. ~~Build Track C (Historical Calendar + Daily Psalter)~~ — DONE 2026-10-01, completing the whole planned
+   Bible expansion (Phases 1-4).
+3. **Cut 26.10.3** so Logan can flash-test everything above on real hardware — this is what unblocks Phase 5
+   and Track D (both are gated on hardware feedback this release would produce).
 
 **Standing physical to-do (when the SD card is next out of the device):** copy `assets/bleaudit/signatures.json`
 → `/bleaudit/signatures.json` so BLE fingerprinting labels devices; and copy `assets/bible_numbers/{3,77,1000}.json`
