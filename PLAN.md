@@ -20,13 +20,17 @@ hardware — the gate Phase 5 was waiting on. (Note: this confirms the UI reads 
 line-by-line re-verification of every computus/Psalter value — those are already pinned by the 13 host tests
 added this session, cross-checked against primary sources per [[verify-dont-assume]].)
 
-**Phase 5 and Track D are unblocked but PAUSED by Logan's call (2026-10-01): "lets stop on bible for now."**
-The hardware-proof gate both were waiting on is satisfied (26.10.3 flashed, confirmed "it looks great"), so
-either can resume anytime with no further unblocking needed — but **do not pick up Phase 5 or Track D without
-Logan raising the Bible track again.** When he does, see the two options below; neither is pre-scoped enough
-to start cold.
-- **Phase 5 (advanced):** pattern/repeated-word search, cross-translation comparison, Hebrew/Greek number
-  metadata, the parked Geneva-style note layer. Needs Logan to pick a slice — none are designed yet.
+**Bible track RESUMED 2026-10-01 (Logan: "work on puased bible track").** Phase 5's first slice shipped to
+the tree; the rest of Phase 5 and all of Track D remain open.
+- **Phase 5 — Compare Translations: SHIPPED to the tree 2026-10-01 (commit `53a029fd`, not yet OTA-tagged).**
+  New Bible-hub row (gated on 2+ installed translations): pick a chapter+verse, read it across every installed
+  translation at once. Seeds from the current reading position; tap-selector + physical-button nav for
+  chapter/verse. Pure verse-selection core host-tested (`src/bible/BibleCompare.h`, `test/bible_compare`,
+  5 cases); host 570/570, x4pro + sim green (flash 54.4%); simulator-verified across two translations with
+  verse nav. **Owed: on-hardware test** (needs a 2nd real translation on the card — only KJV is on it now; add
+  e.g. WEB/ASV via the downloader or desktop convert).
+- **Phase 5 remaining (advanced):** repeated-word/pattern search, Hebrew/Greek number metadata, the parked
+  Geneva-style note layer. Not designed yet — pick a slice with Logan.
 - **Track D (reader perf):** his original "flow faster/smoother" ask, still outstanding. Needs a
   `millis()`-instrumented profiling pass on the device (chapter open, page turn, hub transitions) before any
   optimization code — measure first, "looks great" is a UI read, not a timing measurement.
