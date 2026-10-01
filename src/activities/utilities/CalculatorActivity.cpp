@@ -12,8 +12,8 @@
 
 namespace {
 // Row-major labels for the 4x5 grid, matching CalculatorActivity::Key order.
-const char* const KEY_LABELS[] = {"7",  "8", "9", "/", "4", "5", "6", "*", "1", "2",
-                                  "3",  "-", ".", "0", "+/-", "+", "C", "<", "="};
+const char* const KEY_LABELS[] = {"7", "8", "9", "/", "4",   "5", "6", "*", "1", "2",
+                                  "3", "-", ".", "0", "+/-", "+", "C", "<", "="};
 constexpr int KEY_COUNT = sizeof(KEY_LABELS) / sizeof(KEY_LABELS[0]);
 
 // Digits a double can carry before the printed form starts inventing
@@ -198,8 +198,17 @@ void CalculatorActivity::render(RenderLock&&) {
   renderer.clearScreen();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_CALCULATOR));
 
-  // Display band: the current entry, right-aligned the way a calculator reads.
+  // Display band, right-aligned the way a calculator reads. Two lines: the
+  // pending operation on top (so the operator you pressed stays visible, e.g.
+  // "2 /" while you type the divisor), the current entry below in bold.
   const Rect firstKey = keyRect(0);
+  if (hasPending && !error) {
+    const std::string expr = formatNumber(accumulator) + " " + KEY_LABELS[static_cast<int>(pendingOp)];
+    const int exprWidth = renderer.getTextWidth(UI_10_FONT_ID, expr.c_str());
+    renderer.drawText(UI_10_FONT_ID, pageWidth - metrics.contentSidePadding - exprWidth,
+                      firstKey.y - renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(UI_10_FONT_ID),
+                      expr.c_str());
+  }
   const int entryWidth = renderer.getTextWidth(UI_12_FONT_ID, entry.c_str());
   renderer.drawText(UI_12_FONT_ID, pageWidth - metrics.contentSidePadding - entryWidth,
                     firstKey.y - renderer.getLineHeight(UI_12_FONT_ID), entry.c_str(), true, EpdFontFamily::BOLD);
