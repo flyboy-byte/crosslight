@@ -1,6 +1,6 @@
 # PLAN.md
 
-Status: **last updated 2026-10-01.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.9.3 is published on GitHub** (https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3) — Bible Numbers v1, available over Wi-Fi OTA. **26.9.2 is also published and written to the SD card as `/firmware.bin`, still awaiting a wired/SD install** via Settings → SD Card Firmware Update (Logan stopped before installing it) — 26.9.3 supersedes it for anyone already on Wi-Fi OTA, but a device still on pre-26.9.2 needs 26.9.2 installed first to reach the Wi-Fi-OTA track at all. It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge. **`crosslight` rebased onto upstream `develop` again 2026-10-01** (29 commits: SD-card plugin system, EPUB DRM, reader refactors) — not yet in a tagged release. See "Upstream rebase (2026-10-01)" below.
+Status: **last updated 2026-10-01.** X4 Pro (UC8279 panel) runs CrossLight; stock is backed up and verified. **Released: 26.10.1 is published on GitHub** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.1) — the upstream rebase + passive pentest toolkit (slices 1-5, receive-only), over Wi-Fi OTA. Logan is flash-testing it on hardware (the "owed" passive-slice verification). The slice-6 active foundation rides along **dormant** (flag off, no UI, no-op TX). **Prior: 26.9.3** (https://github.com/flyboy-byte/crosslight/releases/tag/26.9.3) — Bible Numbers v1. **26.9.2 is also published and written to the SD card as `/firmware.bin`, still awaiting a wired/SD install** via Settings → SD Card Firmware Update (Logan stopped before installing it) — 26.9.3 supersedes it for anyone already on Wi-Fi OTA, but a device still on pre-26.9.2 needs 26.9.2 installed first to reach the Wi-Fi-OTA track at all. It contains items 1-13 below plus the calculator, the startup password, the Cover Grid fix, the hotspot-QR fix, fork-pointed OTA, and the 2026-09-24 upstream merge. **`crosslight` rebased onto upstream `develop` again 2026-10-01** (29 commits: SD-card plugin system, EPUB DRM, reader refactors) — not yet in a tagged release. See "Upstream rebase (2026-10-01)" below.
 
 **Wallpaper converter added 2026-09-25** (`scripts/make_wallpaper.py`, host-side, no firmware change): image → sleep-screen BMP. Dithers to the panel's 4 native gray levels (0/85/170/255) so the firmware's `nativePalette` fast path renders it pixel-for-pixel; portrait 480x800; `--mode gray4|bw`, `--fit cover|contain`, `--gamma` (~0.65 for the reflective panel), `--brightness`. Six personal wallpapers built into `wallpapers/` (git-ignored — album art). **Still needs a real on-device check** (host-validated only; a device photo Logan shared was a stock image, not a tool output). See [[crosslight-wallpaper-tool]].
 
@@ -946,6 +946,27 @@ path.** Deauth/disassoc need `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the s
 raw deauth on purpose), and that linker-wrap pins/patches the Wi-Fi lib, which **complicates the OTA release
 path**. 6b/6c/6d do NOT need the wrap — likely worth building those first and deciding deauth (6a) separately
 once the OTA tradeoff is weighed.
+
+## Backlog (queued 2026-10-01)
+
+**After the 26.10.1 on-hardware test passes, the direction is: keep building this out.** Confirmed with
+Logan — a good flash-test of the passive toolkit is the green light to continue (next real work: the Slice 6
+active tools — review the recovered `FrameBuilder`/`AttackTx` byte layouts, then build 6b/6c first and decide
+the deauth/OTA tradeoff — plus the still-planned easy utilities: flashlight toggle, unit converter, nicer
+calculator). If the test surfaces bugs, those come first. Nothing below blocks that; these are polish tasks to
+slot in.
+
+- **README overhaul, using the `readme` skill.** Current README is upstream CrossPoint's; CrossLight needs
+  its own landing page (what the fork is, the X4 Pro target, the Bible app + Memory Work + Bible Numbers, the
+  Utilities/pentest toolkit with its scope/authorization framing, the OTA/release story, build + simulator
+  setup). Invoke the `readme` skill when doing this — it carries the structure + a browser verification loop.
+- **Better "About" screen** (do as part of the README-per-skill task — same "explain what CrossLight is"
+  content, two surfaces). The current About is just `About / Open-source e-reader firmware` — generic and
+  doesn't even say it's CrossLight. Should name the fork, the X4 Pro, the CrossLight version (already in
+  `platformio.ini` `[crosslight] version`, surfaced via `CROSSPOINT_VERSION`), and credit upstream
+  CrossPoint. Find the About activity/string in `src/activities/settings/` (it's an upstream string, so this
+  likely means a CrossLight override, not editing the shared one — check how other CrossLight-specific UI
+  text is handled before touching `english.yaml`'s upstream keys).
 
 ## Decisions made
 
