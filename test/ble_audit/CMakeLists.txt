@@ -1,6 +1,7 @@
 add_executable(BleAuditTest
   BleAdTest.cpp
   BleMatcherTest.cpp
+  BleBeaconTest.cpp
   ${REPO_ROOT}/src/bleaudit/BleAd.cpp
   ${REPO_ROOT}/src/bleaudit/BleMatcher.cpp
 )
