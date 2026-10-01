@@ -2,6 +2,7 @@
 
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/CameraScanActivity.h"
+#include "activities/utilities/WifiScanActivity.h"
 
 namespace utilities {
 
@@ -16,6 +17,10 @@ const std::vector<Utility> kUtilities = {
     {StrId::STR_CAMERA_SCAN, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<CameraScanActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_WIFI_SCAN, Wifi,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<WifiScanActivity>(renderer, mappedInput);
      }},
 };
 }  // namespace
