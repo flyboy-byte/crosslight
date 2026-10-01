@@ -118,7 +118,7 @@ void BleSpoofActivity::render(RenderLock&&) {
   const Rect row = profileRowRect();
   renderer.drawLine(0, row.y, pageWidth, row.y);
   char label[48];
-  snprintf(label, sizeof(label), "◂  %s  ▸", bleaudit::BleSpoofer::profileName(profile));
+  snprintf(label, sizeof(label), "<  %s  >", bleaudit::BleSpoofer::profileName(profile));
   const int lw = renderer.getTextWidth(UI_12_FONT_ID, label);
   renderer.drawText(UI_12_FONT_ID, (pageWidth - lw) / 2,
                     row.y + (row.height - renderer.getLineHeight(UI_12_FONT_ID)) / 2, label);

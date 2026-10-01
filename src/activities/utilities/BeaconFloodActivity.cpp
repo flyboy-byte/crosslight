@@ -170,7 +170,7 @@ void BeaconFloodActivity::render(RenderLock&&) {
   const Rect ch = channelRowRect();
   renderer.drawLine(0, ch.y, pageWidth, ch.y);
   char chLabel[32];
-  snprintf(chLabel, sizeof(chLabel), "◂  %s %u  ▸", tr(STR_BEACON_FLOOD_CHANNEL),
+  snprintf(chLabel, sizeof(chLabel), "<  %s %u  >", tr(STR_BEACON_FLOOD_CHANNEL),
            static_cast<unsigned>(txRadio.currentChannel()));
   const int chW = renderer.getTextWidth(UI_12_FONT_ID, chLabel);
   renderer.drawText(UI_12_FONT_ID, (pageWidth - chW) / 2,

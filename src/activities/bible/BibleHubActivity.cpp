@@ -9,6 +9,7 @@
 #include "activities/bible/BibleNumbersActivity.h"
 #include "activities/bible/BibleReaderActivity.h"
 #include "activities/bible/BibleTranslationsActivity.h"
+#include "activities/bible/CompareTranslationsActivity.h"
 #include "activities/bible/DailyPsalterActivity.h"
 #include "activities/bible/HistoricalCalendarActivity.h"
 #include "bible/BibleBookmarkStore.h"
@@ -35,6 +36,7 @@ void BibleHubActivity::buildRows() {
   const bool haveTranslation = !abbr.empty();
   const bool haveMemoryWork = !bible_memory::availableCourses().empty();
   const bool haveNumbers = !bible_numbers::availableStudies().empty();
+  const bool haveTwoTranslations = BibleTranslations::installed().size() >= 2;
 
   translationLabel = haveTranslation ? BibleTranslations::shortLabel(abbr) : "";
   continueSubtitle.clear();
@@ -45,7 +47,7 @@ void BibleHubActivity::buildRows() {
   bookmarkCount = std::to_string(BIBLE_BOOKMARKS.all().size());
 
   rowItems.clear();
-  rowItems.reserve(9);  // add() hands back a reference into the vector
+  rowItems.reserve(10);  // add() hands back a reference into the vector
   auto add = [this](const Row row, const char* label, const bool enabled) -> fui::ListItem& {
     fui::ListItem item;
     item.label = label;
@@ -61,8 +63,9 @@ void BibleHubActivity::buildRows() {
   add(Bookmarks, tr(STR_BOOKMARKS), haveTranslation && !BIBLE_BOOKMARKS.all().empty()).value = bookmarkCount.c_str();
   add(MemoryWork, tr(STR_MEMORY_WORK), haveTranslation && haveMemoryWork);
   add(Numbers, tr(STR_BIBLE_NUMBERS), haveTranslation && haveNumbers);
-  add(Calendar, tr(STR_HISTORICAL_CALENDAR), true);  // pure computus -- no translation or SD data needed
-  add(Psalter, tr(STR_DAILY_PSALTER), true);         // fixed table -- no translation or SD data needed
+  add(Calendar, tr(STR_HISTORICAL_CALENDAR), true);                 // pure computus -- no translation or SD data needed
+  add(Psalter, tr(STR_DAILY_PSALTER), true);                        // fixed table -- no translation or SD data needed
+  add(Compare, tr(STR_COMPARE_TRANSLATIONS), haveTwoTranslations);  // needs 2+ translations on the card
   add(Translations, tr(STR_TRANSLATIONS), true).value = translationLabel.c_str();
 }
 
@@ -102,6 +105,10 @@ void BibleHubActivity::activateIndex(const int index) {
       return;
     case Psalter:
       startActivityForResult(std::make_unique<DailyPsalterActivity>(renderer, mappedInput),
+                             [](const ActivityResult&) {});
+      return;
+    case Compare:
+      startActivityForResult(std::make_unique<CompareTranslationsActivity>(renderer, mappedInput),
                              [](const ActivityResult&) {});
       return;
     case Translations:
