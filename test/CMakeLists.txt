@@ -72,6 +72,8 @@ add_subdirectory(button_press_navigation)
 add_subdirectory(inflate_stream)
 add_subdirectory(fs_helpers)
 add_subdirectory(flock_matcher)
+add_subdirectory(wifi_audit)
+add_subdirectory(ble_audit)
 add_subdirectory(bible_numbers)
 add_subdirectory(txt_to_html)
 

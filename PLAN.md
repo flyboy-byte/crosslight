@@ -22,14 +22,15 @@ units reportedly disabled Bluetooth and moved to cellular backhaul, leaving Wi-F
 is the actual limiter, not the code. Code is built, host-tested, device-build-unblocked, architecture
 confirmed sound — left as-is, not resumed without new information. See "Item 14: Camera scan" below.
 
-**New: pentest/security toolkit, scoped 2026-09-30, NOT yet started.** Logan's own hardware, personal
-security-research hobby (Extra-class ham, understands the legal boundaries). Reference project found:
-`dagnazty/Radio-Ink`, a fork of the same upstream CrossLight is built on, with a full Wi-Fi/BLE audit
-toolkit — safety model (public releases carry only passive tools; active/transmit features need a
-compile-time flag plus a per-session on-device confirmation, dev-builds-only) is being adopted directly.
-Reuses `src/flock/*`'s frame-capture engine as the radio foundation. Also bundling in: flashlight toggle,
-unit converter, a nicer calculator — easy utilities with no scope question. Full detail, scope boundary, and
-the reference project's feature list in **"Planned: Pentest/security toolkit"** below.
+**Pentest/security toolkit: passive slices 1-5 MERGED 2026-10-01 (not yet flash-verified).** Logan's own
+hardware, personal security-research hobby (Extra-class ham, understands the legal boundaries). Five passive
+(receive-only) tools now in `crosslight` via PR #1: Wi-Fi AP scanner, evil-twin/deauth-flood detection, PCAP
+capture to SD, EAPOL/PMKID + hashcat export, passive BLE scan/fingerprint — all host-tested (529/529),
+simulator + x4pro device builds green (flash 54.0%). **Still owed: real-hardware verification before any OTA
+tag.** Active/transmit tools (deauth/beacon-flood/evil-twin/BLE-spoof, Slice 6) are scoped + scaffolded on an
+unmerged branch, gated behind a compile flag (off in releases). Also still planned: flashlight toggle, unit
+converter, nicer calculator. Full detail in **"Pentest/security toolkit — PR #1 review"** and **"Planned:
+Pentest/security toolkit"** below.
 
 The 26.9.x release/OTA machinery is new: updates now check `flyboy-byte/crosslight`, and from 26.9.2 on they install over Wi-Fi. Version line is `[crosslight] version` (scheme YY.M.BUILD). See "Releasing CrossLight (Wi-Fi OTA)". **26.9.3 (2026-09-30): flash 49.4% of a 7.94MiB slot; 408/408 host tests pass** (the Flock-blocked count from 26.9.2 is now resolved — see the flock namespace fix below). Use a USB-A-to-C cable, not C-to-C. The SD card mounts as a real `mmcblk0` reader when out of the device; in the device, use USB Drive mode.
 
@@ -680,19 +681,20 @@ before it's called done (the number/calendar engines are pure logic → host-tes
 
 ## Pentest/security toolkit — PR #1 review (2026-10-01)
 
-**Status: cloud-agent session (pointed at `docs/crosslight_pentest_handoff.md`) opened
-`flyboy-byte/crosslight#1`, branch `claude/amazing-mendel-ni6blk`, against this plan. Reviewed in a
-worktree — not yet merged.** This section is the review; "Planned: Pentest/security toolkit" below it is
-the original scope doc (still accurate, read it first for context).
+**Status: MERGED into `crosslight` 2026-10-01** (was `flyboy-byte/crosslight#1`, branch
+`claude/amazing-mendel-ni6blk`, opened by a cloud-agent session against this plan). Reviewed in a worktree,
+then merged after the fixes below. This section is the review record; "Planned: Pentest/security toolkit"
+below it is the original scope doc (still accurate for context). The historical doc references in this
+section (`crosslight_pentest_handoff.md`, `_research.md`, `_slice6_scope.md`) point at scratch/handoff docs
+that were **removed on merge** — their load-bearing content is folded into the "Planned" section below.
 
 ### What's in the PR
 
 Slices 1-5 of the passive toolkit, each its own module: `src/wifiaudit/` (AP scanner, evil-twin/deauth-flood
 threat detection, PCAP capture to SD, EAPOL/PMKID + hashcat-22000 harvest) and `src/bleaudit/` (passive BLE
-scanner + device fingerprinting). Plus two docs (`docs/crosslight_pentest_research.md` — landscape/hardware-fit
-research; `docs/crosslight_pentest_slice6_scope.md` — handoff for the active/transmit tools, not built here)
-and a PLAN.md update. 4057 insertions, 49 files. All five tiles wired into `UtilityRegistry.cpp` correctly
-(one include + one entry each, `HomeActivity.cpp` untouched, matching the established pattern).
+scanner + device fingerprinting). Plus two scratch docs (since removed) and a PLAN.md update. 4057
+insertions, 49 files. All five tiles wired into `UtilityRegistry.cpp` correctly (one include + one entry
+each, `HomeActivity.cpp` untouched, matching the established pattern).
 
 ### Independently verified (built and checked myself, in a worktree, not just reading the PR's own claims)
 
@@ -756,14 +758,17 @@ instead of a confirmation dialog.
 
 ### Next steps (the "rebase, fix issues, get it up to date" pass)
 
-1. Add `NimBLE-Arduino` to `lib_deps` (x4pro env; check simulator env needs a stub/guard like `FlockScanner`'s
-   `#if defined(ARDUINO_ARCH_ESP32)` pattern).
-2. Run `clang-format` on the 8 flagged files.
-3. Rebuild simulator + device + host tests clean after the above two fixes.
-4. Independently review/build/test the slice-6 foundation branch before merging it.
-5. Decide the deauth/OTA tradeoff; build 6b/6c first if deauth is deferred.
-6. Flash and verify slices 1-5 on real hardware.
-7. Merge PR #1 once the device build is green.
+1. ~~Add `NimBLE-Arduino` to `lib_deps`~~ **DONE 2026-10-01** — `h2zero/NimBLE-Arduino @ 2.5.1` in base
+   `lib_deps`; BLE code is `#if defined(ARDUINO_ARCH_ESP32)`-guarded so host/sim don't need it (confirmed).
+2. ~~Run `clang-format` on the flagged files~~ **DONE 2026-10-01** — all new `src/wifiaudit/`+`src/bleaudit/`
+   sources + the new utility activities formatted (clang-format 22 flagged more than the PR's original 8).
+3. ~~Rebuild simulator + device + host clean~~ **DONE 2026-10-01** — host 529/529, simulator SUCCESS, x4pro
+   SUCCESS (flash 54.0%, RAM 33.6%). **PR #1 (passive slices 1-5) merged into `crosslight`.**
+4. Independently review/build/test the slice-6 foundation branch (`worktree-agent-a5724a1624b098548`) before
+   merging it. **← next up**
+5. Decide the deauth/OTA tradeoff; build 6b/6c first if deauth is deferred (see Slice 6 notes above).
+6. Flash and verify passive slices 1-5 on real hardware (still owed — no OTA tag until done).
+7. ~~Merge PR #1~~ **DONE** (merged to branch 2026-10-01; release gated on item 6).
 
 ## Upstream rebase (2026-10-01) — DONE
 
@@ -891,11 +896,42 @@ personal lab, skip what isn't):**
   toggle, unit converter, a better-looking calculator (current one is functional but plain) — these can
   land before or in parallel with the security toolkit, no dependency between them.
 
-**Not yet started.** This section exists so the scope decision is written down before code, the same way
-the NIV copyright boundary was written down before the converter was built. Next step: pick a first slice
-(a passive Wi-Fi scanner is the natural start — reuses the Flock radio code, ships immediately with no
-gating needed, and other tools build on it) and build it like everything else here: host-tested where
-logic allows, simulator-checked, then a real device build.
+**Passive toolkit MERGED into `crosslight` 2026-10-01 — all three targets green, not yet flash-verified.**
+Five passive slices (from PR #1, `claude/amazing-mendel-ni6blk`), all in the new `src/wifiaudit/` +
+`src/bleaudit/` modules:
+1. Wi-Fi AP scanner (SSID/BSSID/channel/encryption) — `WifiScanActivity`.
+2. Threat detection (evil-twin + deauth-flood) — `WifiThreatActivity`.
+3. PCAP capture to SD — `WifiCaptureActivity` (`/wifiaudit/capNNN.pcap`).
+4. EAPOL/PMKID + hashcat 22000 export — `PmkidHarvestActivity` (clientless PMKID live; full handshake via the
+   captured pcap offline).
+5. Passive BLE scanner + fingerprinting — `BleScanActivity` (verified-identifier starter list only, from
+   `assets/bleaudit/signatures.json` — all 6 SIG entries independently verified via the real Bluetooth SIG
+   registry during the PR review).
+
+All receive-only/passive, so they ship in every build (no gate). **Fixes applied on merge** (the PR review's
+checklist items 1-3): added `h2zero/NimBLE-Arduino @ 2.5.1` to base `lib_deps` (the device-build blocker —
+BLE code is `#if defined(ARDUINO_ARCH_ESP32)`-guarded so host/sim don't pull it in); clang-formatted all the
+new sources; rebuilt clean on **host (529/529 tests), simulator (SUCCESS), and x4pro device (SUCCESS, flash
+54.0%, RAM 33.6%)**. The two cloud-agent scratch docs (`crosslight_pentest_research.md`,
+`crosslight_pentest_slice6_scope.md`) and the handoff doc were removed — this section is the source of truth.
+
+**Still owed before a release:** flash + on-hardware verification of all five slices (scan correctness, SD
+writes, radio release on exit) — the same "simulator can't test real RF/SD timing" caveat every radio
+feature here carries. No OTA tag until that's done.
+
+**Active/transmit toolkit (Slice 6) — scoped + scaffolded, NOT built, NOT merged.** The pure transmit
+primitives (`FrameBuilder`, `AttackTx`, `ActiveAuditGate`) are host-tested (53/53 in the agent's own
+unverified run) on branch `worktree-agent-a5724a1624b098548` (commit `e2f56c1`) — **not independently
+reviewed/built by me yet; do that with the same rigor as the PR review before merging.** Planned active
+tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d BLE adv spoof. Gating resolved:
+compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in local builds (a switch Logan owns,
+not a lock); per-boot confirm friction dropped (Logan's call — "i dont need a babysitter"); the "own gear
+only" boundary stays. **Key engineering decision still open: the deauth path.** Deauth/disassoc need
+`-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks raw deauth on purpose), and
+that linker-wrap pins/patches the Wi-Fi lib, which **complicates the OTA release path**. 6b/6c/6d do NOT need
+the wrap — may be worth building those first and deciding deauth (6a) separately once the OTA tradeoff is
+weighed. (This detail was in the now-deleted `slice6_scope.md`; preserved here since it's a real decision,
+not scratch. The branch itself still holds the full build scaffolding in git history.)
 
 ## Decisions made
 
