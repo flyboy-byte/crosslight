@@ -43,8 +43,12 @@ mentioned pentest toolkit work and more utilities as live alternatives when aske
 2. ~~Build Track C (Historical Calendar + Daily Psalter)~~ — DONE 2026-10-01, completing the whole planned
    Bible expansion (Phases 1-4).
 3. ~~Cut 26.10.3~~ — DONE (tag `26.10.3`, commit `2b7ec2de`). Logan flashed it and confirmed "it looks great."
-4. ~~Cut 26.10.4~~ — DONE (tag `26.10.4`, commit `5294c709`): active pentest tools (beacon flood / evil twin /
-   BLE spoof) **and** Compare Translations, over Wi-Fi OTA. **Awaiting Logan's flash-test** of all of it.
+4. ~~Cut 26.10.4~~ — DONE, then **superseded by 26.10.5** (tag `26.10.5`, commit `268c7507`): adds full vendor
+   labeling (Wi-Fi OUI + BLE company-id, from the primary registries, on-SD `VendorDb`) on top of 26.10.4's
+   active pentest tools + Compare Translations. Logan hadn't flashed 26.10.4, so 26.10.5 rolls it all into one
+   image. **Awaiting Logan's flash-test of 26.10.5** — that single flash clears most of the verification debt
+   (active tools, Compare, BLE labels, vendor labels, PCAP/PMKID SD writes). Vendor `.bin`s + `signatures.json`
+   + Bible Numbers data are all already on the card.
 
 **Standing physical SD to-do: DONE 2026-10-01** (card was mounted at `/run/media/logan/1096-66DD`). Copied
 `assets/bible_numbers/{3,77,1000}.json` → `/Bible/numbers/` (all 7 now present) and
