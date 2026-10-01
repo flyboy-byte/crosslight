@@ -4,7 +4,7 @@ Status: **last updated 2026-09-25.** X4 Pro (UC8279 panel) runs CrossLight; stoc
 
 **Wallpaper converter added 2026-09-25** (`scripts/make_wallpaper.py`, host-side, no firmware change): image → sleep-screen BMP. Dithers to the panel's 4 native gray levels (0/85/170/255) so the firmware's `nativePalette` fast path renders it pixel-for-pixel; portrait 480x800; `--mode gray4|bw`, `--fit cover|contain`, `--gamma` (~0.65 for the reflective panel), `--brightness`. Six personal wallpapers built into `wallpapers/` (git-ignored — album art). **Still needs a real on-device check** (host-validated only; a device photo Logan shared was a stock image, not a tool output). See [[crosslight-wallpaper-tool]].
 
-**Open bug carried to later: the file-transfer web server won't load on the phone in AP/hotspot mode** — the phone reports **"too many attempts"** while it sits, so this now reads as a Wi-Fi *association* failure (the phone never joins the SoftAP), not an HTTP problem. Diagnosis still needs a debug-build serial log (web logging is `LOG_DBG`, off at `LOG_LEVEL=1`). Full ranked hypotheses + the decisive test are in **"Item 15"** below.
+**Item 15 (web server won't load on phone) — RESOLVED 2026-09-30, not a firmware bug.** The page loads fine in Chromium (laptop) and Vanadium (phone); the earlier `ERR_TOO_MANY_RETRIES` was **Brave-specific** (its parallel/speculative sockets starve the single-connection Arduino `WebServer`). No code change. Optional someday-maybe hardening (async server) noted in **"Item 15"** below.
 
 **Next planned update (chosen 2026-09-30): Bible expansion — NIV + a historical study layer, done "everything, phased."** Driven by a ChatGPT research handoff (`docs/crosslight_claude_handoff.md`), audited and corrected against the real code. The organizing idea (decided 2026-09-30): the study features rebuild **the apparatus early English study Bibles actually shipped with** — the **Geneva Bible (1560)** as the first English study Bible (numbered verses, margins, cross-refs) and the **1611 KJV front-matter almanac** (Golden Number / Dominical Letter / Epact / "To finde Easter for euer"). So **Bible Numbers** = a facts-first concordance-with-commentary, and **Historical Calendar** = the 1611 almanac reconstructed for any year — not a numerology toy. Phase 1 (code audit) is done; Phase 2 is the NIV desktop converter + preset + docs. NIV text is **never** committed/shipped (copyright) — only the converter/preset/docs are public; Logan converts his own copy to `/Bible/NIV/niv.json`. A **Track D** (reader "flow faster/smoother") is a measure-first, profile-on-hardware item. **"Go to Verse" was removed 2026-09-30** (Logan's call). Full plan, audit results, historical framing, and phasing in **"Planned update: Bible expansion"** below.
 
@@ -311,9 +311,24 @@ Go-to-Verse simulator verification (the Bible TUs themselves built fine; only `s
    `silentRestart()` to `CameraScanActivity::onExit()`.
 5. Populate real signatures before it's useful (currently matches nothing).
 
-## Item 15: File-transfer web server won't load on the phone — DIAGNOSIS PENDING
+## Item 15: File-transfer web server won't load on the phone — RESOLVED 2026-09-30 (not a firmware bug)
 
-**Symptom (Logan, repeated; refined 2026-09-30):** open the file-transfer server in **AP/hotspot mode**,
+**Resolution (Logan tested 2026-09-30):** the server loads fine. **Chromium on the laptop worked, and
+Vanadium on the phone worked.** The device joins the SoftAP, serves the page, and the HTTP path is healthy.
+So the earlier `ERR_TOO_MANY_RETRIES` was **browser-specific, not a server defect** — consistent with the
+original H6 suspicion (Brave's aggressive preconnect / speculative sockets + Shields overwhelming the
+single-connection Arduino `WebServer`, which can only service one socket at a time). **No code change
+required.** Association (H1/H2/H3) and the serving layer (H4/H5) are all ruled out by a working load.
+
+Optional, low-priority hardening *if Brave-class browsers ever matter:* the single-connection `WebServer`
+is the real fragility — a client that opens parallel/speculative sockets can starve it. A more robust async
+server (e.g. `ESPAsyncWebServer`) would tolerate that, but it's a real dependency swap for a browser almost
+nobody uses here. **Not worth doing now** — filed as a someday-maybe, not a bug. The diagnosis notes below
+are kept for history.
+
+---
+
+**Original symptom (Logan, repeated; refined 2026-09-30):** open the file-transfer server in **AP/hotspot mode**,
 connect the phone to the `CrossPoint-Reader` Wi-Fi, then browsing to it **just sits and never loads** —
 tried both `crosspoint.local` (mDNS) *and* the raw IP. The earlier hotspot-QR fix (encode `http://<ip>/`
 instead of `crosspoint.local`, shipped in 26.9.2) did **not** fix it. **Key new detail: the phone itself
