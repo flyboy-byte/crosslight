@@ -1010,13 +1010,39 @@ un-gate from a correctness standpoint when the time comes.** **Still owed before
 (1) the UI activities (6a-6d); (2) the compile flag + deauth linker-wrap decision below. (Lesson, now in
 memory: a sub/cloud-agent saying "built X on branch Y" means nothing until Y is confirmed *pushed and
 reachable*.)
-Planned active tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d BLE adv spoof. Gating resolved: compile flag `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` off in `gh_release*`, on in
-local builds (a switch Logan owns, not a lock); per-boot confirm friction dropped (Logan's call — "i dont
-need a babysitter"); the "own gear only" boundary stays. **Key engineering decision still open: the deauth
-path.** Deauth/disassoc need `-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks
-raw deauth on purpose), and that linker-wrap pins/patches the Wi-Fi lib, which **complicates the OTA release
-path**. 6b/6c/6d do NOT need the wrap — likely worth building those first and deciding deauth (6a) separately
-once the OTA tradeoff is weighed.
+Planned active tools: 6a targeted deauth, 6b beacon flood, 6c evil-twin captive portal, 6d BLE adv spoof.
+
+**Gating policy REVISED 2026-10-01 (Logan's explicit call — "ignore that, i didnt agree with it, my firmware
+will be the same as on gh"):** the earlier "off in gh_release*, on in local builds" split never actually
+matched reality — every CrossLight release has always been built from plain `[env:x4pro]`, not a separate
+`gh_release` env. Rather than introduce a build split now, `CROSSLIGHT_ENABLE_ACTIVE_AUDIT` is defined
+directly in `[env:x4pro]` — **the same binary ships on the public GitHub release and on Logan's own device.**
+Flagged to Logan once, plainly, before building: this means anyone who downloads the release gets working
+active-transmit capability on their own hardware, not just Logan on his own gear — the "own gear only"
+boundary now rests entirely on whoever flashes it, not on the build. He owns that tradeoff for his own fork.
+The two-layer gate (compile flag + `ActiveAuditGate`'s per-boot bool) stays as defense-in-depth regardless.
+Per-boot confirm friction dropped (Logan's call — "i dont need a babysitter"): the gate auto-confirms on
+first transmit per screen, no modal, but the on-screen "your own gear only" warning line stays visible the
+whole time an active-tool screen is open.
+
+**6b (Beacon Flood) SHIPPED to the tree 2026-10-01 (commit `aef086b0`, not yet OTA-tagged).** First active
+tool built. New primitives: `wifiaudit::TxRadio` (STA-mode radio bring-up for raw-frame TX, mirrors
+`ApScanner`'s begin/end/channel shape but for transmit), `wifiaudit::makeLocallyAdministered` (RandomMac.h —
+legalizes random bytes into a valid synthesized MAC so each flooded beacon reads as a distinct AP, host-tested
+4 cases), `AttackTx::buildSupportsActiveAudit()` (lets the UI show "no radio" vs "disabled in this build" vs
+actually running, rather than attempting to transmit and silently getting 0%). Cycles through 12 built-in
+placeholder SSIDs with synthesized BSSIDs on a user-picked channel at ~5 frames/sec. Host 559/559 (+4 tests),
+x4pro + sim both green (flash 54.2%), simulator-screenshot-verified for the no-radio shell (Running is
+device-only to verify, same bar as every other radio tool here). **Still owed: on-hardware test** (actual
+transmit, and a nearby device's scan list genuinely filling with the flood).
+
+**Key engineering decision still open: the deauth path (6a).** Deauth/disassoc need
+`-Wl,-wrap=ieee80211_raw_frame_sanity_check` (the stock `esp_wifi` blob blocks raw deauth on purpose), and
+that linker-wrap pins/patches the Wi-Fi lib — a bigger build-system change than 6b/6c/6d need. Still deferred;
+decide separately once 6c is built and 6b is hardware-verified.
+
+**Next: 6c (evil-twin captive portal).** Different radio mode than 6b (AP/softAP + a web server, not raw STA
+TX) — reuses the hotspot/WebServer plumbing CrossLight already has for file-transfer, not `TxRadio`.
 
 ## Backlog (queued 2026-10-01)
 
