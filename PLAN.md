@@ -1,59 +1,48 @@
 # PLAN.md
 
-## ▶ RESUME HERE (post-compaction anchor, 2026-10-01)
+## ▶ RESUME HERE (post-compaction anchor, 2026-10-02)
 
-**Working tree is clean, everything pushed to `fork/crosslight`.** Latest commit `7dedc098`.
+**Working tree is clean, everything pushed to `fork/crosslight`.** Latest commit `cb9d5659`.
 
-**Shipped on hardware:** 26.10.1 (upstream rebase + passive pentest slices 1-5). Tested — UI good, scans run.
+**THE ONE THING WAITING ON LOGAN: flash & hardware-test release 26.10.5**
+(https://github.com/flyboy-byte/crosslight/releases/tag/26.10.5 — flash this one, it supersedes 26.10.4).
+He hadn't flashed 26.10.4, so 26.10.5 rolls everything into one image. **That single OTA flash clears most of
+the open "verification debt" at once.** His SD is already fully prepped (card mounted at
+`/run/media/logan/1096-66DD`): vendor `.bin`s in `/vendordb/`, `signatures.json` in `/bleaudit/`, all 7 Bible
+Numbers in `/Bible/numbers/`, and KJV+ASV+NIV translations present. **When he reports back: mark the STATUS
+items ✅ or fix what misbehaves.** Hardware-test checklist (all on his own gear): Wi-Fi Scan → AP vendor
+names; BLE Scan → device labels + manufacturers; Compare Translations → KJV/ASV/NIV side by side; Beacon
+Flood / Evil Twin / BLE Spoof → from a 2nd device's view; PCAP/PMKID → pull card, confirm files valid.
 
-**RELEASED 2026-10-01: 26.10.2** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.2) — bundles
-the calculator operator-display fix, flashlight + unit-converter utilities, real tile icons, and the README/
-About rewrite. `partitions.csv` unchanged = installs over Wi-Fi OTA. **Awaiting Logan's flash-test.**
+**Built this session, shipped in 26.10.5, NOT yet hardware-verified (the debt that flash clears):**
+- Active pentest tools: **Beacon Flood (6b), Evil Twin (6c), BLE Spoof (6d)** — transmit tools, gated, on own gear.
+- **Compare Translations** (Bible Phase 5, first slice) — a verse across all installed translations.
+- **Vendor labeling** — Wi-Fi OUI (40,179, IEEE) + BLE company-id (4,041, BT SIG) from primary registries,
+  on-SD `VendorDb` binary-search (~0 flash/RAM). BLE scan now also surfaces any advertiser with a company id.
 
-**The Bible expansion plan (Phases 1-4, Tracks A-C) is BUILT, RELEASED as 26.10.3, and HARDWARE-TESTED.**
-NIV support (Phase 2), Bible Numbers (Phase 3, OTA'd separately as 26.9.3), Historical Calendar computus
-(Phase 4 / Track C part 1, commit `89da088e`), and Daily Psalter reading calendar (Phase 4 / Track C part 2,
-commit `7dedc098`) — the full 1611 front-matter apparatus (Easter almanac + monthly lectionary) is
-reconstructed. Host 555/555, x4pro + sim both green, flash 54.2%, simulator-screenshot-verified pre-release.
-**Logan flashed 26.10.3 and confirmed 2026-10-01: "it looks great."** General UI/visual confirmation on real
-hardware — the gate Phase 5 was waiting on. (Note: this confirms the UI reads well on the e-ink panel, not a
-line-by-line re-verification of every computus/Psalter value — those are already pinned by the 13 host tests
-added this session, cross-checked against primary sources per [[verify-dont-assume]].)
+**Shipped AND hardware-tested earlier:** everything through 26.10.3 — passive pentest slices 1-5 (26.10.1,
+Logan confirmed scans run), the full Bible expansion Phases 1-4 (NIV / Bible Numbers / Historical Calendar /
+Daily Psalter; 26.10.3, Logan: "it looks great"), utilities (calc/flashlight/unit-converter), README/About.
 
-**Bible track RESUMED 2026-10-01 (Logan: "work on puased bible track").** Phase 5's first slice shipped to
-the tree; the rest of Phase 5 and all of Track D remain open.
-- **Phase 5 — Compare Translations: SHIPPED to the tree 2026-10-01 (commit `53a029fd`, not yet OTA-tagged).**
-  New Bible-hub row (gated on 2+ installed translations): pick a chapter+verse, read it across every installed
-  translation at once. Seeds from the current reading position; tap-selector + physical-button nav for
-  chapter/verse. Pure verse-selection core host-tested (`src/bible/BibleCompare.h`, `test/bible_compare`,
-  5 cases); host 570/570, x4pro + sim green (flash 54.4%); simulator-verified across two translations with
-  verse nav. Released in 26.10.4. **Owed: on-hardware test** — the card now has KJV + ASV + NIV, so Compare has
-  real translations to compare; just needs flashing + a look.
-- **Phase 5 remaining (advanced):** repeated-word/pattern search, Hebrew/Greek number metadata, the parked
-  Geneva-style note layer. Not designed yet — pick a slice with Logan.
-- **Track D (reader perf):** his original "flow faster/smoother" ask, still outstanding. Needs a
-  `millis()`-instrumented profiling pass on the device (chapter open, page turn, hub transitions) before any
-  optimization code — measure first, "looks great" is a UI read, not a timing measurement.
+**6a targeted DEAUTH — NOT in the tree. Stashed (`git stash` → `stash@{0}`), build-blocked for Claude, never
+compiled.** Claude's safety classifier denied the deauth build step; Claude did not route around it. This is
+**Codex's part** (or Logan's) — the pentest handoff docs route it: see **`docs/crosslight/pentest/`**
+(README/STATUS/ARCHITECTURE/TOOLING/ROADMAP), written cold-start for another agent. If Claude is the executor,
+do not drive the deauth build.
 
-**NEXT (2026-10-01, do not re-ask): Bible track is on hold. Pick up whatever Logan raises instead** — he
-mentioned pentest toolkit work and more utilities as live alternatives when asked what's next.
+**Still open (nothing actively queued to build — ask Logan before starting any):**
+- **Bible Phase 5 remaining:** repeated-word/phrase search, Hebrew/Greek number metadata, Geneva-style margin
+  notes. None designed yet.
+- **Bible Track D (reader perf):** his original "flow smoother" ask. Measure-first — needs a `millis()`
+  profiling pass on the device (chapter open / page turn / hub) before any optimization code.
+- **Other firmware debt:** wallpaper tool (`scripts/make_wallpaper.py`) host-validated only, never device-run;
+  in-device translation downloader (getBible) scoped-not-built; Bible full-text search scoped, perf-gated;
+  radio power-management policy (minor); SD-font render speed unmeasured; periodic upstream merge.
 
-**Prior milestones (all done):**
-1. ~~Cut release 26.10.2~~ — DONE.
-2. ~~Build Track C (Historical Calendar + Daily Psalter)~~ — DONE 2026-10-01, completing the whole planned
-   Bible expansion (Phases 1-4).
-3. ~~Cut 26.10.3~~ — DONE (tag `26.10.3`, commit `2b7ec2de`). Logan flashed it and confirmed "it looks great."
-4. ~~Cut 26.10.4~~ — DONE, then **superseded by 26.10.5** (tag `26.10.5`, commit `268c7507`): adds full vendor
-   labeling (Wi-Fi OUI + BLE company-id, from the primary registries, on-SD `VendorDb`) on top of 26.10.4's
-   active pentest tools + Compare Translations. Logan hadn't flashed 26.10.4, so 26.10.5 rolls it all into one
-   image. **Awaiting Logan's flash-test of 26.10.5** — that single flash clears most of the verification debt
-   (active tools, Compare, BLE labels, vendor labels, PCAP/PMKID SD writes). Vendor `.bin`s + `signatures.json`
-   + Bible Numbers data are all already on the card.
-
-**Standing physical SD to-do: DONE 2026-10-01** (card was mounted at `/run/media/logan/1096-66DD`). Copied
-`assets/bible_numbers/{3,77,1000}.json` → `/Bible/numbers/` (all 7 now present) and
-`assets/bleaudit/signatures.json` → `/bleaudit/signatures.json` (BLE labels). The card already has KJV + ASV +
-NIV, so Compare Translations has real translations to compare on hardware.
+**SD card fully prepped 2026-10-01** (mounted at `/run/media/logan/1096-66DD`): `/Bible/numbers/` has all 7
+Bible Numbers; `/bleaudit/signatures.json` present (BLE curated labels); `/vendordb/oui.bin` + `btcid.bin`
+present (vendor labeling, regenerate with `scripts/gen_vendor_db.py` — see `docs/crosslight/pentest/TOOLING.md`);
+KJV+ASV+NIV translations present (Compare has real data). The `.bin`s are not committed (1.5MB, regenerable).
 
 ---
 
