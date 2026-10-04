@@ -1,48 +1,54 @@
 # PLAN.md
 
-## ▶ RESUME HERE (post-compaction anchor, 2026-10-02)
+## ▶ RESUME HERE (anchor, 2026-10-04)
 
-**Working tree is clean, everything pushed to `fork/crosslight`.** Latest commit `cb9d5659`.
+**Working tree clean, everything pushed** (`fork/crosslight` + `fork/develop` + the simulator fork). Latest
+firmware commit `b9a73b40`. **Latest release: 26.10.7** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.7).
 
-**THE ONE THING WAITING ON LOGAN: flash & hardware-test release 26.10.5**
-(https://github.com/flyboy-byte/crosslight/releases/tag/26.10.5 — flash this one, it supersedes 26.10.4).
-He hadn't flashed 26.10.4, so 26.10.5 rolls everything into one image. **That single OTA flash clears most of
-the open "verification debt" at once.** His SD is already fully prepped (card mounted at
-`/run/media/logan/1096-66DD`): vendor `.bin`s in `/vendordb/`, `signatures.json` in `/bleaudit/`, all 7 Bible
-Numbers in `/Bible/numbers/`, and KJV+ASV+NIV translations present. **When he reports back: mark the STATUS
-items ✅ or fix what misbehaves.** Hardware-test checklist (all on his own gear): Wi-Fi Scan → AP vendor
-names; BLE Scan → device labels + manufacturers; Compare Translations → KJV/ASV/NIV side by side; Beacon
-Flood / Evil Twin / BLE Spoof → from a 2nd device's view; PCAP/PMKID → pull card, confirm files valid.
+**THE BIG PIVOT THIS SESSION — offensive tools paused & quarantined.** Logan's call (2026-10-04): stop active
+development of the Wi-Fi/BLE *hacking* tools. The Utilities menu now shows only the two genuinely general-use
+radio utilities — **Wi-Fi Analyzer** (was Wi-Fi Scan) and **Bluetooth Scanner** (was BLE Scan), both with
+vendor labels. Everything offensive (beacon flood, evil twin, BLE spoof, PCAP capture, PMKID harvest, Wi-Fi
+threat *detection*, and the Flock/camera scanner) moved to **`src/offensive/`**, stays **compiled but hidden**,
+and only appears in the menu if the SD card holds an empty flag file **`/offensive/enabled`** (read once per
+boot by `UtilityRegistry`). Full reference: **`docs/crosslight/offensive/`** (renamed from `pentest/`). The
+in-tree pointer is `src/offensive/README.md`.
 
-**Built this session, shipped in 26.10.5, NOT yet hardware-verified (the debt that flash clears):**
-- Active pentest tools: **Beacon Flood (6b), Evil Twin (6c), BLE Spoof (6d)** — transmit tools, gated, on own gear.
-- **Compare Translations** (Bible Phase 5, first slice) — a verse across all installed translations.
-- **Vendor labeling** — Wi-Fi OUI (40,179, IEEE) + BLE company-id (4,041, BT SIG) from primary registries,
-  on-SD `VendorDb` binary-search (~0 flash/RAM). BLE scan now also surfaces any advertiser with a company id.
+**What shipped in 26.10.6 / 26.10.7 (flash 26.10.7, it supersedes both):**
+- **26.10.6 — Wi-Fi radio-init fix.** Promiscuous bring-up was `WiFi.mode(WIFI_MODE_NULL)`, which no-ops when
+  Wi-Fi is already off → `esp_wifi` uninitialized → `WIFI_NOT_INIT` → "Radio unavailable" on fresh boot.
+  Changed the three passive scanners to `WIFI_MODE_STA` (inits+starts, never associates). **Diagnosed from
+  the device serial log**, not guessed. [[verify-dont-assume]]
+- **26.10.7 — offensive quarantine** (above) **+ upstream rebase** (18 commits: per-book content-key/plugin
+  isolation, SD-font kerning, low-power/logging fixes, Metalio device support). Host tests **591/591**,
+  x4pro + simulator build clean. Sim fork needed 4 new HAL/Arduino stubs (HalHaptics, capacitive-page getters,
+  `String::toLowerCase`, NVS-blob + `esp_fill_random`) — committed+pushed to the sim repo.
 
-**Shipped AND hardware-tested earlier:** everything through 26.10.3 — passive pentest slices 1-5 (26.10.1,
-Logan confirmed scans run), the full Bible expansion Phases 1-4 (NIV / Bible Numbers / Historical Calendar /
-Daily Psalter; 26.10.3, Logan: "it looks great"), utilities (calc/flashlight/unit-converter), README/About.
+**HARDWARE-VERIFIED 2026-10-03 (serial-confirmed on the X4 Pro):** **Bluetooth Scanner + vendor labeling
+work** — BLE scan loads 7 signatures, opens the 4,041-entry company-id DB, matches live advertisers. Wi-Fi
+promiscuous was the bug above (fixed in 26.10.6, not yet re-flashed). Everything through 26.10.3 hardware-tested
+earlier (passive scans, full Bible Phases 1-4, utilities).
 
-**6a targeted DEAUTH — NOT in the tree. Stashed (`git stash` → `stash@{0}`), build-blocked for Claude, never
-compiled.** Claude's safety classifier denied the deauth build step; Claude did not route around it. This is
-**Codex's part** (or Logan's) — the pentest handoff docs route it: see **`docs/crosslight/pentest/`**
-(README/STATUS/ARCHITECTURE/TOOLING/ROADMAP), written cold-start for another agent. If Claude is the executor,
-do not drive the deauth build.
+**Waiting on Logan (whenever — he's wrapping up):** flash **26.10.7** and sanity-check. **Wi-Fi Analyzer** is in
+the menu and uses the fixed `ApScanner`, so it verifies the radio fix without any flag. To see the hidden
+offensive tools (and re-test Threats/PMKID/Capture), create `/offensive/enabled` on the SD + reboot; those also
+need `/wifiaudit/` (created) and `/flock/signatures.json` (placeholders copied) on the card.
 
-**Still open (nothing actively queued to build — ask Logan before starting any):**
+**6a targeted DEAUTH — still NOT in the tree.** In `git stash` (`stash@{0}`), never compiled; Claude's safety
+classifier blocked the build and it was not routed around. It is the one offensive tool kept stash-only (its
+esp_wifi linker-wrap is NOT in `platformio.ini`). Codex's/Logan's part — see `docs/crosslight/offensive/STATUS.md`.
+
+**Still open (nothing queued — ask Logan before starting any):**
 - **Bible Phase 5 remaining:** repeated-word/phrase search, Hebrew/Greek number metadata, Geneva-style margin
   notes. None designed yet.
-- **Bible Track D (reader perf):** his original "flow smoother" ask. Measure-first — needs a `millis()`
-  profiling pass on the device (chapter open / page turn / hub) before any optimization code.
-- **Other firmware debt:** wallpaper tool (`scripts/make_wallpaper.py`) host-validated only, never device-run;
-  in-device translation downloader (getBible) scoped-not-built; Bible full-text search scoped, perf-gated;
-  radio power-management policy (minor); SD-font render speed unmeasured; periodic upstream merge.
+- **Bible Track D (reader perf):** measure-first — needs a `millis()` profiling pass on the device.
+- **Other firmware debt:** wallpaper tool host-validated only; getBible downloader scoped-not-built; Bible
+  full-text search perf-gated; radio power policy; SD-font render speed unmeasured; keep merging upstream.
 
-**SD card fully prepped 2026-10-01** (mounted at `/run/media/logan/1096-66DD`): `/Bible/numbers/` has all 7
-Bible Numbers; `/bleaudit/signatures.json` present (BLE curated labels); `/vendordb/oui.bin` + `btcid.bin`
-present (vendor labeling, regenerate with `scripts/gen_vendor_db.py` — see `docs/crosslight/pentest/TOOLING.md`);
-KJV+ASV+NIV translations present (Compare has real data). The `.bin`s are not committed (1.5MB, regenerable).
+**SD card (mounted at `/run/media/logan/1096-66DD` this session):** `/Bible/numbers/` (7 Numbers),
+`/bleaudit/signatures.json`, `/vendordb/oui.bin`+`btcid.bin` (regen via `scripts/gen_vendor_db.py` — see
+`docs/crosslight/offensive/TOOLING.md`), KJV+ASV+NIV, plus `/wifiaudit/` and `/flock/signatures.json` added
+2026-10-03. The `.bin`s aren't committed (regenerable); release `.bin`s are gitignored (`/crosslight-*-x4pro.bin`).
 
 ---
 
@@ -913,12 +919,16 @@ built it out properly since `CrossPointWebServer.cpp`'s plugin endpoints and `Ho
 **Verified clean on all three targets:** 459/459 host tests, simulator build+link (SUCCESS), `x4pro` device
 build (SUCCESS — flash 51.3%, RAM 31.5%, no regression in headroom).
 
-## Planned: Pentest/security toolkit (scoped 2026-09-30)
+## Planned: Pentest/security toolkit (scoped 2026-09-30) — PAUSED & SPLIT 2026-10-04
 
-> **The toolkit now has a dedicated continuation handoff: [`docs/crosslight/pentest/`](docs/crosslight/pentest/README.md)**
-> (STATUS, ARCHITECTURE, TOOLING, ROADMAP) — written for Codex/another agent to carry the hacking tools
-> forward. That folder is the source of truth for the toolkit's current state and open work; the sections
-> below remain as the original scoping/history.
+> [!IMPORTANT]
+> **Pivot 2026-10-04.** Active development of the offensive radio tools is **paused**. The two general-use
+> tools (Wi-Fi Analyzer, Bluetooth Scanner) stayed in the normal menu; everything offensive moved to
+> `src/offensive/`, compiled but **hidden** behind the SD flag `/offensive/enabled`. The full reference is now
+> **[`docs/crosslight/offensive/`](docs/crosslight/offensive/README.md)** (renamed from `pentest/`) — README,
+> STATUS, ARCHITECTURE, TOOLING, ROADMAP, reframed as "paused & quarantined." That folder is the source of
+> truth for the offensive tools' state and (if ever resumed) open work; the sections below are original
+> scoping/history.
 
 **Origin and authorization context:** Logan is an Extra-class ham radio operator (the top US amateur license
 class — requires real RF-law knowledge), owns the hardware under test (laptops in his dorm), understands the
