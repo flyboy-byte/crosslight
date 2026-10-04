@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "bleaudit/BleBeacon.h"
+#include "offensive/BleBeacon.h"
 
 using bleaudit::buildIBeaconManufacturerData;
 using bleaudit::IBEACON_MANUF_LEN;

@@ -2,7 +2,7 @@
 
 #include "activities/Activity.h"
 #include "components/themes/BaseTheme.h"
-#include "wifiaudit/TxRadio.h"
+#include "offensive/TxRadio.h"
 
 // The screen behind the "Beacon Flood" utility: transmits a rotating set of
 // fake-AP beacon frames (see wifiaudit::buildBeacon), each from its own

@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "wifiaudit/Eapol.h"
+#include "offensive/Eapol.h"
 
 namespace {
 

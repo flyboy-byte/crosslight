@@ -3,7 +3,7 @@
 #include <string>
 
 #include "activities/Activity.h"
-#include "wifiaudit/HarvestScanner.h"
+#include "offensive/HarvestScanner.h"
 
 // The screen behind the "PMKID Harvest" utility: a passive, receive-only sweep
 // that catches RSN PMKIDs from EAPOL message-1 frames and appends hashcat 22000

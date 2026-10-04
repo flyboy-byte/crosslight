@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "wifiaudit/FrameBuilder.h"
+#include "offensive/FrameBuilder.h"
 #include "wifiaudit/WifiFrame.h"  // cross-check: frames we build must parse back
 
 namespace {

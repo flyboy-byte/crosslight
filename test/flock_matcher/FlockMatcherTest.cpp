@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "flock/FlockSignature.h"
+#include "offensive/flock/FlockSignature.h"
 
 namespace {
 

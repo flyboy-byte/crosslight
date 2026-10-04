@@ -7,11 +7,11 @@ add_executable(WifiAuditTest
   ActiveAuditGateTest.cpp
   RandomMacTest.cpp
   ${REPO_ROOT}/src/wifiaudit/WifiFrame.cpp
-  ${REPO_ROOT}/src/wifiaudit/ThreatDetect.cpp
-  ${REPO_ROOT}/src/wifiaudit/Pcap.cpp
-  ${REPO_ROOT}/src/wifiaudit/Eapol.cpp
-  ${REPO_ROOT}/src/wifiaudit/FrameBuilder.cpp
-  ${REPO_ROOT}/src/wifiaudit/ActiveAuditGate.cpp
+  ${REPO_ROOT}/src/offensive/ThreatDetect.cpp
+  ${REPO_ROOT}/src/offensive/Pcap.cpp
+  ${REPO_ROOT}/src/offensive/Eapol.cpp
+  ${REPO_ROOT}/src/offensive/FrameBuilder.cpp
+  ${REPO_ROOT}/src/offensive/ActiveAuditGate.cpp
 )
 
 target_include_directories(WifiAuditTest PRIVATE

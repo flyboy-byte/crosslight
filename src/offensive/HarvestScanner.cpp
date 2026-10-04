@@ -5,7 +5,7 @@
 #include <cstring>
 
 #include "Eapol.h"
-#include "WifiFrame.h"
+#include "wifiaudit/WifiFrame.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
 #include <WiFi.h>

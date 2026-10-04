@@ -7,7 +7,7 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "wifiaudit/ThreatDetect.h"
+#include "offensive/ThreatDetect.h"
 
 namespace {
 constexpr uint32_t CHANNEL_DWELL_MS = 300;

@@ -9,8 +9,8 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "wifiaudit/ActiveAuditGate.h"
-#include "wifiaudit/AttackTx.h"
+#include "offensive/ActiveAuditGate.h"
+#include "offensive/AttackTx.h"
 
 namespace {
 // Repaint cadence while advertising, so elapsed time ticks over.

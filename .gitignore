@@ -42,3 +42,6 @@ flake.*
 
 # Local-only Bible sources (copyrighted NIV text -- never commit/ship)
 /sources/
+
+# Release firmware artifacts (uploaded to GitHub releases, not tracked)
+/crosslight-*-x4pro.bin

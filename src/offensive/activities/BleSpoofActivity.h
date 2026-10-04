@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "activities/Activity.h"
-#include "bleaudit/BleSpoofer.h"
+#include "offensive/BleSpoofer.h"
 #include "components/themes/BaseTheme.h"
 
 // The screen behind the "BLE Spoof" utility: broadcasts a chosen generic BLE

@@ -2,8 +2,8 @@
 
 #include <Logging.h>
 
-#include "wifiaudit/ActiveAuditGate.h"
-#include "wifiaudit/AttackTx.h"
+#include "offensive/ActiveAuditGate.h"
+#include "offensive/AttackTx.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
 #include <NimBLEDevice.h>

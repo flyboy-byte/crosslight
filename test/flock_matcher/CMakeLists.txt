@@ -1,7 +1,7 @@
 add_executable(FlockMatcherTest
   FlockMatcherTest.cpp
-  ${REPO_ROOT}/src/flock/FlockMatcher.cpp
-  ${REPO_ROOT}/src/flock/FlockFrame.cpp
+  ${REPO_ROOT}/src/offensive/flock/FlockMatcher.cpp
+  ${REPO_ROOT}/src/offensive/flock/FlockFrame.cpp
 )
 
 target_include_directories(FlockMatcherTest PRIVATE

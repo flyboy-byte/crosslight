@@ -14,8 +14,8 @@
 #include "activities/util/KeyboardEntryActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "wifiaudit/ActiveAuditGate.h"
-#include "wifiaudit/AttackTx.h"
+#include "offensive/ActiveAuditGate.h"
+#include "offensive/AttackTx.h"
 
 namespace {
 constexpr uint8_t AP_CHANNEL = 6;

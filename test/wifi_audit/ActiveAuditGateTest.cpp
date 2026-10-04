@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "wifiaudit/ActiveAuditGate.h"
+#include "offensive/ActiveAuditGate.h"
 
 using wifiaudit::ActiveAuditGate;
 

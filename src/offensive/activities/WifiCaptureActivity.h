@@ -3,7 +3,7 @@
 #include <string>
 
 #include "activities/Activity.h"
-#include "wifiaudit/CaptureScanner.h"
+#include "offensive/CaptureScanner.h"
 
 // The screen behind the "Wi-Fi Capture" utility: a passive, receive-only
 // promiscuous capture that streams every 802.11 frame it hears to a .pcap file

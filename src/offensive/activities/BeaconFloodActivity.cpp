@@ -11,10 +11,10 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "wifiaudit/ActiveAuditGate.h"
-#include "wifiaudit/AttackTx.h"
-#include "wifiaudit/FrameBuilder.h"
-#include "wifiaudit/RandomMac.h"
+#include "offensive/ActiveAuditGate.h"
+#include "offensive/AttackTx.h"
+#include "offensive/FrameBuilder.h"
+#include "offensive/RandomMac.h"
 
 #if defined(ARDUINO_ARCH_ESP32)
 #include <esp_random.h>

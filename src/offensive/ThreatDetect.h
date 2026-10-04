@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "ApScanner.h"
+#include "wifiaudit/ApScanner.h"
 
 // Passive Wi-Fi threat heuristics that run on top of what the radio already
 // hears -- no transmitting, so this ships in every build. Two awareness signals:

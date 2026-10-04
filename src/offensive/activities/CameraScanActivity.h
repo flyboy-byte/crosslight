@@ -1,7 +1,7 @@
 #pragma once
 
 #include "activities/Activity.h"
-#include "flock/FlockScanner.h"
+#include "offensive/flock/FlockScanner.h"
 
 // The screen behind the "Camera Scan" utility: a passive, receive-only sweep
 // for surveillance-device Wi-Fi signatures (see FlockScanner). Shows the

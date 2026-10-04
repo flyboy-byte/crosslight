@@ -9,7 +9,7 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "flock/FlockSignatures.h"
+#include "offensive/flock/FlockSignatures.h"
 
 namespace {
 // Dwell per channel. Beacons come ~every 100ms, so ~300ms gives a couple of

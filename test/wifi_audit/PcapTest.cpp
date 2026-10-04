@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "wifiaudit/Pcap.h"
+#include "offensive/Pcap.h"
 
 TEST(Pcap, GlobalHeaderBytes) {
   uint8_t h[wifiaudit::PCAP_GLOBAL_HEADER_LEN] = {};
