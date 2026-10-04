@@ -75,7 +75,11 @@ bool ApScanner::begin() {
     return false;
   }
   // Bring the stack up without associating, then switch on promiscuous.
-  WiFi.mode(WIFI_MODE_NULL);
+  // STA (not NULL): WiFi.mode(NULL) is a no-op when Wi-Fi is already off, so
+  // esp_wifi stays uninitialized and promiscuous fails with WIFI_NOT_INIT.
+  // STA forces esp_wifi_init + esp_wifi_start; we never call WiFi.begin(), so
+  // it never associates. end() returns to NULL to stop and deinit.
+  WiFi.mode(WIFI_MODE_STA);
   esp_wifi_set_promiscuous(false);
   wifi_promiscuous_filter_t filter = {.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT};
   esp_wifi_set_promiscuous_filter(&filter);

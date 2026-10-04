@@ -64,7 +64,10 @@ bool CaptureScanner::begin(const char* pcapPath) {
     sink.close();
     return false;
   }
-  WiFi.mode(WIFI_MODE_NULL);
+  // STA, not NULL: WiFi.mode(NULL) no-ops when Wi-Fi is already off, leaving
+  // esp_wifi uninitialized so promiscuous fails. STA inits+starts the driver
+  // without associating (no WiFi.begin()). end() returns to NULL to tear down.
+  WiFi.mode(WIFI_MODE_STA);
   esp_wifi_set_promiscuous(false);
   wifi_promiscuous_filter_t filter = {.filter_mask = WIFI_PROMIS_FILTER_MASK_ALL};
   esp_wifi_set_promiscuous_filter(&filter);
