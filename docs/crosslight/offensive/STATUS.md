@@ -1,7 +1,13 @@
-# Pentest toolkit — status
+# Offensive toolkit — status
 
 What is actually built, versus simulator-checked, versus hardware-tested, versus open. Last updated
-**2026-10-01**. Legend: ✅ done/verified · 🚧 built but not at the next bar · ❌ not built / blocked.
+**2026-10-04**. Legend: ✅ done/verified · 🚧 built but not at the next bar · ❌ not built / blocked.
+
+> [!IMPORTANT]
+> **Paused 2026-10-04.** Development is stopped. The offensive tools below are compiled but hidden
+> behind the SD flag `/offensive/enabled` (see [README](README.md)). Only the two general utilities
+> (Wi-Fi Analyzer, Bluetooth Scanner) remain in the normal menu. This table is a frozen snapshot of
+> where things stood at the pause, kept for whoever resumes.
 
 > The honest distinction is the point of this table. "On the branch, builds clean, simulator-checked"
 > is **not** the same as "flash-tested on the X4 Pro." Radio behavior is only ever real on hardware.
@@ -14,7 +20,14 @@ What is actually built, versus simulator-checked, versus hardware-tested, versus
 | 26.10.2 | 2026-10-01 | (utilities/calc — no toolkit change) |
 | 26.10.3 | 2026-10-01 | (Bible — no toolkit change) |
 | 26.10.4 | 2026-10-01 | **Active tools 6b / 6c / 6d shipped** (beacon flood, evil twin, BLE spoof). Superseded by 26.10.5 (never flashed). |
-| 26.10.5 | 2026-10-01 | Adds **vendor labeling** (Wi-Fi OUI + BLE company-id). The flash-this-one image: active tools + Compare + vendor labels. **Awaiting on-hardware verification.** |
+| 26.10.5 | 2026-10-01 | Adds **vendor labeling** (Wi-Fi OUI + BLE company-id). Active tools + Compare + vendor labels. |
+| 26.10.6 | 2026-10-03 | **Wi-Fi radio-init fix** (`WIFI_MODE_STA` promiscuous bring-up — NULL no-ops when Wi-Fi is off). Fixes Scan/Threats/PMKID "Radio unavailable" on fresh boot. |
+
+**Hardware-verified 2026-10-03 (serial-confirmed on the X4 Pro):** BLE scan loads signatures, opens the
+4,041-entry company-id DB, and matches live advertisers → **Bluetooth Scanner + vendor labeling work**.
+Wi-Fi promiscuous was failing (`WIFI_NOT_INIT`) → fixed in 26.10.6 (not yet re-flashed at the pause).
+PCAP/PMKID also need `/wifiaudit/` on the SD (created 2026-10-03). Camera Scan needs `/flock/signatures.json`
+(placeholders copied 2026-10-03).
 
 ## Passive tools (ship in every build, no gate)
 
@@ -65,17 +78,22 @@ See [TOOLING.md](TOOLING.md#i18n-adding-ui-strings).
 **For whoever resumes it (Codex or Logan):**
 - `git stash list` / `git stash show -p stash@{0}` to inspect it; `git stash pop` to restore it.
 - **Treat it as unverified — it was never compiled.** Expect to fix compile errors.
-- The deauth-enable mechanism is already documented **in the tree**, in the `AttackTx.cpp` build-note
-  comment block (why raw deauth is dropped by the stock `esp_wifi` blob and the linker-wrap that lets it
-  through). This doc does not restate that mechanism; read it at the source.
+- The deauth-enable mechanism (why raw deauth is dropped by the stock `esp_wifi` blob and the
+  `-Wl,-wrap=ieee80211_raw_frame_sanity_check` linker-wrap that lets it through) is carried **in the
+  stash itself** — the stash's `AttackTx.cpp` diff and `platformio.ini` diff. The current in-tree
+  `src/offensive/AttackTx.cpp` does **not** contain the wrap, and `platformio.ini` does **not** carry
+  the wrap flag (both were kept in the stash on purpose, so nothing weaponized compiles by default).
 - Fragile part: the linker wrap depends on a closed-blob symbol name and can silently stop working on an
   Arduino-ESP32 SDK bump (deauth frames would then build fine but never transmit). Re-check on SDK updates.
 - It needs an on-hardware test like every radio tool (does a client on your own test AP actually drop).
 
-## What's owed before the toolkit is "finished"
+## If the pause is ever lifted — what was owed
 
-1. **Release + flash-test 6b/6c/6d** (highest value — they're built but unproven on hardware).
-2. **Confirm passive SD behavior** on hardware: PCAP/hccapx files land correctly, radio releases on exit,
-   BLE matching works once `signatures.json` is on the card.
-3. **Resolve 6a** (Logan's call on whether/how to finish the deauth tool).
+Frozen at the pause; do these in order only if resuming:
+
+1. **Enable + flash-test 6b/6c/6d.** Drop `/offensive/enabled` on the SD, reboot, OTA the latest build,
+   verify beacon flood / evil twin / BLE spoof actually transmit (needs a 2nd device to observe).
+2. **Confirm passive SD behavior** on hardware: PCAP/`.22000` files land in `/wifiaudit/`, radio
+   releases on exit, Flock matching works once real fingerprints are in `/flock/signatures.json`.
+3. **Resolve 6a** (deauth) — Logan/Codex's call; it's in the stash, never compiled. See above.
 4. Optional hardening / new tools — see [ROADMAP.md](ROADMAP.md).
