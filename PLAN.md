@@ -1,6 +1,77 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-04)
+## ▶ RESUME HERE (anchor, 2026-10-05)
+
+**THIS SESSION (2026-10-05) — Claude Panel + Ask Claude + Bible Passage Q&A built, debugged live on
+real hardware via USB, two real bugs found and fixed, release 26.10.9 pushed and confirmed working.
+Nothing committed yet** (Logan: leave it uncommitted). `git status` should show `.gitignore`, `PLAN.md`,
+`platformio.ini`, `lib/I18n/translations/english.yaml`, `src/utilities/UtilityRegistry.cpp`,
+`src/activities/bible/CompareTranslationsActivity.cpp`, `src/activities/bible/BibleMenuActivity.*`,
+`src/activities/bible/BibleReaderActivity.*` modified; `docs/crosslight/claude-panel.md`,
+`docs/crosslight/claude-features.md`, `src/claude/`, `src/activities/utilities/ClaudePanelActivity.*`,
+`src/activities/utilities/AskClaudeActivity.*`, `src/activities/bible/BiblePassageQaActivity.*`
+untracked. `platformio.local.ini` also modified (gitignored, not in `git status`) to mirror the two
+new wolfSSL flags for the simulator build.
+
+**26.10.8 was NOT actually working — first real-hardware test found two bugs, both now fixed in
+26.10.9 and confirmed live on Logan's X4 Pro:**
+
+1. **TLS to api.anthropic.com was completely broken.** Two wolfSSL config gaps in
+   `freeink-sdk/libs/network/SecureNet/src/SecureClient.cpp` (the fix itself is two `-D` flags added to
+   `[env:x4pro]` in `platformio.ini`, mirrored in `platformio.local.ini`):
+   `-DWOLFSSL_ALT_CERT_CHAINS` (Anthropic's chain ends in a GlobalSign cross-signed GTS Root R4, not the
+   self-signed one pinned; wolfSSL's default walker only trust-checks the chain's last link) and
+   `-DWOLFSSL_SHA384` (verifying that root's SHA-384 signature was failing because this build never
+   enabled software SHA-384). Full root-cause writeup: `docs/crosslight/claude-panel.md` → "Hardware
+   debugging" section.
+2. **`ask()` used `claude-opus-5-5`, which 429'd every time** with a genuine `rate_limit_error` (not
+   transient — still failed after a 20-minute idle gap). Logan's subscription tier doesn't carry Opus
+   access via this OAuth token. Swapped live (rebuild+reflash per model, no code restructuring) to
+   confirm: Haiku → HTTP 200 immediately, Opus → 429 every time. **`kAskModel` is now permanently
+   `claude-haiku-4-5`** in `src/claude/ClaudeClient.cpp` — Logan chose Haiku over testing Sonnet further.
+
+**Debugging method, if this pattern recurs:** `pio device monitor` needs a real tty and fails in a
+sandboxed/non-interactive shell (`termios.error: Inappropriate ioctl for device`). Worked around with a
+~10-line pyserial script reading `/dev/ttyACM0` for a fixed window — see any `serial_capture*.log` this
+session's scratchpad for the pattern. USB flashing a single env (`pio run -e x4pro -t upload
+--upload-port /dev/ttyACM0`) is much faster than an OTA round-trip for iterating on a hardware bug —
+each cycle was ~2.5-4.5 min build+flash. The device dropped off `/dev/ttyACM0` at least twice mid-session
+(Logan unplugging/replugging); `ls /dev/ttyACM*` is the quick check before assuming the upload tool is
+broken.
+
+**Known small gap, not blocking:** the `freeink-sdk` git submodule (points at upstream
+`Free-Ink/freeink-sdk`, no CrossLight fork, unlike `crosslight-simulator`) has one uncommitted,
+non-load-bearing diagnostic log line in `SecureClient.cpp` (logs if `wolfSSL_CTX_load_verify_buffer`
+fails). The actual fix is the two `-D` flags in the main repo's `platformio.ini`, already safe. Losing
+that one log line on a submodule reset would just remove a diagnostic breadcrumb, not break anything —
+but if `freeink-sdk` needs real fixes again, it's worth forking it the way the simulator was forked.
+
+**Bible Passage Q&A: TLS layer confirmed working (handshake ok in the serial log) but not
+independently re-confirmed end-to-end after the Haiku switch** — same shared `ClaudeClient::ask()`, so
+it should work, but Logan moved to closing the session before testing it standalone again. Worth a
+quick check next time he's on the device.
+
+**Release:** https://github.com/flyboy-byte/crosslight/releases/tag/26.10.9 — notes describe both
+fixes and call out the Bible Passage Q&A gap explicitly.
+
+- **Claude Panel — CONFIRMED WORKING on real hardware** (usage fetch, 5h/7d bars). Full plan +
+  findings: `docs/crosslight/claude-panel.md`.
+- **Ask Claude — CONFIRMED WORKING on real hardware** (new question → Haiku → answer, HTTP 200).
+- **Bible Passage Q&A — TLS confirmed working, full on-device flow not independently re-tested after
+  the model swap.** Full detail: `docs/crosslight/claude-features.md`.
+- **Compare Translations — two UX fixes, built, both builds green, not independently hardware-tested
+  this session (lower risk — pure input-handling change, no network):**
+  1. Page-turn buttons now page the comparison text (they were silently jumping chapters instead,
+     because the activity bound raw Up/Down instead of the `PageBack`/`PageForward` logical buttons
+     everything else in the reader uses — same physical GPIOs, wrong logical binding). Long-press
+     (1000ms) on either page-turn button now changes chapter instead.
+  2. Changing chapter no longer resets verse to 1 — it keeps your verse number, clamped to the new
+     chapter's length (`loadChapters()` already clamped; just stopped overwriting it first).
+  3. Checked whether a translation missing a chapter was silently mishandled — it wasn't; the existing
+     per-verse `present=false` → "(not in this translation)" fallback already covers it correctly.
+
+**Pre-existing state below is unchanged from 2026-10-04** (offensive quarantine, 26.10.7 release, 6a
+deauth stash-only) — still accurate, not re-verified this session.
 
 **Working tree clean, everything pushed** (`fork/crosslight` + `fork/develop` + the simulator fork). Latest
 firmware commit `b9a73b40`. **Latest release: 26.10.7** (https://github.com/flyboy-byte/crosslight/releases/tag/26.10.7).
@@ -39,6 +110,14 @@ classifier blocked the build and it was not routed around. It is the one offensi
 esp_wifi linker-wrap is NOT in `platformio.ini`). Codex's/Logan's part — see `docs/crosslight/offensive/STATUS.md`.
 
 **Still open (nothing queued — ask Logan before starting any):**
+- **Claude Panel (v1 scope DECIDED 2026-10-05; Phases 0+1 BUILT 2026-10-05, x4pro + sim both green, NOT run on hardware; release HELD until SD token is copied):** usage-only Utilities tile, 5h+7d bars,
+  manual/30s toggle (defaults manual), stale-data status line. Direct device→Anthropic, token on SD, native e-ink,
+  foreground-only refresh; later MCP/remote actions. Full plan: `docs/crosslight/claude-panel.md`.
+- **Bible Passage Q&A + Ask Claude utility (ALL PHASES BUILT 2026-10-05, x4pro+sim green, NOT run on
+  hardware):** in-reader passage Q&A (Confirm menu, preset+free-text questions, current-page verses by
+  default) and a standalone free-prompt Utilities tile, both on the same subscription-token path as
+  Claude Panel. SD-logged (not re-sent) history for Ask Claude is built too (`ClaudeHistoryStore`).
+  Full plan: `docs/crosslight/claude-features.md`.
 - **Bible Phase 5 remaining:** repeated-word/phrase search, Hebrew/Greek number metadata, Geneva-style margin
   notes. None designed yet.
 - **Bible Track D (reader perf):** measure-first — needs a `millis()` profiling pass on the device.
