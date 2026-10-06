@@ -14,6 +14,7 @@
 
 namespace {
 constexpr int MAX_WRAPPED_LINES = 40;  // per verse per translation; generous, longest verse is ~8 lines
+constexpr unsigned long LONG_PRESS_MS = 1000;
 }  // namespace
 
 CompareTranslationsActivity::CompareTranslationsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -120,7 +121,10 @@ void CompareTranslationsActivity::changeChapter(const int delta) {
   const int next = std::clamp(chapter + delta, 1, chapterCount);
   if (next == chapter) return;
   chapter = next;
-  verse = 1;
+  // Keep the current verse number rather than resetting to 1 -- loadChapters()
+  // clamps it to the new chapter's max below, so this only matters when the new
+  // chapter is at least as long (the common case: skimming a long chapter one at
+  // a time shouldn't lose your place).
   page = 0;
   loadChapters();
   buildLines();
@@ -152,7 +156,11 @@ void CompareTranslationsActivity::loop() {
   }
   if (state != State::Ready) return;
 
-  // Physical buttons (button boards): left/right = verse, up/down = chapter.
+  // Physical buttons: left/right = verse. The page-turn buttons (PageBack/PageForward --
+  // same side buttons every other reader screen uses to turn pages, and honoring the
+  // user's side-button-layout/swap setting) page through the comparison text; a long
+  // press on either one changes chapter instead, so chapter stays reachable without
+  // stealing the page-turn gesture everyone expects on this hardware.
   if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
     RenderLock lock(*this);
     changeVerse(-1);
@@ -163,14 +171,24 @@ void CompareTranslationsActivity::loop() {
     changeVerse(1);
     return;
   }
-  if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
+  if (mappedInput.wasLongPressed(MappedInputManager::Button::PageBack, LONG_PRESS_MS)) {
     RenderLock lock(*this);
     changeChapter(-1);
     return;
   }
-  if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+  if (mappedInput.wasLongPressed(MappedInputManager::Button::PageForward, LONG_PRESS_MS)) {
     RenderLock lock(*this);
     changeChapter(1);
+    return;
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::PageBack)) {
+    RenderLock lock(*this);
+    turnPage(-1);
+    return;
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::PageForward)) {
+    RenderLock lock(*this);
+    turnPage(1);
     return;
   }
 
@@ -249,7 +267,7 @@ void CompareTranslationsActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, renderer.getScreenHeight() - lineH * 2, foot);
   }
 
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_COMPARE_HOLD_CHAPTER), "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
