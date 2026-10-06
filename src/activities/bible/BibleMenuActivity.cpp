@@ -39,6 +39,11 @@ void BibleMenuActivity::onEnter() {
   toggle.toggleChecked = currentLocationBookmarked;
   toggle.actionValue = ToggleBookmark;
   rowItems.push_back(toggle);
+
+  fui::ListItem askClaude;
+  askClaude.label = tr(STR_BIBLE_ASK_CLAUDE);
+  askClaude.actionValue = AskClaude;
+  rowItems.push_back(askClaude);
 }
 
 const char* BibleMenuActivity::headerTitle() const { return tr(STR_BIBLE); }

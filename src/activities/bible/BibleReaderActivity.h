@@ -50,6 +50,7 @@ class BibleReaderActivity final : public ReaderActivity {
   void renderBook() override;
 
   void openMenu();
+  void openAskClaude();
   void openBookPicker();
   void openChapterPicker();
   void openBookmarkList();

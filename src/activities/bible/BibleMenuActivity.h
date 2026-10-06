@@ -20,6 +20,7 @@ class BibleMenuActivity final : public UiListActivity {
     GoToBook = 0,
     OpenBookmarks = 1,
     ToggleBookmark = 2,
+    AskClaude = 3,
   };
 
   BibleMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool currentLocationBookmarked,

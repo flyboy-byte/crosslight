@@ -13,6 +13,7 @@
 #include "activities/bible/BibleChapterSelectionActivity.h"
 #include "activities/ActivityManager.h"
 #include "activities/bible/BibleMenuActivity.h"
+#include "activities/bible/BiblePassageQaActivity.h"
 #include "activities/bible/BibleSearchResultsActivity.h"
 #include "activities/reader/ReaderUtils.h"
 #include "activities/util/KeyboardEntryActivity.h"
@@ -186,10 +187,39 @@ void BibleReaderActivity::openMenu() {
             BIBLE_BOOKMARKS.toggle(books[currentBookIndex].name, currentChapter, currentPageIndex);
             requestUpdate();
             break;
+          case BibleMenuActivity::AskClaude:
+            openAskClaude();
+            break;
           default:
             break;
         }
       });
+}
+
+void BibleReaderActivity::openAskClaude() {
+  if (books.empty() || verses.empty()) return;
+  // Default range = whatever verses are on the current page -- versePages[i]
+  // is the page verse i *starts* on (see buildPages()), so the range is every
+  // verse whose start page is this page, falling back to the last verse
+  // before it if the page break landed mid-verse.
+  int startIdx = 0;
+  int endIdx = 0;
+  bool found = false;
+  for (size_t i = 0; i < verses.size() && i < versePages.size(); ++i) {
+    if (versePages[i] <= currentPageIndex) {
+      if (!found) {
+        startIdx = static_cast<int>(i);
+        found = true;
+      }
+      endIdx = static_cast<int>(i);
+    } else if (found) {
+      break;
+    }
+  }
+  startActivityForResult(std::make_unique<BiblePassageQaActivity>(renderer, mappedInput, books[currentBookIndex].name,
+                                                                   currentChapter, translationAbbr, verses, startIdx,
+                                                                   endIdx),
+                         [](const ActivityResult&) {});
 }
 
 void BibleReaderActivity::openBookPicker() {

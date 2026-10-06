@@ -3,7 +3,9 @@
 #include <HalStorage.h>
 
 #include "activities/utilities/BleScanActivity.h"
+#include "activities/utilities/AskClaudeActivity.h"
 #include "activities/utilities/CalculatorActivity.h"
+#include "activities/utilities/ClaudePanelActivity.h"
 #include "activities/utilities/FlashlightActivity.h"
 #include "activities/utilities/UnitConverterActivity.h"
 #include "activities/utilities/WifiScanActivity.h"
@@ -36,6 +38,14 @@ const std::vector<Utility> kGeneral = {
     {StrId::STR_UNIT_CONVERTER, Convert,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<UnitConverterActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_CLAUDE_PANEL, Wifi,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<ClaudePanelActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_ASK_CLAUDE, Wifi,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<AskClaudeActivity>(renderer, mappedInput);
      }},
     {StrId::STR_WIFI_SCAN, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {

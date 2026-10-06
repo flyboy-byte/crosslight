@@ -45,3 +45,6 @@ flake.*
 
 # Release firmware artifacts (uploaded to GitHub releases, not tracked)
 /crosslight-*-x4pro.bin
+
+# Local secrets (Claude setup-token, etc.) — never commit
+.env
