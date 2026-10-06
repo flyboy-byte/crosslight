@@ -6,8 +6,8 @@
 
 <p align="center">
   <strong>A personal fork of CrossPoint e-reader firmware, for the Xteink X4 Pro.</strong><br>
-  The upstream reader, plus a Bible study suite, a few handy utilities,<br>
-  and a passive Wi-Fi/BLE network-analysis toolkit — all on one e-ink device.
+  The upstream reader, plus a Bible study suite, a few Claude-powered tools,<br>
+  handy utilities, and a passive Wi-Fi/BLE toolkit — all on one e-ink device.
 </p>
 
 <p align="center">
@@ -42,9 +42,10 @@
 [CrossPoint](https://github.com/crosspoint-reader/crosspoint-reader) is an open-source e-reader
 firmware for Xteink devices — a genuinely good EPUB reader with a library, wireless file transfer,
 themes, and 34 languages. **CrossLight** is my fork of it, pinned to the **X4 Pro** (ESP32-S3, 16 MB
-flash, 8 MB PSRAM, touch, dual frontlight), that bolts on three things the upstream reader doesn't
-have: a **Bible study suite**, a small set of **utilities**, and a **passive Wi-Fi/BLE toolkit** for
-personal security research. Updates install over Wi-Fi from this repo's releases.
+flash, 8 MB PSRAM, touch, dual frontlight), that bolts on a few things the upstream reader doesn't
+have: a **Bible study suite**, a small set of **utilities**, a few **Claude-powered reading tools**,
+and a **passive Wi-Fi/BLE toolkit** for personal security research. Updates install over Wi-Fi from
+this repo's releases.
 
 ## What CrossLight adds
 
@@ -58,9 +59,21 @@ Everything in CrossPoint is still here (it's merged in, not replaced). On top of
   so interpretation is never dressed up as settled fact.
 - **Utilities** — a calculator, a flashlight (drives the frontlight to full), and a unit converter
   (length / mass / temperature / volume / speed).
-- **Passive Wi-Fi/BLE toolkit** — Wi-Fi AP scanner, evil-twin / deauth-flood detection, PCAP
-  capture to SD, EAPOL/PMKID capture with hashcat-22000 export, and a passive BLE scanner with
-  device fingerprinting. See [the toolkit note](#about-the-wi-fible-toolkit) below.
+- **Claude-powered reading tools** — a Claude Panel utility (live 5h/7d usage), Ask Claude (a
+  free-prompt utility with on-SD question history), and Bible Passage Q&A (ask about whatever
+  passage is on screen, right from the reader's menu). All three go straight from the device to
+  Anthropic over your own subscription token — no bridge, no third-party server in between.
+- **Passive Wi-Fi/BLE toolkit** — Wi-Fi Analyzer and a Bluetooth Scanner with vendor labeling are
+  on by default; everything else (evil-twin / deauth-flood detection, PCAP capture, EAPOL/PMKID
+  capture with hashcat-22000 export) is compiled in but hidden unless an empty flag file is placed
+  on the SD card. See [the toolkit note](#about-the-wi-fible-toolkit) below.
+
+<p align="center">
+  <img src="docs/images/claude/utilities-menu.png" alt="CrossLight Utilities menu showing Claude Panel and Ask Claude" width="42%">
+  <img src="docs/images/claude/ask-claude-menu.png" alt="Ask Claude menu: New Question and History" width="42%">
+</p>
+<p align="center"><sub>Captured in the desktop simulator, not real hardware — tinted and framed to
+read a little less like a bare SDL window. See <a href="#build-it-yourself">Build it yourself</a>.</sub></p>
 
 ---
 
@@ -73,11 +86,14 @@ Honest status — what's been run on real hardware, versus what builds clean but
 | ✅ | **CrossPoint reader core** | Inherited from upstream and running on the X4 Pro — EPUB/TXT/XTC, library, wireless, themes, OTA. Re-synced to upstream regularly. |
 | ✅ | **Bible reader + Memory Work** | Shipped and in use on-device. Translations load from the SD card. |
 | ✅ | **Bible Numbers** | Shipped (26.9.3). Study data lives in `/Bible/numbers/` on the SD card. |
+| ✅ | **Historical Calendar + Daily Psalter** | Shipped (26.10.3) — Easter computus and the 1611 KJV's monthly reading calendar. |
+| ✅ | **Compare Translations** | Read a verse across every installed translation, from the Bible reader's menu. Shipped (26.10.4); page-turn-button and verse-position fixes on top, built and green. |
+| ✅ | **Claude Panel + Ask Claude** | **Confirmed working on real hardware** (26.10.9) — usage fetch and free-prompt Q&A both tested end-to-end over the real device's Wi-Fi. |
+| 🚧 | **Bible Passage Q&A** | Shares the same Claude client as the two above; its TLS handshake is confirmed on-device, but the full ask-a-verse flow hasn't been independently re-tested since the last model swap. |
 | ✅ | **Calculator** | Shipped on-device. (An operator-on-display fix is built and waiting for the next release.) |
 | 🚧 | **Flashlight + unit converter** | Built; green on host tests, simulator, and the device build. **Not yet flashed / tested on hardware.** |
-| 🚧 | **Passive Wi-Fi/BLE scanners** | Released in 26.10.1; scans run on hardware and the UI is solid. BLE fingerprinting needs `signatures.json` on the SD card to label anything, and full RF/SD-write correctness isn't exhaustively verified yet. |
-| 🚧 | **Active/transmit foundation** | The frame-builder + gated transmit primitives are present but **dormant** — compiled out of release builds (flag off), no UI wired to them, transmit path is a no-op. Nothing transmits. |
-| ❌ | **Historical Calendar** | Easter computus + a 1611-style reading calendar — planned, not built. |
+| 🚧 | **Passive Wi-Fi/BLE scanners** | Wi-Fi Analyzer and Bluetooth Scanner, on by default. BLE fingerprinting needs `signatures.json` on the SD card to label anything, and full RF/SD-write correctness isn't exhaustively verified yet. |
+| 🚧 | **Active/transmit toolkit** | Evil-twin, beacon flood, PCAP/EAPOL/PMKID capture, the Flock/camera scanner — compiled in, but **hidden from the menu** unless the SD card has an empty `/offensive/enabled` flag file. Paused as active development, kept working. |
 
 > [!TIP]
 > `PLAN.md` is the living design doc — current state, decisions, and what's next, in far more detail
@@ -108,9 +124,10 @@ CrossLight is layered on top of CrossPoint and the FreeInk SDK — the fork only
 
 ```
 ┌─ CrossLight (this fork) ───────────────────────────────┐
-│  Bible reader · Memory Work · Bible Numbers            │
+│  Bible reader · Memory Work · Bible Numbers/Calendar   │
 │  Utilities: calculator · flashlight · unit converter   │
-│  Wi-Fi/BLE analysis (passive; active = dormant/gated)  │
+│  Claude Panel · Ask Claude · Bible Passage Q&A         │
+│  Wi-Fi/BLE analysis (passive by default; active=gated) │
 ├─ CrossPoint reader core (upstream, merged & tracked) ──┤
 │  EPUB/TXT/XTC · library · wireless · themes · OTA      │
 ├─ freeink-sdk (HAL · display · radio · TLS · fonts) ────┤
@@ -166,10 +183,13 @@ pio run -e simulator_x4_pro          # config lives in gitignored platformio.loc
 <br>
 
 Pure logic (Bible parsing, number-study loading, Wi-Fi/BLE frame parsing, conversions) is covered by
-a GoogleTest suite that runs on the host:
+a GoogleTest suite that runs on the host. Needs the `freeink-sdk` submodule checked out (see the
+firmware build above):
 
 ```sh
-cd test/build && cmake .. && cmake --build . -j4 && ctest
+cmake -S test -B build/test -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/test
+ctest --test-dir build/test --output-on-failure -j
 ```
 
 </details>
@@ -179,11 +199,12 @@ cd test/build && cmake .. && cmake --build . -j4 && ctest
 ## About the Wi-Fi/BLE toolkit
 
 This is personal security-research tooling for **my own hardware**, in the Hak5 / DEFCON spirit — the
-same way an SDR or a Hak5 device is lawful to own and use on gear you control. The shipped tools are
-**passive / receive-only** (scanning, fingerprinting, capture) and legally unambiguous. Any
-active/transmit capability is gated two ways: compiled out of public release builds entirely, and
-scoped to equipment I own — never shared, campus, or other people's networks. Signature/OUI data is
-verified against primary sources, never fabricated.
+same way an SDR or a Hak5 device is lawful to own and use on gear you control. Only **Wi-Fi
+Analyzer** and **Bluetooth Scanner** — passive, receive-only, legally unambiguous — show up in the
+menu by default. Everything else (evil-twin, beacon flood, PCAP/EAPOL/PMKID capture, the camera
+scanner) is paused as active development: still compiled in, but hidden behind an empty
+`/offensive/enabled` flag file on the SD card, and scoped to equipment I own — never shared, campus,
+or other people's networks. Signature/OUI data is verified against primary sources, never fabricated.
 
 ---
 
@@ -194,7 +215,8 @@ verified against primary sources, never fabricated.
 | `src/activities/bible/` | Bible reader, Memory Work, Numbers UI |
 | `src/bible/` | Bible data engines (SD-backed, host-tested) |
 | `src/activities/utilities/` + `src/utilities/` | Utility tiles + the registry |
-| `src/wifiaudit/`, `src/bleaudit/` | Passive Wi-Fi/BLE toolkit |
+| `src/claude/` | Shared Claude HTTP/auth client, used by all three Claude-powered tools |
+| `src/wifiaudit/`, `src/bleaudit/`, `src/offensive/` | Wi-Fi/BLE toolkit — passive (always on) and active (SD-flag gated) |
 | `freeink-sdk/` | Upstream HAL/display/radio SDK (submodule) |
 | `PLAN.md` | Living design doc — read this first |
 
