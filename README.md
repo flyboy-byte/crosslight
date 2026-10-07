@@ -91,7 +91,7 @@ Honest status — what's been run on real hardware, versus what builds clean but
 | ✅ | **Claude Panel + Ask Claude** | **Confirmed working on real hardware** (26.10.9) — usage fetch and free-prompt Q&A both tested end-to-end over the real device's Wi-Fi. |
 | 🚧 | **Bible Passage Q&A** | Shares the same Claude client as the two above; its TLS handshake is confirmed on-device, but the full ask-a-verse flow hasn't been independently re-tested since the last model swap. |
 | ✅ | **Calculator** | Shipped on-device. (An operator-on-display fix is built and waiting for the next release.) |
-| 🚧 | **Flashlight + unit converter** | Built; green on host tests, simulator, and the device build. **Not yet flashed / tested on hardware.** |
+| ✅ | **Flashlight + unit converter** | Shipped and in use on-device. |
 | 🚧 | **Passive Wi-Fi/BLE scanners** | Wi-Fi Analyzer and Bluetooth Scanner, on by default. BLE fingerprinting needs `signatures.json` on the SD card to label anything, and full RF/SD-write correctness isn't exhaustively verified yet. |
 | 🚧 | **Active/transmit toolkit** | Evil-twin, beacon flood, PCAP/EAPOL/PMKID capture, the Flock/camera scanner — compiled in, but **hidden from the menu** unless the SD card has an empty `/offensive/enabled` flag file. Paused as active development, kept working. |
 
