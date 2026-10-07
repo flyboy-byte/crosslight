@@ -76,17 +76,18 @@ void AskClaudeActivity::sendQuestion(const std::string& question) {
     return;
   }
   WiFi.mode(WIFI_STA);
-  startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
-                         [this](const ActivityResult& result) {
-                           if (result.isCancelled) {
-                             RenderLock lock(*this);
-                             state = State::Menu;
-                             statusLine = tr(STR_WIFI_CONN_FAILED);
-                             requestUpdate();
-                             return;
-                           }
-                           doAsk();
-                         });
+  startActivityForResult(
+      std::make_unique<WifiSelectionActivity>(renderer, mappedInput, /*autoConnect=*/true, /*quiet=*/true),
+      [this](const ActivityResult& result) {
+        if (result.isCancelled) {
+          RenderLock lock(*this);
+          state = State::Menu;
+          statusLine = tr(STR_WIFI_CONN_FAILED);
+          requestUpdate();
+          return;
+        }
+        doAsk();
+      });
 }
 
 void AskClaudeActivity::doAsk() {

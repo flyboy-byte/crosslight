@@ -85,6 +85,15 @@ class WifiSelectionActivity final : public Activity, private UiAppHost {
   // Whether to attempt auto-connect on entry
   const bool allowAutoConnect;
 
+  // Whether to suppress all rendering while trying saved networks, so the
+  // caller's own last-drawn frame stays on screen instead of flashing this
+  // activity's scanning/connecting UI. Only meaningful alongside
+  // allowAutoConnect; cleared (falls back to normal rendering) the moment a
+  // saved-network attempt genuinely needs the user (no saved network left to
+  // try, or the user long-presses Confirm to see the list early).
+  const bool quiet;
+  bool suppressRender = false;
+
   // Whether we are attempting to auto-connect or auto-scan saved networks.
   bool autoConnecting = false;
 
@@ -141,7 +150,13 @@ class WifiSelectionActivity final : public Activity, private UiAppHost {
   void onComplete(bool connected);
 
  public:
-  explicit WifiSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool autoConnect = true);
+  // `quiet`: if true, and a saved network exists to try, no screen is drawn
+  // while auto-connect attempts run in the background — the caller's own
+  // current frame stays visible. Falls back to the normal visible flow the
+  // moment background attempts are exhausted (or there's nothing saved to
+  // try in the first place).
+  explicit WifiSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool autoConnect = true,
+                                 bool quiet = false);
   void onEnter() override;
   void onExit() override;
   void loop() override;

@@ -31,8 +31,9 @@ void ClaudePanelActivity::onEnter() {
     return;
   }
   WiFi.mode(WIFI_STA);
-  startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
-                         [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
+  startActivityForResult(
+      std::make_unique<WifiSelectionActivity>(renderer, mappedInput, /*autoConnect=*/true, /*quiet=*/true),
+      [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
 }
 
 void ClaudePanelActivity::onExit() {

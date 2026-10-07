@@ -79,10 +79,17 @@ void OtaUpdateActivity::onEnter() {
   LOG_DBG("OTA", "Turning on WiFi...");
   WiFi.mode(WIFI_STA);
 
-  // Launch WiFi selection subactivity
+  // Show a status line right away so a quiet (non-rendering) auto-connect
+  // attempt below doesn't leave a blank/stale screen on top of this activity.
+  state = CHECKING_FOR_UPDATE;
+  requestUpdate();
+
+  // Launch WiFi selection subactivity. Quiet: if a saved network connects,
+  // skip straight to the update check without ever showing the WiFi picker.
   LOG_DBG("OTA", "Launching WifiSelectionActivity...");
-  startActivityForResult(std::make_unique<WifiSelectionActivity>(renderer, mappedInput),
-                         [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
+  startActivityForResult(
+      std::make_unique<WifiSelectionActivity>(renderer, mappedInput, /*autoConnect=*/true, /*quiet=*/true),
+      [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
 }
 
 void OtaUpdateActivity::onExit() {

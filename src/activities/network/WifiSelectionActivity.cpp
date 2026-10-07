@@ -27,8 +27,11 @@ constexpr fui::ActionId ACTION_PROMPT = 3;
 }  // namespace
 
 WifiSelectionActivity::WifiSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                             const bool autoConnect)
-    : Activity("WifiSelection", renderer, mappedInput), UiAppHost(renderer), allowAutoConnect(autoConnect) {}
+                                             const bool autoConnect, const bool quiet)
+    : Activity("WifiSelection", renderer, mappedInput),
+      UiAppHost(renderer),
+      allowAutoConnect(autoConnect),
+      quiet(quiet) {}
 
 void WifiSelectionActivity::onRowEvent(const fui::ActionEvent& event, void* user) {
   auto* self = static_cast<WifiSelectionActivity*>(user);
@@ -116,6 +119,9 @@ void WifiSelectionActivity::onEnter() {
   autoAttemptedSsids.clear();
   const size_t savedCredentialCount = WIFI_STORE.getCredentialCount();
   autoAttemptedSsids.reserve(savedCredentialCount);
+  // Nothing to try quietly without a saved network — don't suppress in that
+  // case, so the normal scanning UI still shows right away.
+  suppressRender = quiet && allowAutoConnect && savedCredentialCount != 0;
 
   // Read the hardware-derived station MAC directly. WiFi.macAddress() depends
   // on the STA netif already existing, but this screen is entered while WiFi
@@ -267,6 +273,7 @@ void WifiSelectionActivity::processWifiScanResults() {
   }
 
   autoConnecting = false;
+  suppressRender = false;  // exhausted every saved network - the user needs to pick one
   state = WifiSelectionState::NETWORK_LIST;
   selectedNetworkIndex = 0;
   requestUpdate();
@@ -432,6 +439,7 @@ void WifiSelectionActivity::handleAutoConnectFailure() {
       return;
     }
     autoConnecting = false;
+    suppressRender = false;  // exhausted every saved network - the user needs to pick one
     state = WifiSelectionState::NETWORK_LIST;
     selectedNetworkIndex = 0;
     requestUpdate();
@@ -445,6 +453,7 @@ void WifiSelectionActivity::showNetworkListFromAutoConnect() {
   LOG_DBG("WIFI", "User requested manual network list");
   WiFi.disconnect();
   autoConnecting = false;
+  suppressRender = false;  // user explicitly asked to see the list
   manualNetworkListRequested = true;
 
   if (networks.empty()) {
@@ -838,6 +847,13 @@ std::string WifiSelectionActivity::getSignalStrengthIndicator(const int32_t rssi
 }
 
 void WifiSelectionActivity::render(RenderLock&&) {
+  // Quiet background auto-connect: leave the caller's own last-drawn frame
+  // untouched until a saved-network attempt genuinely needs the user (see
+  // the three places that clear suppressRender).
+  if (suppressRender) {
+    return;
+  }
+
   // Don't render if we're in a keyboard-entry state - we're just transitioning
   // from the keyboard subactivity back to the main activity
   if (state == WifiSelectionState::PASSWORD_ENTRY || state == WifiSelectionState::HIDDEN_SSID_ENTRY) {
