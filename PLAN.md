@@ -1,11 +1,22 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-06)
+## ▶ RESUME HERE (anchor, 2026-10-07)
 
 **Working tree clean, everything committed and pushed** — both `crosslight` (main repo,
 `fork/crosslight`) and `crosslight-simulator` (`origin/main`). Latest firmware commit
-`fd337976`. Latest release: **26.10.9**
-(https://github.com/flyboy-byte/crosslight/releases/tag/26.10.9).
+`563d8018`. Latest release: **26.10.10**
+(https://github.com/flyboy-byte/crosslight/releases/tag/26.10.10).
+
+**2026-10-07: quiet Wi-Fi auto-connect.** `WifiSelectionActivity` already tried the last-used
+saved network, then every other saved network by signal strength, before falling back to the
+manual picker — but it always showed its own scanning/connecting screen while doing so. Added a
+`quiet` constructor flag: render() no-ops while a saved-network attempt is in flight, so the
+caller's own frame stays on screen; it's cleared (normal rendering resumes) the instant saved
+networks are exhausted or there's nothing saved to try. Wired into OTA update checks, Claude
+Panel, Ask Claude, and Bible Passage Q&A — they now join silently on a saved network and only
+show the Wi-Fi screen if none work. `OtaUpdateActivity` also gained a "Checking for update"
+status line it was previously missing during this window. No storage/UI changes, same fallback
+behavior as before when nothing's saved. Commit `563d8018`, release 26.10.10.
 
 **What happened across 2026-10-05 → 2026-10-06 (two sessions):**
 
