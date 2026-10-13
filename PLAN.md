@@ -2,7 +2,34 @@
 
 ## ▶ RESUME HERE (anchor, 2026-10-12)
 
-**Working tree clean on `crosslight`, not yet pushed.** Version bumped to **26.10.11** (unreleased).
+**Working tree clean on `crosslight`.** Version **26.10.12**.
+
+**2026-10-13 (same session, later): the VPS went live — switched from setInsecure() to a pinned
+CA, provisioned a real key, SD card now points at the real bridge.** `extraction`'s bridge is
+actually deployed now at `https://bridge.flyboybyte.com` (Let's Encrypt TLS, nginx in front),
+superseding the "not deployed yet" note below. Changes made once that was confirmed (not
+assumed — verified with `curl --resolve` + `openssl s_client` against the live endpoint,
+and the old local laptop-only `libre-bridge-server.service` found already masked by Logan,
+avoiding a double-poller against Abbott):
+- `LibreBridgeClient.cpp` now pins **ISRG Root X1** (Let's Encrypt's root, fetched directly
+  from `letsencrypt.org`, not hand-transcribed) via `setCACert()` instead of `setInsecure()` —
+  same reasoning `ClaudeClient` already uses: a bearer token carrying real medical data shouldn't
+  ride unverified TLS once the actual CA is known. Verified the live chain
+  (`leaf -> YE1 -> Root YE -> ISRG Root X2 -> ISRG Root X1`) terminates at that root.
+- Provisioned a dedicated `crosslight` key on the real deployment via extraction's
+  `tools/libre-keys add crosslight --show` (not the old local `cli.js` — that key was against
+  the now-masked local server and is void). Verified live with a real `curl` call before writing
+  it anywhere.
+- **SD card (`/run/media/.../libre/`) updated**: `url.txt` → `https://bridge.flyboybyte.com`,
+  `token.txt` → the new key. Card was physically handed over and accessed directly from this
+  laptop session.
+- An earlier stopgap (binding the old local bridge to the LAN so the e-reader could reach it
+  over home Wi-Fi) was attempted mid-session and correctly blocked by Claude Code's own safety
+  gate (exposing a local network service needs explicit sign-off) — moot now that the real VPS
+  exists; the override file created for it was removed again.
+- Both `x4pro` and `simulator_x4_pro` rebuilt clean with the pinned cert. **Still not verified by
+  actually opening the Glucose Monitor tile on the physical device** — the SD card is configured
+  and the API call works from this laptop, but the on-device path hasn't been watched yet.
 
 **2026-10-12: upstream rebase + Glucose Monitor utility.**
 
