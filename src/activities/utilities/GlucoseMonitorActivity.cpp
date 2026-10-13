@@ -144,17 +144,21 @@ void GlucoseMonitorActivity::loop() {
 }
 
 const char* GlucoseMonitorActivity::trendArrow() const {
+  // Plain ASCII, not Unicode arrows: confirmed on real hardware (2026-10-13)
+  // that NOTOSERIF_14 -- the only font guaranteed present once -DOMIT_FONTS
+  // strips the rest for the release build -- has no glyphs for U+2191 etc.,
+  // so they rendered as missing-glyph boxes. ASCII is in every font's range.
   switch (reading.trend) {
     case libre::Trend::FallingFast:
-      return "\xe2\x86\x93\xe2\x86\x93";  // ↓↓
+      return "vv";
     case libre::Trend::Falling:
-      return "\xe2\x86\x93";  // ↓
+      return "v";
     case libre::Trend::Steady:
-      return "\xe2\x86\x92";  // →
+      return "-";
     case libre::Trend::Rising:
-      return "\xe2\x86\x91";  // ↑
+      return "^";
     case libre::Trend::RisingFast:
-      return "\xe2\x86\x91\xe2\x86\x91";  // ↑↑
+      return "^^";
     default:
       return "";
   }
@@ -209,18 +213,18 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
     if (showNumber) {
       char valText[16];
       snprintf(valText, sizeof(valText), "%d", reading.value);
-      renderer.drawText(NOTOSANS_18_FONT_ID, pad, y, valText, true, EpdFontFamily::BOLD);
-      const int valW = renderer.getTextWidth(NOTOSANS_18_FONT_ID, valText);
+      renderer.drawText(NOTOSERIF_14_FONT_ID, pad, y, valText, true, EpdFontFamily::BOLD);
+      const int valW = renderer.getTextWidth(NOTOSERIF_14_FONT_ID, valText);
       const int unitX = pad + valW + 12;
       renderer.drawText(UI_12_FONT_ID, unitX, y + 6, reading.unit.c_str());
       const char* arrow = trendArrow();
       if (arrow[0] != '\0') {
-        renderer.drawText(NOTOSANS_18_FONT_ID, pageWidth - pad - 60, y, arrow, true, EpdFontFamily::BOLD);
+        renderer.drawText(NOTOSERIF_14_FONT_ID, pageWidth - pad - 60, y, arrow, true, EpdFontFamily::BOLD);
       }
-      y += renderer.getLineHeight(NOTOSANS_18_FONT_ID) + 16;
+      y += renderer.getLineHeight(NOTOSERIF_14_FONT_ID) + 16;
     } else {
-      renderer.drawText(NOTOSANS_18_FONT_ID, pad, y, statusText().c_str(), true, EpdFontFamily::BOLD);
-      y += renderer.getLineHeight(NOTOSANS_18_FONT_ID) + 16;
+      renderer.drawText(NOTOSERIF_14_FONT_ID, pad, y, statusText().c_str(), true, EpdFontFamily::BOLD);
+      y += renderer.getLineHeight(NOTOSERIF_14_FONT_ID) + 16;
     }
     if (showNumber) renderer.drawText(UI_10_FONT_ID, pad, y, statusText().c_str());
     y += lineH + 32;

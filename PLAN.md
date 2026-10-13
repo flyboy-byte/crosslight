@@ -2,7 +2,47 @@
 
 ## ▶ RESUME HERE (anchor, 2026-10-12)
 
-**Working tree clean on `crosslight`.** Version **26.10.12**.
+**Working tree clean on `crosslight`.** Version **26.10.13**.
+
+**2026-10-13 (same session, later still): real hardware test found a genuine rendering bug —
+fixed, and actually confirmed end-to-end this time, not just "both builds succeed."** Logan
+flashed 26.10.12, opened Glucose Monitor, and sent a photo: garbled overlapping text, no number
+visible. Root cause, confirmed by reading `GfxRenderer::getLineHeight()` directly
+(`lib/GfxRenderer/GfxRenderer.cpp:2212`): it returns **0** for an unregistered font ID instead of
+erroring loudly. `GlucoseMonitorActivity` used `NOTOSANS_18_FONT_ID` for the big number, but the
+`x4pro` release build sets `-DOMIT_FONTS` (`platformio.ini:403`, saves ~1.57MB flash), which skips
+registering every Noto Sans size and every Noto Serif size except 14pt (`src/main.cpp:412-421`).
+So on real hardware `getLineHeight()` returned 0 for every draw call, `y` only ever advanced by
+the fixed `+16` padding, and every line stacked almost exactly on top of the last — exactly the
+photo. **The `simulator_x4_pro` env doesn't set `-DOMIT_FONTS`, so this was invisible there** —
+"both builds succeed" was never going to catch it; only a font-registration check or a real
+on-device/OMIT_FONTS-matched render would have.
+
+Fixes:
+1. Swapped `NOTOSANS_18_FONT_ID` → `NOTOSERIF_14_FONT_ID` (the only non-UI font registered
+   unconditionally, `src/main.cpp:411`) everywhere in `GlucoseMonitorActivity::render()`.
+2. While verifying the fix (see below), found a second real bug: the trend arrows
+   (`trendArrow()`) used Unicode arrow glyphs (U+2191 etc.) that render as missing-glyph "tofu"
+   boxes — the built-in font's actual embedded glyph set doesn't cover that block (the *general*
+   SD-font converter's interval list claims arrows are included, but the separately-built built-in
+   font clearly doesn't carry them — trusted the rendered pixels over the script comment).
+   Switched to plain ASCII (`^^ ^ - v vv`), which is guaranteed present in any font's Basic Latin
+   range.
+
+**This time actually verified with a real render, not just a clean build** — the earlier gap this
+whole bug exposed. Used the scripted-simulator-QA flow (`CROSSPOINT_SIM_INPUT_SCRIPT` +
+`CROSSPOINT_SIM_SCREENSHOTS`, see below) to navigate Home → Utilities → Glucose Monitor,
+connect the simulator's fake Wi-Fi, and — since the simulator is a native process with a real
+network stack — pointed `fs_/libre/{url,token}.txt` at the **real live bridge** and got back an
+actual reading (143 mg/dL, falling fast, rendered as `143 mg/dL` / `vv` / `1 min ago`, no overlap,
+no tofu). Test credentials removed from `fs_/` afterward (gitignored, but still a real bearer key,
+not left lying around).
+
+Shipped as **26.10.13**.
+
+**Process note for next time:** a new UI screen using anything other than `UI_10`/`UI_12`/
+`NOTOSERIF_14` needs either an actual on-device check or a simulator build with `-DOMIT_FONTS`
+added — "the simulator build succeeded" is not evidence the font exists in the release build.
 
 **2026-10-13 (same session, later): the VPS went live — switched from setInsecure() to a pinned
 CA, provisioned a real key, SD card now points at the real bridge.** `extraction`'s bridge is
