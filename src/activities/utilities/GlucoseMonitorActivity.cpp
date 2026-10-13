@@ -1,0 +1,233 @@
+#include "GlucoseMonitorActivity.h"
+
+#include <GfxRenderer.h>
+#include <I18n.h>
+#include <Logging.h>
+#include <WiFi.h>
+
+#include <algorithm>
+#include <cstdio>
+
+#include "MappedInputManager.h"
+#include "SilentRestart.h"
+#include "activities/network/WifiSelectionActivity.h"
+#include "components/UITheme.h"
+#include "fontIds.h"
+
+namespace {
+// Readings land about once a minute (agent-api.md "Etiquette and limits");
+// polling faster buys nothing, so this is both the auto-refresh period and
+// the floor -- there is no separate "fast" mode to pick between.
+constexpr uint32_t kAutoIntervalMs = 60000;
+}  // namespace
+
+GlucoseMonitorActivity::GlucoseMonitorActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
+    : Activity("GlucoseMonitor", renderer, mappedInput) {}
+
+void GlucoseMonitorActivity::onEnter() {
+  Activity::onEnter();
+  statusLine = tr(STR_GLUCOSE_CHECKING);
+  requestUpdate();
+  if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
+    onWifiSelectionComplete(true);
+    return;
+  }
+  WiFi.mode(WIFI_STA);
+  startActivityForResult(
+      std::make_unique<WifiSelectionActivity>(renderer, mappedInput, /*autoConnect=*/true, /*quiet=*/true),
+      [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
+}
+
+void GlucoseMonitorActivity::onExit() {
+  Activity::onExit();
+  // Same radio teardown as ClaudePanelActivity: TLS leaves the heap too
+  // fragmented to keep running, so a silent restart reclaims it.
+  if (WiFi.getMode() != WIFI_MODE_NULL) {
+    WiFi.disconnect(false);
+    delay(30);
+    silentRestart();
+  }
+}
+
+void GlucoseMonitorActivity::onWifiSelectionComplete(const bool ok) {
+  connected = ok;
+  if (!ok) {
+    RenderLock lock(*this);
+    statusLine = tr(STR_WIFI_CONN_FAILED);
+    requestUpdate();
+    return;
+  }
+  refresh();
+}
+
+void GlucoseMonitorActivity::refresh() {
+  if (WiFi.status() != WL_CONNECTED) {
+    RenderLock lock(*this);
+    statusLine = tr(STR_GLUCOSE_NO_WIFI);
+    stale = haveReading;
+    lastFetchMs = millis();
+    requestUpdate();
+    return;
+  }
+  {
+    RenderLock lock(*this);
+    statusLine = tr(STR_GLUCOSE_CHECKING);
+  }
+  requestUpdateAndWait();
+  const libre::FetchResult r = libre::fetchLatest();
+  RenderLock lock(*this);
+  lastFetchMs = millis();
+  switch (r.error) {
+    case libre::Error::Ok:
+      reading = r.reading;
+      haveReading = true;
+      stale = false;
+      statusLine.clear();
+      break;
+    case libre::Error::NoConfig:
+      statusLine = tr(STR_GLUCOSE_NO_CONFIG);
+      stale = haveReading;
+      break;
+    case libre::Error::Unauthorized:
+      statusLine = tr(STR_GLUCOSE_TOKEN_REJECTED);
+      stale = haveReading;
+      // Never auto-retry a rejected key (agent-api.md: 10 bad-key requests
+      // in 10 min locks out the whole IP for 15 min). A manual Confirm press
+      // after the owner fixes the key on the SD card is a new, deliberate
+      // attempt, not a retry -- that path still calls refresh().
+      stopped = true;
+      break;
+    case libre::Error::LowMemory:
+      statusLine = tr(STR_GLUCOSE_LOW_MEMORY);
+      stale = haveReading;
+      break;
+    case libre::Error::NoData:
+      statusLine = tr(STR_GLUCOSE_NO_DATA);
+      stale = haveReading;
+      break;
+    default:
+      statusLine = tr(STR_GLUCOSE_REQUEST_FAILED);
+      stale = haveReading;
+      break;
+  }
+  requestUpdate();
+}
+
+void GlucoseMonitorActivity::loop() {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    finish();
+    return;
+  }
+  if (!connected) return;
+
+  bool doRefresh = mappedInput.wasReleased(MappedInputManager::Button::Confirm);
+  bool toggle = mappedInput.wasReleased(MappedInputManager::Button::Left);
+  int x = 0;
+  int y = 0;
+  if (mappedInput.wasScreenTapped(x, y)) {
+    const auto& metrics = UITheme::getInstance().getMetrics();
+    if (y < metrics.topPadding + metrics.headerHeight + 48) {
+      toggle = true;
+    } else {
+      doRefresh = true;
+    }
+  }
+  if (doRefresh) stopped = false;  // an explicit tap/Confirm is a deliberate retry, not an automatic one
+  if (toggle) {
+    autoRefresh = !autoRefresh;
+    lastFetchMs = millis();
+    RenderLock lock(*this);
+    requestUpdate();
+    return;
+  }
+  if (doRefresh || (autoRefresh && !stopped && millis() - lastFetchMs >= kAutoIntervalMs)) refresh();
+}
+
+const char* GlucoseMonitorActivity::trendArrow() const {
+  switch (reading.trend) {
+    case libre::Trend::FallingFast:
+      return "\xe2\x86\x93\xe2\x86\x93";  // ↓↓
+    case libre::Trend::Falling:
+      return "\xe2\x86\x93";  // ↓
+    case libre::Trend::Steady:
+      return "\xe2\x86\x92";  // →
+    case libre::Trend::Rising:
+      return "\xe2\x86\x91";  // ↑
+    case libre::Trend::RisingFast:
+      return "\xe2\x86\x91\xe2\x86\x91";  // ↑↑
+    default:
+      return "";
+  }
+}
+
+std::string GlucoseMonitorActivity::statusText() const {
+  char buf[48];
+  switch (reading.status) {
+    case libre::ReadingStatus::High:
+      return tr(STR_GLUCOSE_STATUS_HIGH);
+    case libre::ReadingStatus::Low:
+      return tr(STR_GLUCOSE_STATUS_LOW);
+    case libre::ReadingStatus::Unavailable:
+      return tr(STR_GLUCOSE_STATUS_UNAVAILABLE);
+    case libre::ReadingStatus::Stale:
+    case libre::ReadingStatus::Ok:
+      if (reading.ageS < 60) {
+        snprintf(buf, sizeof(buf), tr(STR_GLUCOSE_AGE_SEC_AGO), reading.ageS);
+      } else {
+        snprintf(buf, sizeof(buf), tr(STR_GLUCOSE_AGE_MIN_AGO), reading.ageS / 60);
+      }
+      if (reading.status == libre::ReadingStatus::Stale) {
+        return std::string(tr(STR_GLUCOSE_STATUS_STALE)) + " \xc2\xb7 " + buf;  // "Stale · %d min ago"
+      }
+      return buf;
+  }
+  return "";
+}
+
+void GlucoseMonitorActivity::render(RenderLock&&) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  const int pad = metrics.contentSidePadding;
+  const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
+
+  renderer.clearScreen();
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_GLUCOSE_MONITOR));
+
+  int y = metrics.topPadding + metrics.headerHeight + 12;
+  const char* modeText = I18n::getInstance().get(autoRefresh ? StrId::STR_GLUCOSE_AUTO_60S : StrId::STR_GLUCOSE_MANUAL);
+  std::string chip = std::string(tr(STR_GLUCOSE_MODE_HINT)) + ": " + modeText;
+  renderer.drawText(UI_10_FONT_ID, pad, y, chip.c_str());
+  y += lineH + 40;
+
+  // Values that show HI/LO/no-number states (agent-api.md "Status") never
+  // render a number -- only OK/STALE carry one, and STALE must read as old,
+  // not current.
+  if (haveReading) {
+    const bool showNumber =
+        reading.status == libre::ReadingStatus::Ok || reading.status == libre::ReadingStatus::Stale;
+    if (showNumber) {
+      char valText[16];
+      snprintf(valText, sizeof(valText), "%d", reading.value);
+      renderer.drawText(NOTOSANS_18_FONT_ID, pad, y, valText, true, EpdFontFamily::BOLD);
+      const int valW = renderer.getTextWidth(NOTOSANS_18_FONT_ID, valText);
+      const int unitX = pad + valW + 12;
+      renderer.drawText(UI_12_FONT_ID, unitX, y + 6, reading.unit.c_str());
+      const char* arrow = trendArrow();
+      if (arrow[0] != '\0') {
+        renderer.drawText(NOTOSANS_18_FONT_ID, pageWidth - pad - 60, y, arrow, true, EpdFontFamily::BOLD);
+      }
+      y += renderer.getLineHeight(NOTOSANS_18_FONT_ID) + 16;
+    } else {
+      renderer.drawText(NOTOSANS_18_FONT_ID, pad, y, statusText().c_str(), true, EpdFontFamily::BOLD);
+      y += renderer.getLineHeight(NOTOSANS_18_FONT_ID) + 16;
+    }
+    if (showNumber) renderer.drawText(UI_10_FONT_ID, pad, y, statusText().c_str());
+    y += lineH + 32;
+  }
+  if (!statusLine.empty()) renderer.drawText(UI_10_FONT_ID, pad, std::min(y, pageHeight - 120), statusLine.c_str());
+
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_GLUCOSE_REFRESH), tr(STR_GLUCOSE_MODE_HINT), "");
+  GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+}

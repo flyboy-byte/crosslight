@@ -149,7 +149,8 @@ enum UIIcon {
   Blocks,
   Flashlight,
   Calculator,
-  Convert
+  Convert,
+  Droplet
 };
 
 // Default theme implementation (Classic Theme)

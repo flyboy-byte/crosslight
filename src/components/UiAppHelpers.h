@@ -115,6 +115,8 @@ inline freeink::ui::BitmapRef listIconFor(const UIIcon icon, const int size = 24
         return freeink::ui::bitmapFromIcon(icon_calculator_32);
       case UIIcon::Convert:
         return freeink::ui::bitmapFromIcon(icon_arrow_left_right_32);
+      case UIIcon::Droplet:
+        return freeink::ui::bitmapFromIcon(icon_droplet_32);
       default:
         return {};
     }
@@ -150,6 +152,8 @@ inline freeink::ui::BitmapRef listIconFor(const UIIcon icon, const int size = 24
       return freeink::ui::bitmapFromIcon(icon_calculator_24);
     case UIIcon::Convert:
       return freeink::ui::bitmapFromIcon(icon_arrow_left_right_24);
+    case UIIcon::Droplet:
+      return freeink::ui::bitmapFromIcon(icon_droplet_24);
     default:
       return {};
   }

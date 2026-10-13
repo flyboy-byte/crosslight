@@ -2,11 +2,12 @@
 
 #include <HalStorage.h>
 
-#include "activities/utilities/BleScanActivity.h"
 #include "activities/utilities/AskClaudeActivity.h"
+#include "activities/utilities/BleScanActivity.h"
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/ClaudePanelActivity.h"
 #include "activities/utilities/FlashlightActivity.h"
+#include "activities/utilities/GlucoseMonitorActivity.h"
 #include "activities/utilities/UnitConverterActivity.h"
 #include "activities/utilities/WifiScanActivity.h"
 // Offensive / radio-audit tools live in src/offensive and are hidden by
@@ -46,6 +47,10 @@ const std::vector<Utility> kGeneral = {
     {StrId::STR_ASK_CLAUDE, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<AskClaudeActivity>(renderer, mappedInput);
+     }},
+    {StrId::STR_GLUCOSE_MONITOR, Droplet,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<GlucoseMonitorActivity>(renderer, mappedInput);
      }},
     {StrId::STR_WIFI_SCAN, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {

@@ -1,11 +1,57 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-07)
+## ▶ RESUME HERE (anchor, 2026-10-12)
 
-**Working tree clean, everything committed and pushed** — both `crosslight` (main repo,
-`fork/crosslight`) and `crosslight-simulator` (`origin/main`). Latest firmware commit
-`563d8018`. Latest release: **26.10.10**
-(https://github.com/flyboy-byte/crosslight/releases/tag/26.10.10).
+**Working tree clean on `crosslight`, not yet pushed.** Version bumped to **26.10.11** (unreleased).
+
+**2026-10-12: upstream rebase + Glucose Monitor utility.**
+
+1. **Rebased onto upstream.** Fast-forwarded `develop` 23 commits (swipe-to-delete, clippings/
+   highlighting, OPDS error surfacing, KOSync server profiles, JPEG viewer, Azerbaijani
+   translation, agent-guideline restructure into `.agents/`, and more), then merged `develop`
+   into `crosslight`. Four conflicts, all additive (CrossLight and upstream had each added
+   different new entries to the same list/enum/variant) — resolved by keeping both sides:
+   `ActivityResult.h`'s `ResultVariant`, `listIcons.manifest`/`listIcons.h` (regenerated from the
+   merged manifest rather than hand-merged, since it's generated binary icon data), and
+   `english.yaml`'s new string blocks. `freeink-sdk` submodule updated to the newly-pinned
+   revision (`git submodule update --init`) before rebuilding. Both `x4pro` and
+   `simulator_x4_pro` build clean post-merge.
+2. **Glucose Monitor utility (new).** A CrossLight-side client for Logan's own Libre bridge
+   project (`~/projects/extraction`, a separate personal VPS project — see its
+   `docs/agent-api.md` for the full API contract this mirrors exactly: GET-only, bearer key,
+   `status` of `OK|HIGH|LOW|STALE|UNAVAILABLE` never turned into a fabricated number). New files:
+   `src/libre/LibreBridgeClient.{h,cpp}` (the HTTP client, modeled on `src/claude/ClaudeClient.cpp`
+   — same low-memory guard, same `setInsecure()` precedent since the bridge's VPS cert isn't
+   known yet) and `src/activities/utilities/GlucoseMonitorActivity.{h,cpp}` (modeled on
+   `ClaudePanelActivity`: quiet Wi-Fi auto-connect on entry, foreground-only radio, auto-refresh
+   defaults ON at 60s since readings arrive about once a minute anyway and there's no quota to
+   protect). New `Droplet` `UIIcon` (Lucide `droplet`, added to `listIcons.manifest` +
+   regenerated). Registered as one line in `UtilityRegistry.cpp`, same "costs nothing until
+   opened" shape as every other utility tile.
+   - **Config lives on the SD card**, not hardcoded: `/libre/url.txt` (bridge base URL) and
+     `/libre/token.txt` (bearer key) — same pattern as `/claude/token.txt`. Needed because,
+     unlike `api.anthropic.com`, the bridge's own VPS deploy is **not done yet** (extraction's
+     `PLAN.md` as of 2026-10-12: "VPS deploy files written but untested"). Shipping this way lets
+     the firmware release now; the device will just show "not set up" until the VPS is live and
+     the two files are dropped on the card — no second firmware release needed for that part.
+   - **On 401, auto-refresh stops** (not retried) per the bridge's own etiquette rule (10 bad
+     keys/10 min locks out the whole IP for 15 min) — a manual Confirm press or tap still retries,
+     since that's a deliberate action, not a loop.
+   - Not yet hardware-tested (no VPS to test against yet); both builds green.
+3. **Deferred idea, not started:** a way to quickly build CrossLight with different feature
+   flags, or alternatively cut 3-4 distinct release flavors with different feature sets — see
+   "Backlog" below. Logan's explicit instruction: note it, don't build it yet.
+
+**Previous anchor (2026-10-07): quiet Wi-Fi auto-connect.** `WifiSelectionActivity` already tried
+the last-used saved network, then every other saved network by signal strength, before falling
+back to the manual picker — but it always showed its own scanning/connecting screen while doing
+so. Added a `quiet` constructor flag: render() no-ops while a saved-network attempt is in flight,
+so the caller's own frame stays on screen; it's cleared (normal rendering resumes) the instant
+saved networks are exhausted or there's nothing saved to try. Wired into OTA update checks, Claude
+Panel, Ask Claude, and Bible Passage Q&A — they now join silently on a saved network and only show
+the Wi-Fi screen if none work. `OtaUpdateActivity` also gained a "Checking for update" status line
+it was previously missing during this window. No storage/UI changes, same fallback behavior as
+before when nothing's saved. Commit `563d8018`, release 26.10.10.
 
 **2026-10-07: quiet Wi-Fi auto-connect.** `WifiSelectionActivity` already tried the last-used
 saved network, then every other saved network by signal strength, before falling back to the
@@ -1131,6 +1177,14 @@ deauth code was never compiled by this session — treat it as unverified if res
 and linker-wrap are the FRAGILE parts (closed-blob symbol, can break on an SDK bump).
 
 ## Backlog (queued 2026-10-01)
+
+**Idea, deferred — not started (2026-10-12):** a way to quickly build CrossLight with different
+feature flags, or alternatively cut 3-4 distinct full release flavors with different feature
+sets (e.g. a minimal reader-only build vs. one with the Bible suite vs. one with the Claude
+tools vs. "everything"). Came up alongside the Glucose Monitor utility as a way to keep flash
+usage and the SD-card-config surface area down for people who don't want every feature. **Logan's
+explicit call: write it down, don't build it.** Revisit once there's an actual pressure (flash
+budget, or wanting to hand a build to someone else) rather than speculatively.
 
 **26.10.1 test passed → kept building (easy utilities, Logan's pick 2026-10-01).** Shipped since 26.10.1,
 **unreleased, all on `crosslight`, host 542/542 + sim + device green:**
