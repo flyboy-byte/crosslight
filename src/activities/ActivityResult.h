@@ -40,6 +40,19 @@ struct PageResult {
   uint32_t page = 0;
 };
 
+struct ClippingResult {
+  enum class Action : uint8_t { Clip, Lookup, Bookmark };
+  Action action = Action::Clip;
+  std::string text;
+  uint16_t startPageOffset = 0;
+  uint16_t endPageOffset = 0;
+  uint16_t startWordIndex = 0;
+  uint16_t endWordIndex = 0;
+  uint16_t wordCount = 0;
+  uint32_t startOffset = UINT32_MAX;
+  uint32_t endOffset = UINT32_MAX;
+};
+
 struct ProgressChangeResult {
   int spineIndex = 0;
   int page = 0;
@@ -90,8 +103,8 @@ struct BibleVerseResult {
 
 using ResultVariant =
     std::variant<std::monostate, WifiResult, KeyboardResult, MenuResult, ChapterResult, PercentResult, IntervalResult,
-                 PageResult, ProgressChangeResult, NetworkModeResult, FootnoteResult, FilePathResult, BibleBookResult,
-                 BibleChapterResult, BibleBookmarkResult, BibleVerseResult>;
+                 PageResult, ClippingResult, ProgressChangeResult, NetworkModeResult, FootnoteResult, FilePathResult,
+                 BibleBookResult, BibleChapterResult, BibleBookmarkResult, BibleVerseResult>;
 
 struct ActivityResult {
   bool isCancelled = false;
