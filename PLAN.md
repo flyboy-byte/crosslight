@@ -404,6 +404,91 @@ the app slot only, never the partition table. That one needs a wired flash.
 First release: **26.9.1 (2026-09-24)**, which had to be installed by SD/USB because the firmware then
 on the device still pointed at upstream's feed.
 
+## Planned: Bluetooth glucose relay (scoped 2026-10-12, not started)
+
+Follow-up to the Glucose Monitor utility (26.10.11, Wi-Fi/VPS polling — see the resume anchor
+above). Logan asked to scope this against `~/projects/extraction`'s **planned** Android
+companion app (`docs/pinetime.md`, Phase B, **not started as of 2026-10-12**), which pushes
+glucose to a PineTime watch over a custom BLE GATT service. Question: could CrossLight receive
+the same push, as a second BLE target alongside the watch? Evidence tags match extraction's
+convention: `DOCUMENTED` = read in this tree this session, `INFERRED` = reasoned, `UNKNOWN` =
+needs a decision or a check.
+
+### Feasibility: yes, no new dependency
+
+`DOCUMENTED`: `h2zero/NimBLE-Arduino @ 2.5.1` is already a pinned dependency
+(`platformio.ini:194`), already linked into the firmware for two other roles —
+`src/bleaudit/BleScanner.cpp` (central/observer: passive scanning, `NimBLEScan`) and
+`src/offensive/BleSpoofer.cpp` (raw advertising frames for spoofing, `NimBLEAdvertising`). Neither
+is a **GATT server** (connectable peripheral): nothing in this codebase today uses
+`NimBLEServer`/`NimBLEService`/`NimBLECharacteristic`, but that's a standard, mature part of the
+same library already in the tree — this would be the first use of that role, not a new
+capability. ESP32-S3 BLE radio handles peripheral + central simultaneously without conflict.
+
+### Proposed design
+
+- **Reuse pinetime.md's "Data contract (companion -> watch)" table verbatim** — same packed
+  characteristic (`value_mgdl` uint16 with `0xFFFF` sentinel, `trend` uint8, `flags` bitfield for
+  HIGH/LOW/UNAVAILABLE, `reading_time` uint32 Unix UTC), written by the companion app about once a
+  minute. No reason for CrossLight to invent a second schema when the app will already produce
+  this one for the watch.
+- **CrossLight judges staleness itself from `reading_time` + its own clock, same 10-minute rule**
+  already implemented in `GlucoseMonitorActivity::statusText()` for the Wi-Fi path, and the same
+  rule documented in extraction's `docs/agent-api.md` and used by the laptop widget and the
+  (future) watch. One rule, now enforced independently in up to four places by design — each
+  receiver protects itself even if every other link in the chain is stale or dead, rather than
+  trusting the sender's timestamp blindly.
+- **Don't reuse InfiniTime's `SSSS0000-78fc-...` base UUID convention** — that's an InfiniTime-firmware
+  convention, and CrossLight isn't InfiniTime. Recommend extraction define one project-wide 128-bit
+  "glucose relay" service/characteristic UUID, used identically by every receiving device (watch,
+  CrossLight, anything added later). That keeps the companion app's BLE-write code device-agnostic:
+  "write this struct to whatever's bonded and advertising this service," not one code path per
+  device type. Belongs in extraction's docs (`agent-api.md` or a new BLE contract doc), not
+  invented independently here.
+- **Bonded connections only, not open/unauthenticated GATT writes.** NimBLE supports standard BLE
+  bonding; a stranger's phone must not be able to write a fake glucose number to the display. This
+  is someone's real medical data even over a short-range link — same spirit as the Wi-Fi path's
+  bearer-key requirement, adapted to what BLE itself already offers.
+- **Radio discipline matches everything else in Utilities, including the Wi-Fi path just shipped:**
+  GATT server + advertising only run while the Glucose Monitor screen is open, torn down on exit —
+  not a background always-advertising peripheral. This is the same "foreground-only, costs nothing
+  until opened" shape as `WifiSelectionActivity`'s quiet auto-connect and every other
+  `UtilityRegistry` tile; the motivating complaint for this whole feature line was background radio
+  draining the battery, so a BLE path can't quietly reintroduce that.
+- **Not a replacement for the Wi-Fi/VPS path** — the two are complementary acquisition modes behind
+  the same tile: Wi-Fi/VPS (shipped 26.10.11) works anywhere the bridge is reachable and needs no
+  phone nearby; BLE push needs the phone within range with the companion app running, but costs no
+  Wi-Fi radio time and works without the VPS being reachable from the e-reader's network. `UNKNOWN`
+  /open decision: whether to extend `GlucoseMonitorActivity`'s existing Manual/Auto-60s mode chip
+  into a three-way Wi-Fi/BLE/Auto chooser, or keep them as two separate tiles. Logan's call when
+  this gets built.
+- **Alert relay (vibration/buzz for HIGH/LOW): default no**, matching pinetime.md's identical open
+  question for the watch and `agent-api.md`'s house rule that the Libre app alone owns alarms. Worth
+  noting X4 Pro does have haptic hardware (`BoardConfig.h`'s `HapticConfig`/`hasHaptics()`,
+  `DOCUMENTED`) so this is a real option, not a hardware limitation — just not the default.
+
+### Why this can't be built yet
+
+The Android companion app it depends on **does not exist** — extraction's Phase B
+("Android companion MVP: reads our API, pairs over BLE, sets time, sends one Alert Notification")
+is not started as of 2026-10-12. CrossLight's BLE-receiver firmware code could be designed and
+even unit-tested against a synthetic packed characteristic before that app exists, but real
+end-to-end verification needs it, same chicken-and-egg as the watch's own Phase C gate. **Scoped
+only — nothing in this section is implemented.**
+
+### Open questions
+
+- Shared service/characteristic UUID: not yet defined anywhere (pinetime.md hasn't picked one
+  either, beyond noting InfiniTime's own base-UUID convention for its *own* service, which doesn't
+  apply here). Needs to be decided once either device's firmware work actually starts.
+- Allow-list / single-bond vs. re-pairable: should CrossLight accept writes from any bonded
+  device, or specifically remember "the" phone the way `WifiCredentialStore` remembers "the"
+  saved networks? Leaning toward the latter for consistency with the rest of the firmware's
+  config style, but not decided.
+- Mode-chooser UI (Wi-Fi vs. BLE vs. both) — see "Proposed design" above.
+- Gated on extraction's Phase B landing first; revisit this section once that app exists enough to
+  test against.
+
 ## Item 14: Camera scan (Flock/surveillance-device detector) — IN PROGRESS
 
 **State (2026-09-24 evening): all code written, pure logic host-tested (13/13), but the firmware
