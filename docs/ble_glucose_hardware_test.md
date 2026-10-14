@@ -1,10 +1,11 @@
 # BLE glucose relay: real-hardware test checklist
 
 Status: test not yet run. For verifying `LibreBleServer`/`GlucoseMonitorActivity`'s BLE path
-against a real BLE client (nRF Connect), independent of extraction's companion app — its BLE
-writer (Phase 3) isn't built yet, so this is the only way to exercise CrossLight's GATT server
-for real right now. Needs: the X4 Pro flashed with 26.10.14+, and nRF Connect for Mobile on a
-phone.
+against a real BLE client, independent of extraction's companion app — its BLE writer (Phase 3)
+isn't built yet, so this is the only way to exercise CrossLight's GATT server for real right now.
+Needs the X4 Pro flashed with 26.10.14+, and either **nRF Connect for Mobile on a phone** (below)
+or **the laptop itself** acting as the BLE central (`scripts/fake_phone_ble.py`, further down) —
+same reader, same contract, two different ways to write to it.
 
 Service `0c0cd14d-6582-46f7-91b6-b4cf2a7cebac`, characteristic `4e9715ab-ed4d-4a77-b8e7-f70fb5e26fc5`
 (frozen, extraction DECISIONS.md D-020). The characteristic requires a bonded link
@@ -81,6 +82,82 @@ Check in this order:
    changes?** Give it the full ~10 seconds (see "Write cases" above) before concluding anything's
    wrong. If it's still stuck after that, this is the actual bug to report — the GATT
    wiring/decoding has a real problem, not a test-setup mistake.
+
+## Laptop-side "fake phone" (no nRF Connect / no phone app needed)
+
+`scripts/fake_phone_ble.py` is the same idea as the nRF Connect section above, but runs as a BLE
+central directly from Logan's Arch laptop — useful for testing the reader before extraction's
+real companion app writer (Phase 3) exists, without needing a phone in hand.
+
+**Why BlueZ D-Bus, not `bleak`:** `bleak` was the first choice, but it isn't installed on this
+machine (`python3 -c "import bleak"` fails) — `pip list` shows `dbus-fast` (bleak's own Linux
+backend) already present, but not the `bleak` package itself. Nothing in this repo installs
+anything; the script instead uses `dbus-python`, which **is** already installed system-wide, to
+talk to BlueZ's own D-Bus GATT API directly. If `bleak` ever does get installed deliberately,
+this script doesn't need to change — it's a reasonable rewrite target then, not a requirement now.
+
+### Evidence tags (matches extraction's `DOCUMENTED`/`INFERRED`/`UNKNOWN` convention)
+
+- `DOCUMENTED`: the BlueZ D-Bus GATT API shape this script uses (`Device1.Connect()`,
+  `GattCharacteristic1.WriteValue(value, options)`, `ObjectManager.GetManagedObjects()`) — this is
+  BlueZ's own published D-Bus API, not guessed.
+- `INFERRED`: that pairing will be "Just Works" (no PIN/passkey prompt) against CrossLight's
+  `setSecurityAuth(bonding=true, mitm=false, sc=true)`. That's what those settings are supposed to
+  produce, but it hasn't been confirmed against this laptop's actual BlueZ agent behavior yet.
+- `UNKNOWN`: whether a `command`-type write (Write Without Response — what the real companion app
+  will actually use) surfaces a failure back through BlueZ's D-Bus call at all, or just succeeds
+  locally and drops silently on the air. This script defaults to `request`-type writes (`--write-
+  type request`) for exactly that reason — same call as nRF Connect's plain "Write," for a clear
+  pass/fail. Pass `--write-type command` deliberately if you want to test the production write
+  type's actual behavior, understanding that a silent failure is possible and wouldn't be this
+  script's fault.
+- **Not claimed to work** until Logan runs it against the real e-reader — this is the script as
+  written, not a report of a result.
+
+### Bonding the laptop with the e-reader (one-time, `DOCUMENTED` BlueZ flow)
+
+The script does **not** automate pairing — do this once via `bluetoothctl` first (the GATT
+characteristic requires a bonded link; an unpaired write will be rejected before CrossLight's own
+code ever runs):
+
+```
+bluetoothctl
+power on
+agent on
+default-agent
+scan on
+# wait for a line mentioning "CrossLight" (make sure the e-reader's Glucose
+# Monitor screen is open with the source set to Bluetooth first), note its
+# address, e.g. AA:BB:CC:DD:EE:FF
+scan off
+pair AA:BB:CC:DD:EE:FF
+trust AA:BB:CC:DD:EE:FF
+exit
+```
+
+If `pair` fails or hangs:
+
+- Make sure the adapter is pairable: `bluetoothctl pairable on` before `pair`.
+- A stale bond from an earlier flash can cause this (NimBLE's bond store lives in the ESP32's NVS
+  and gets wiped on some reflashes, but the laptop's half of the bond doesn't know that) — run
+  `bluetoothctl remove AA:BB:CC:DD:EE:FF`, then `pair` again from a clean state on both sides.
+- Confirm the Bluetooth service is actually running: `systemctl is-active bluetooth`.
+
+### Running it
+
+```
+python3 scripts/fake_phone_ble.py --value 140 --trend steady         # one fresh write
+python3 scripts/fake_phone_ble.py --value 260 --high                 # HIGH flag
+python3 scripts/fake_phone_ble.py --unavailable                      # UNAVAILABLE flag
+python3 scripts/fake_phone_ble.py --raw "E2 00 03 00 1F A1 CD 6A"    # extraction's exact test vector
+python3 scripts/fake_phone_ble.py --value 110 --loop                 # fresh write every 60s; Ctrl+C, then
+                                                                       # watch the reader age it out on its own
+```
+
+It looks up the bonded device by name (`CrossLight` by default; `--address` skips that and
+connects directly), waits for GATT service discovery to finish, then writes. Error messages are
+written to point at the likely fix (not bonded yet, bond gone stale, services not resolved) rather
+than just surfacing a raw D-Bus exception.
 
 ## When done
 
