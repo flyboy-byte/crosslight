@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <TrustedTime.h>
 #include <WiFi.h>
 
 #include <algorithm>
@@ -19,6 +20,13 @@ namespace {
 // polling faster buys nothing, so this is both the auto-refresh period and
 // the floor -- there is no separate "fast" mode to pick between.
 constexpr uint32_t kAutoIntervalMs = 60000;
+
+// BLE is a push, not a poll (crosslight/PLAN.md power design): a new write
+// redraws immediately, but staleness must also catch up on its own when the
+// companion stops writing entirely, so this re-derives the displayed status
+// from the wall clock at a modest cadence even with no new packet -- the
+// 10-minute cutoff doesn't need finer granularity than this.
+constexpr uint32_t kBleRecheckMs = 10000;
 }  // namespace
 
 GlucoseMonitorActivity::GlucoseMonitorActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -28,25 +36,68 @@ void GlucoseMonitorActivity::onEnter() {
   Activity::onEnter();
   statusLine = tr(STR_GLUCOSE_CHECKING);
   requestUpdate();
-  if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
-    onWifiSelectionComplete(true);
-    return;
-  }
-  WiFi.mode(WIFI_STA);
-  startActivityForResult(
-      std::make_unique<WifiSelectionActivity>(renderer, mappedInput, /*autoConnect=*/true, /*quiet=*/true),
-      [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
+  beginSource();
 }
 
 void GlucoseMonitorActivity::onExit() {
   Activity::onExit();
-  // Same radio teardown as ClaudePanelActivity: TLS leaves the heap too
-  // fragmented to keep running, so a silent restart reclaims it.
-  if (WiFi.getMode() != WIFI_MODE_NULL) {
-    WiFi.disconnect(false);
-    delay(30);
-    silentRestart();
+  endSource();
+}
+
+void GlucoseMonitorActivity::beginSource() {
+  if (source == Source::Wifi) {
+    if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
+      onWifiSelectionComplete(true);
+      return;
+    }
+    WiFi.mode(WIFI_STA);
+    startActivityForResult(
+        std::make_unique<WifiSelectionActivity>(renderer, mappedInput, /*autoConnect=*/true, /*quiet=*/true),
+        [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
+    return;
   }
+
+  // BLE: nothing to await like Wi-Fi association -- advertising starts (or
+  // doesn't, if there's no radio) and pollBle() drains whatever the
+  // companion writes from here on.
+  connected = true;
+  haveReading = false;
+  stale = false;
+  stopped = false;
+  lastBlePacket = libre::BlePacket{};
+  lastFetchMs = millis();
+  statusLine = bleServer.begin() ? tr(STR_GLUCOSE_BLE_WAITING) : tr(STR_GLUCOSE_BLE_NO_RADIO);
+  RenderLock lock(*this);
+  requestUpdate();
+}
+
+void GlucoseMonitorActivity::endSource() {
+  if (source == Source::Wifi) {
+    // Same radio teardown as ClaudePanelActivity: TLS leaves the heap too
+    // fragmented to keep running, so a silent restart reclaims it.
+    if (WiFi.getMode() != WIFI_MODE_NULL) {
+      WiFi.disconnect(false);
+      delay(30);
+      silentRestart();
+    }
+  } else {
+    bleServer.end();
+  }
+}
+
+void GlucoseMonitorActivity::switchSource(const Source next) {
+  if (next == source) return;
+  endSource();
+  source = next;
+  haveReading = false;
+  stale = false;
+  stopped = false;
+  {
+    RenderLock lock(*this);
+    statusLine = tr(STR_GLUCOSE_CHECKING);
+    requestUpdate();
+  }
+  beginSource();
 }
 
 void GlucoseMonitorActivity::onWifiSelectionComplete(const bool ok) {
@@ -118,7 +169,19 @@ void GlucoseMonitorActivity::loop() {
     finish();
     return;
   }
+  // Switching source must work even if the current one failed to connect
+  // (Wi-Fi join failure, or no BLE radio), so this runs before the
+  // `!connected` gate below.
+  if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
+    switchSource(source == Source::Wifi ? Source::Ble : Source::Wifi);
+    return;
+  }
   if (!connected) return;
+
+  if (source == Source::Ble) {
+    pollBle();
+    return;
+  }
 
   bool doRefresh = mappedInput.wasReleased(MappedInputManager::Button::Confirm);
   bool toggle = mappedInput.wasReleased(MappedInputManager::Button::Left);
@@ -141,6 +204,25 @@ void GlucoseMonitorActivity::loop() {
     return;
   }
   if (doRefresh || (autoRefresh && !stopped && millis() - lastFetchMs >= kAutoIntervalMs)) refresh();
+}
+
+void GlucoseMonitorActivity::pollBle() {
+  if (!bleServer.running()) return;  // statusLine already says so from beginSource()
+
+  const bool gotNew = bleServer.takeLatest(lastBlePacket);
+  const uint32_t now = millis();
+  if (!gotNew) {
+    if (!haveReading) return;                           // never received a packet yet
+    if (now - lastFetchMs < kBleRecheckMs) return;       // not due for a staleness re-check
+  }
+  lastFetchMs = now;
+
+  const int64_t trustedNow = trustedtime::trustedNow();
+  RenderLock lock(*this);
+  reading = libre::bleReadingFromPacket(lastBlePacket, trustedNow);
+  haveReading = true;
+  statusLine = trustedNow <= 0 ? tr(STR_GLUCOSE_BLE_NO_CLOCK) : "";
+  requestUpdate();
 }
 
 const char* GlucoseMonitorActivity::trendArrow() const {
@@ -199,8 +281,14 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_GLUCOSE_MONITOR));
 
   int y = metrics.topPadding + metrics.headerHeight + 12;
-  const char* modeText = I18n::getInstance().get(autoRefresh ? StrId::STR_GLUCOSE_AUTO_60S : StrId::STR_GLUCOSE_MANUAL);
-  std::string chip = std::string(tr(STR_GLUCOSE_MODE_HINT)) + ": " + modeText;
+  std::string chip;
+  if (source == Source::Wifi) {
+    const char* modeText =
+        I18n::getInstance().get(autoRefresh ? StrId::STR_GLUCOSE_AUTO_60S : StrId::STR_GLUCOSE_MANUAL);
+    chip = std::string(tr(STR_GLUCOSE_SOURCE_WIFI)) + " \xc2\xb7 " + modeText;  // "Wi-Fi · Auto 60s"
+  } else {
+    chip = tr(STR_GLUCOSE_SOURCE_BLE);
+  }
   renderer.drawText(UI_10_FONT_ID, pad, y, chip.c_str());
   y += lineH + 40;
 
@@ -231,7 +319,12 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
   }
   if (!statusLine.empty()) renderer.drawText(UI_10_FONT_ID, pad, std::min(y, pageHeight - 120), statusLine.c_str());
 
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_GLUCOSE_REFRESH), tr(STR_GLUCOSE_MODE_HINT), "");
+  // Mode (auto/manual refresh) only means something on the Wi-Fi path; BLE
+  // is push-based, so that hint is blank there. Source (Right button) always
+  // works, so the user can escape a failed source either way.
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_GLUCOSE_REFRESH),
+                                             source == Source::Wifi ? tr(STR_GLUCOSE_MODE_HINT) : "",
+                                             tr(STR_GLUCOSE_SOURCE_HINT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

@@ -2,7 +2,19 @@
 
 ## ▶ RESUME HERE (anchor, 2026-10-12)
 
-**Working tree clean on `crosslight`.** Version **26.10.13**.
+**Working tree clean on `crosslight`.** Version **26.10.14**.
+
+**2026-10-13, later still: Bluetooth glucose relay build started** (not just scoped anymore) —
+Logan, via the `extraction-f0` session building the companion app, asked to start the reader side
+now against a now-frozen contract (service `0c0cd14d-...`, characteristic `4e9715ab-...`, 8-byte
+packet, extraction DECISIONS.md D-020). Built and host-tested: `src/libre/LibreBlePacket.{h,cpp}`
+(pure decoder, 16 passing unit tests including extraction's exact test vector) and
+`src/libre/LibreBleServer.{h,cpp}` (first-ever NimBLE GATT-*server* use in this codebase, bonded-
+only, one held connection). `GlucoseMonitorActivity` now has a Right-button Wi-Fi/BLE source
+toggle. Both `x4pro` and `simulator_x4_pro` build clean (695/695 host tests pass). **Not yet
+verified against a real BLE write** — nothing has written to the characteristic outside unit
+tests; needs nRF Connect (or the companion app, once its Phase 3 lands) on real hardware. Full
+detail in the "Bluetooth glucose relay" section below (search "Build status (2026-10-13").
 
 **2026-10-13 (same session, later still): real hardware test found a genuine rendering bug —
 fixed, and actually confirmed end-to-end this time, not just "both builds succeed."** Logan
@@ -471,7 +483,7 @@ the app slot only, never the partition table. That one needs a wired flash.
 First release: **26.9.1 (2026-09-24)**, which had to be installed by SD/USB because the firmware then
 on the device still pointed at upstream's feed.
 
-## Planned: Bluetooth glucose relay (scoped 2026-10-12, not started)
+## Bluetooth glucose relay (scoped 2026-10-12, build started 2026-10-13, 26.10.14)
 
 Follow-up to the Glucose Monitor utility (26.10.11, Wi-Fi/VPS polling — see the resume anchor
 above). Logan asked to scope this against `~/projects/extraction`'s **planned** Android
@@ -525,29 +537,58 @@ capability. ESP32-S3 BLE radio handles peripheral + central simultaneously witho
 - **Not a replacement for the Wi-Fi/VPS path** — the two are complementary acquisition modes behind
   the same tile: Wi-Fi/VPS (shipped 26.10.11) works anywhere the bridge is reachable and needs no
   phone nearby; BLE push needs the phone within range with the companion app running, but costs no
-  Wi-Fi radio time and works without the VPS being reachable from the e-reader's network. `UNKNOWN`
-  /open decision: whether to extend `GlucoseMonitorActivity`'s existing Manual/Auto-60s mode chip
-  into a three-way Wi-Fi/BLE/Auto chooser, or keep them as two separate tiles. Logan's call when
-  this gets built.
+  Wi-Fi radio time and works without the VPS being reachable from the e-reader's network. **Decided
+  2026-10-13:** one tile, switched with the Right button (not folded into the existing Manual/
+  Auto-60s Mode chip, which stays Wi-Fi-only) — see Build status below.
 - **Alert relay (vibration/buzz for HIGH/LOW): default no**, matching pinetime.md's identical open
   question for the watch and `agent-api.md`'s house rule that the Libre app alone owns alarms. Worth
   noting X4 Pro does have haptic hardware (`BoardConfig.h`'s `HapticConfig`/`hasHaptics()`,
   `DOCUMENTED`) so this is a real option, not a hardware limitation — just not the default.
 
-### Why this can't be built yet
+### Build status (2026-10-13, 26.10.14)
 
-The Android companion app it depends on **does not exist** — extraction's Phase B
-("Android companion MVP: reads our API, pairs over BLE, sets time, sends one Alert Notification")
-is not started as of 2026-10-12. CrossLight's BLE-receiver firmware code could be designed and
-even unit-tested against a synthetic packed characteristic before that app exists, but real
-end-to-end verification needs it, same chicken-and-egg as the watch's own Phase C gate. **Scoped
-only — nothing in this section is implemented.**
+Logan (relayed via the `extraction-f0` session, which is building the Android companion app) asked
+to start the reader side now, against the frozen contract minted on extraction's side
+(DECISIONS.md D-020): service `0c0cd14d-6582-46f7-91b6-b4cf2a7cebac`, characteristic
+`4e9715ab-ed4d-4a77-b8e7-f70fb5e26fc5` (Write + Write Without Response, the same 8-byte packet
+this section already scoped). The companion app's own BLE writer (its Phase 3) is **not built
+yet** — extraction said explicitly not to wait on it.
+
+Built and host-tested so far (build order per extraction's suggestion):
+
+1. `src/libre/LibreBlePacket.{h,cpp}` — pure 8-byte packet decoder plus `bleReadingFromPacket()`,
+   which turns a decoded packet + a trusted "now" into the same `libre::Reading` shape the Wi-Fi
+   path already renders. 16 host unit tests (`test/libre_ble_packet/`), including the exact test
+   vector extraction supplied (226 mg/dL, steady, 2026-10-13T03:10:23Z → independently recomputed,
+   not just trusted). One deliberate asymmetry from the Wi-Fi path: this relay's own rule
+   (never show a number once `reading_time` is ≥10 min old, or future-dated) is *stricter* than
+   the Wi-Fi path's `STALE` status (which still shows the last known value) — so "too old" maps to
+   `ReadingStatus::Unavailable` here, not `Stale`, to actually suppress the number. No trusted
+   clock (`trustedtime::trustedNow() <= 0`) also maps to Unavailable rather than guessing an age.
+2. `src/libre/LibreBleServer.{h,cpp}` — the actual new capability: `NimBLEServer`/`NimBLEService`/
+   `NimBLECharacteristic` as a GATT peripheral, the first use of that role in this codebase.
+   Bonded-only (`NIMBLE_PROPERTY::WRITE_ENC` — an unbonded write is rejected by the BLE stack
+   itself, never reaching this code). One held connection per session: `onConnect` requests a
+   1000ms interval / latency-4 / 20s-timeout connection, matching the power design above, instead
+   of a connect-write-disconnect cycle per reading. Not host-testable (real NimBLE/ESP32 API); only
+   verified by compiling clean for both `x4pro` and `simulator_x4_pro` (the simulator doesn't
+   emulate BLE, so its clean build only proves the `#else` no-radio branch compiles, same caveat as
+   always for this codebase's BLE/Wi-Fi radio code).
+3. `GlucoseMonitorActivity` now has a `Source` (Wi-Fi / BLE), switched with the **Right** button
+   (works even if the current source failed, so a dead Wi-Fi join or a radio-less BLE attempt
+   isn't a dead end). BLE is push-driven: `pollBle()` drains whatever the companion wrote, and also
+   re-derives the displayed status every ~10s even with **no** new write, so a reading ages out to
+   "Unavailable" on its own if the companion app dies mid-session — never "last value written"
+   shown as current forever. The Mode chip (auto/manual refresh) only applies to Wi-Fi; the Source
+   hint (new, Right button) always works.
+4. **Not done yet, needs real hardware + a real writer**: an actual BLE client write test (extraction
+   suggested nRF Connect on a phone, writing the 8-byte test vector) — nothing has written to the
+   characteristic outside unit tests, so the GATT-server wiring above is unverified against a real
+   central. The companion app's own write path (extraction Phase 3) will be the real test once it
+   exists; nRF Connect first is the faster way to catch a wiring mistake sooner.
 
 ### Open questions
 
-- Shared service/characteristic UUID: not yet defined anywhere (pinetime.md hasn't picked one
-  either, beyond noting InfiniTime's own base-UUID convention for its *own* service, which doesn't
-  apply here). Needs to be decided once either device's firmware work actually starts.
 - Allow-list / single-bond vs. re-pairable: should CrossLight accept writes from any bonded
   device, or specifically remember "the" phone the way `WifiCredentialStore` remembers "the"
   saved networks? Leaning toward the latter for consistency with the rest of the firmware's
