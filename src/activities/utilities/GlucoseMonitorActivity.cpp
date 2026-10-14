@@ -27,6 +27,12 @@ constexpr uint32_t kAutoIntervalMs = 60000;
 // from the wall clock at a modest cadence even with no new packet -- the
 // 10-minute cutoff doesn't need finer granularity than this.
 constexpr uint32_t kBleRecheckMs = 10000;
+
+// How long to hold Confirm, in BLE mode, to clear the bond and re-advertise
+// for a fresh pairing (extraction docs/companion-app-onboarding.md section 4
+// "Re-pair" flow -- this is the reader-side half of it). Long enough that a
+// normal press never triggers it by accident.
+constexpr unsigned long kForgetBondHoldMs = 1500;
 }  // namespace
 
 GlucoseMonitorActivity::GlucoseMonitorActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -179,6 +185,10 @@ void GlucoseMonitorActivity::loop() {
   if (!connected) return;
 
   if (source == Source::Ble) {
+    if (mappedInput.wasLongPressed(MappedInputManager::Button::Confirm, kForgetBondHoldMs)) {
+      forgetBlePeer();
+      return;
+    }
     pollBle();
     return;
   }
@@ -222,6 +232,17 @@ void GlucoseMonitorActivity::pollBle() {
   reading = libre::bleReadingFromPacket(lastBlePacket, trustedNow);
   haveReading = true;
   statusLine = trustedNow <= 0 ? tr(STR_GLUCOSE_BLE_NO_CLOCK) : "";
+  requestUpdate();
+}
+
+void GlucoseMonitorActivity::forgetBlePeer() {
+  bleServer.forgetBond();
+  haveReading = false;
+  stale = false;
+  lastBlePacket = libre::BlePacket{};
+  lastFetchMs = millis();
+  RenderLock lock(*this);
+  statusLine = tr(STR_GLUCOSE_BLE_FORGOT);
   requestUpdate();
 }
 
@@ -319,10 +340,13 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
   }
   if (!statusLine.empty()) renderer.drawText(UI_10_FONT_ID, pad, std::min(y, pageHeight - 120), statusLine.c_str());
 
-  // Mode (auto/manual refresh) only means something on the Wi-Fi path; BLE
-  // is push-based, so that hint is blank there. Source (Right button) always
-  // works, so the user can escape a failed source either way.
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_GLUCOSE_REFRESH),
+  // Confirm means "Refresh" on Wi-Fi, but "hold to forget the bond" on BLE --
+  // it's push-based there, so a plain press has nothing to refresh. Mode
+  // (auto/manual) only means something on Wi-Fi too. Source (Right button)
+  // always works, so the user can escape a failed source either way.
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK),
+                                             source == Source::Wifi ? tr(STR_GLUCOSE_REFRESH)
+                                                                     : tr(STR_GLUCOSE_FORGET_HINT),
                                              source == Source::Wifi ? tr(STR_GLUCOSE_MODE_HINT) : "",
                                              tr(STR_GLUCOSE_SOURCE_HINT));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

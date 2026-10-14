@@ -45,6 +45,16 @@ class LibreBleServer {
   // older ones are dropped, since only the newest reading is ever shown.
   bool takeLatest(BlePacket& out);
 
+  // Clears every bond this device holds (NimBLEDevice::deleteAllBonds() --
+  // there's only ever one bonding use in this codebase, the companion
+  // phone, so "all" and "the phone" are the same thing today; revisit if
+  // that changes) and disconnects any live peer, so a fresh pairing can
+  // start clean. This is the reader-side half of extraction's re-pair flow
+  // (docs/companion-app-onboarding.md section 4) -- the UI step is "hold
+  // Confirm" while the BLE source is selected on the Glucose Monitor
+  // screen, see GlucoseMonitorActivity.
+  void forgetBond();
+
  private:
   bool active = false;
 };

@@ -40,6 +40,7 @@ class GlucoseMonitorActivity final : public Activity {
   void beginSource();
   void endSource();
   void pollBle();
+  void forgetBlePeer();
   const char* trendArrow() const;
   std::string statusText() const;
 

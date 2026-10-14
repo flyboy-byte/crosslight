@@ -156,6 +156,17 @@ bool LibreBleServer::connected() const {
 #endif
 }
 
+void LibreBleServer::forgetBond() {
+#if defined(ARDUINO_ARCH_ESP32)
+  if (g_connected && g_server) {
+    for (const uint16_t connHandle : g_server->getPeerDevices()) g_server->disconnect(connHandle);
+  }
+  NimBLEDevice::deleteAllBonds();
+  LOG_INF("LIBRE_BLE", "Cleared all bonds (%d remaining); advertising for a fresh pairing",
+          NimBLEDevice::getNumBonds());
+#endif
+}
+
 bool LibreBleServer::takeLatest(BlePacket& out) {
 #if defined(ARDUINO_ARCH_ESP32)
   if (!g_queue) return false;
