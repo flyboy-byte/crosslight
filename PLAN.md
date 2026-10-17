@@ -1378,9 +1378,10 @@ making it obvious how to build or run without the personal-shaped pieces. Full s
 tagging, and phase gates written up in `docs/crosslight/firmware-profiles.md` — two mechanisms
 (runtime SD profile, no reflash; compile-time `platformio.ini` flavor envs, needs a reflash),
 built on precedent already in this tree (`UtilityRegistry.cpp`'s `kOffensiveFlag` gate,
-`Utility::available()`). Four open questions for Logan listed there (profile file format, the
-actual Phase-2 flavor set, whether a profile switch gets Settings UI, release artifact naming).
-**Next action: Logan answers the open questions, then Phase 1 (runtime profile) starts.**
+`Utility::available()`). The four open questions were decided the same day (Logan: "u decide") —
+single-value SD profile file (`/profile.txt`, no Settings UI), three Phase-2 flavors
+(`full`/`bible`/`reader`), `bible`/`reader` release artifacts cut on request rather than every
+tag. **Next action: Phase 1 (runtime profile system) starts whenever picked up again.**
 
 ~~**Idea, deferred — not started (2026-10-12):** a way to quickly build CrossLight with different
 feature flags, or alternatively cut 3-4 distinct full release flavors with different feature

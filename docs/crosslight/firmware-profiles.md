@@ -102,28 +102,38 @@ Logan's own deployment.
   runtime profile file needs its own short doc (likely folded into this one once Phase 1 ships)
   the same way `/offensive/enabled` has `docs/crosslight/offensive/STATUS.md`.
 
-## Open questions for Logan
+## Decided (2026-10-17, Claude's call — Logan deferred to project precedent rather than answer each one)
 
-1. **Profile file format/location** — a single value (`/profile.txt` containing `full`/`bible`/
-   `minimal`) or a per-kind toggle file? Single value is simpler; per-kind is more flexible if a
-   profile ever needs something odd like "Bible + offensive, no Claude."
-2. **Flavor set for Phase 2** — how many `platformio.ini` envs, and what's in each? A starting
-   guess, not a decision: `full` (everything, today's `x4pro` behavior), `bible` (reader + Bible
-   app only, nothing else compiled), and `reader` (reader + generic utilities, no
-   `PersonalIntegration` or `OffensiveAudit` code) — three, not the four from the original backlog
-   note, since `OffensiveAudit` already has its own runtime gate and doesn't obviously need a
-   fourth binary. Confirm or redraw this.
-3. **Is a runtime profile switch exposed in Settings UI**, or SD-file-only like `/offensive/enabled`
-   (no on-device UI, edit the card)? SD-file-only is less work and matches precedent; a Settings
-   toggle is friendlier for a build Logan hands to someone else.
-4. **Release artifact naming** for Phase 2 — this needs an answer before the first multi-flavor
-   release, not before Phase 1 ships (Phase 1 doesn't touch the release pipeline at all).
+Logan's instruction: "u decide... u have pretty good context for my style, my vibe here with the
+project." These four are decided by matching what's already locked into this tree, not by
+guessing — each cites the precedent it's copying.
+
+1. **Profile file: a single value, SD-file-only, no Settings UI.** `/profile.txt` containing one
+   word (`full` / `bible` / `reader`), read once at boot, same shape as `/offensive/enabled` and
+   `/claude/token.txt`. Per-kind toggles would be solving for a combination ("Bible + offensive,
+   no Claude") nobody has asked for yet — AGENTS.md/CLAUDE.md's own "don't design for hypothetical
+   future requirements" applies directly. A Settings-UI toggle is also skipped: decision 3 in
+   `claude-panel.md` ("no modals, no babysitter") and the SD-file precedent for every other piece
+   of device config this session has touched both point the same way. Absent file = `full`, so no
+   existing device's behavior changes with zero action taken.
+2. **Phase 2 flavor set: three, as scoped above — `full` / `bible` / `reader`.** Not redrawn; the
+   original backlog's "3-4 flavors" guess and this doc's own first-pass both land here, and a
+   fourth binary for `OffensiveAudit` would duplicate a gate that already exists at runtime
+   (`kOffensiveFlag`) for no flash benefit, since that tree is already small and rarely the reason
+   someone wants a smaller `.bin`.
+3. **Release artifact naming (Phase 2, not urgent): `crosslight-<version>-<flavor>.bin`, `full`
+   kept as the only flavor cut by default at every tagged release** (zero change to the existing
+   release workflow) **— `bible`/`reader` built on request until someone other than Logan actually
+   asks for one.** Building CI infrastructure for binaries nobody's downloading yet is exactly the
+   kind of premature scope this project's own conventions warn against (`makecom/FRAMEWORK.md`:
+   progress through a gate means doing the thing the gate requires, not writing more
+   infrastructure); revisit this if/when `bible`/`reader` downloads show real pull.
 
 ## Phase gates
 
 | Phase | Exit condition |
 | --- | --- |
-| 0 — this doc | Logan confirms the shape (or redraws it) |
+| 0 — this doc | **Done 2026-10-17** — shape set, open questions decided above |
 | 1 — runtime profile | `UtilityRegistry` filters by profile; a real device set to a reduced profile shows the reduced menu; default (no file) is provably identical to today's behavior |
 | 2 — compile-time flavor | At least one non-`full` `platformio.ini` env builds clean, boots on real hardware, and measurably uses less flash than `full` |
 | 3 — unified API as a `PersonalIntegration` module | Generic bridge client lands, unconfigured in every flavor, following this doc's tagging — scoped separately once the server side (`extraction` repo) has real routes to point at, per `docs/crosslight/unified-api.md`'s own phase table |
