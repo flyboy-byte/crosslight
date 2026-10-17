@@ -322,18 +322,18 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
     if (showNumber) {
       char valText[16];
       snprintf(valText, sizeof(valText), "%d", reading.value);
-      renderer.drawText(NOTOSERIF_14_FONT_ID, pad, y, valText, true, EpdFontFamily::BOLD);
-      const int valW = renderer.getTextWidth(NOTOSERIF_14_FONT_ID, valText);
+      renderer.drawText(NOTOSANS_14_FONT_ID, pad, y, valText, true, EpdFontFamily::BOLD);
+      const int valW = renderer.getTextWidth(NOTOSANS_14_FONT_ID, valText);
       const int unitX = pad + valW + 12;
       renderer.drawText(UI_12_FONT_ID, unitX, y + 6, reading.unit.c_str());
       const char* arrow = trendArrow();
       if (arrow[0] != '\0') {
-        renderer.drawText(NOTOSERIF_14_FONT_ID, pageWidth - pad - 60, y, arrow, true, EpdFontFamily::BOLD);
+        renderer.drawText(NOTOSANS_14_FONT_ID, pageWidth - pad - 60, y, arrow, true, EpdFontFamily::BOLD);
       }
-      y += renderer.getLineHeight(NOTOSERIF_14_FONT_ID) + 16;
+      y += renderer.getLineHeight(NOTOSANS_14_FONT_ID) + 16;
     } else {
-      renderer.drawText(NOTOSERIF_14_FONT_ID, pad, y, statusText().c_str(), true, EpdFontFamily::BOLD);
-      y += renderer.getLineHeight(NOTOSERIF_14_FONT_ID) + 16;
+      renderer.drawText(NOTOSANS_14_FONT_ID, pad, y, statusText().c_str(), true, EpdFontFamily::BOLD);
+      y += renderer.getLineHeight(NOTOSANS_14_FONT_ID) + 16;
     }
     if (showNumber) renderer.drawText(UI_10_FONT_ID, pad, y, statusText().c_str());
     y += lineH + 32;

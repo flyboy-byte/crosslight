@@ -11,7 +11,7 @@
 // therefore come from whichever family is active: the built-in or vector set
 // below, or the .cpfont files a user installed for an SD family.
 
-// The built-in Noto Serif / Noto Sans families are compiled in at exactly these
+// The built-in Noto Sans family is compiled in at exactly these
 // point sizes (see the global font objects in main.cpp).
 #ifdef OMIT_FONTS
 // OMIT_FONTS keeps only Noto Serif 14 in flash (saves ~1.6MB). The other sizes,
