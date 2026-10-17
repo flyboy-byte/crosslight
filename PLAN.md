@@ -1,36 +1,58 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-17)
+## ▶ RESUME HERE (anchor, 2026-10-17b)
 
-**On standby.** Local tree has 4 commits ahead of `fork/crosslight` (not pushed — pushing is
-Logan's call, per the rule below), nothing uncommitted. Version still **26.10.15** (last bumped
-for the BLE hold-to-forget-bond work; no firmware change since). **Two things are being waited
-on before the next real push of work, both outside this repo:**
+**Off standby — moving into unified-API work.** Synced `develop` to upstream
+`crosspoint-reader` (30 commits, through `fc2de152`) and merged into `crosslight`
+(`9033bd3c`). 9 real conflicts, all resolved and verified: `x4pro` builds clean, all 884 host
+tests pass. Local tree is 6 commits ahead of `fork/crosslight` (not pushed — pushing is Logan's
+call). Version still **26.10.15** — no firmware behavior change from the merge itself, beyond
+one real bug this merge introduced and fixed in the same commit (below).
 
-1. **The unified API** (`docs/crosslight/unified-api.md`) needs to actually exist server-side —
-   routes, scopes, and the usage endpoint — in the private `extraction` repo before Phase A of
-   that doc's own phase table (optional bridge backend in `ClaudeClient`) can start. Nothing to
-   do here until that lands.
-2. **The VPS (`bridge.flyboybyte.com`) needs more security hardening** before it's the thing a
-   second credential (the unified-API server key) and a second always-reachable surface
-   (anything beyond today's Libre-bridge reads) sits behind. Not this repo's work to do, but
-   firmware-side decisions (e.g. whether the bridge becomes anything other than optional/
-   fallback, per `unified-api.md`'s "decision 1 not overturned") shouldn't get ahead of it.
+**What the merge changed that matters here:**
+- Upstream's **Settings grouping refactor** (`addAction`/`SettingsSection`, #3862) replaced the
+  old per-category `systemSettings`/`readerSettings` vectors. Our rows (Startup Password,
+  Plugins, Keyboard Layouts, About, Text Settings, Manage Fonts, Customise Status Bar) were
+  carried over as `addAction()` calls — same screens, new plumbing.
+- Upstream **removed the NotoSerif builtin font entirely** (#4022) — it's SD-only now,
+  unconditionally, in every build. Our `OMIT_FONTS` branch in `TextSettingsActivity.cpp` was
+  doing the same thing by hand (SD-fallback for NotoSerif); that's now redundant and was dropped
+  in favor of upstream's version. **Caught and fixed in the same merge commit:** two leftover
+  `NOTOSERIF_14_FONT_ID` references (`CrossPointSettings::getReaderFontId()`'s `OMIT_FONTS`
+  branch, `GlucoseMonitorActivity::render()`) didn't get caught by the conflict markers — they
+  were untouched lines that just silently stopped compiling once the id was removed from
+  `fontIds.h`. Both now point at `NOTOSANS_14_FONT_ID`, the one font this build actually
+  registers. Worth remembering: a font-id rename/removal upstream won't always show as a merge
+  conflict — grep `fontIds.h`'s symbols across `src/` after any future font-related sync.
+- **freeink-sdk submodule pointer**: nearly resolved this wrong. `crosslight`'s own pointer
+  (`084fdfb2`) is *ahead* of what `develop`'s synced commit recorded (`7fcd3b34`) — it already
+  carries `BleRemoteProfiles.h`, which upstream's new `BlePageTurner` lib needs. Kept `084fdfb2`.
+  If a future sync conflicts here again: check ancestry (`git -C freeink-sdk merge-base
+  --is-ancestor <a> <b>`) before assuming "theirs" is newer — CrossLight tracks freeink-sdk
+  somewhat independently of what upstream crosspoint-reader pins.
 
-**What's ready and waiting, not blocked on either of those:** `docs/crosslight/firmware-
-profiles.md` (Phase 0 done, all open questions decided 2026-10-17) — Phase 1 (the runtime SD
-profile filter in `UtilityRegistry`) touches nothing unified-API- or VPS-shaped and could start
-any time; it just hasn't been picked up yet because nothing's forced the question. The BLE
-glucose relay (below) is also still waiting on its own separate thing: a real hardware test
-(nRF Connect or the laptop fake-phone tool) that only Logan can run, not blocked by either item
-above.
+**Next:** Logan wants to start scoping/building toward the unified API
+(`docs/crosslight/unified-api.md`) now — see that doc and `docs/crosslight/firmware-
+profiles.md` for where it lands (`PersonalIntegration` module, Phase A). The standby condition
+from the previous anchor (server-side routes not existing yet in `extraction`, VPS hardening)
+hasn't changed on its own — confirm with Logan whether this is early scoping/prep work ahead of
+that gate, or whether the gate has actually cleared, before writing code that assumes a live
+server endpoint.
 
-**Do-not-re-raise, this round:** don't ask again whether to push the local commits (`88cd7959`
-hold-to-forget-bond, `a72bb14c`/`4c1a5360` firmware-profiles scoping) — that's Logan's call,
-raised once already this session, standing rule stays. Don't re-derive the firmware-profiles
-open questions — they're decided, see that doc's own "Decided" section, not "Open questions."
-Don't re-litigate unified-API decision 1 ("no bridge") — it's explicitly not overturned by the
-proposal, only optioned around.
+**Do-not-re-raise:** don't ask again whether to push commits — Logan's call, standing rule.
+Don't re-derive the firmware-profiles open questions — decided, see that doc's "Decided"
+section. Don't re-litigate unified-API decision 1 ("no bridge") — not overturned, only optioned
+around.
+
+---
+
+## ▶ Previous anchor (2026-10-17)
+
+**On standby.** Two things were being waited on before the next push of work, both outside this
+repo: the unified API's server-side routes/scopes landing in the private `extraction` repo, and
+`bridge.flyboybyte.com` getting more security hardening. Superseded above — Logan asked to move
+into unified-API work directly; whether the gate cleared or this is prep-ahead-of-gate wasn't
+confirmed, see the new anchor's "Next" note.
 
 ---
 
