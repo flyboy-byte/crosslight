@@ -2,6 +2,8 @@
 
 **Status: proposal only. Nothing is decided and nothing here is built for CrossLight.** It records a plan being scoped on the server side so the firmware side is not surprised. The shipped Claude Panel design in `docs/crosslight/claude-panel.md` is unchanged and keeps working: this is additive and optional, and the owner decides each step.
 
+**Firmware side is on standby as of 2026-10-17** — see `PLAN.md`'s resume anchor. Waiting on two things outside this repo: the server-side routes/scopes actually existing in `extraction` (Phase A can't start before then), and the VPS (`bridge.flyboybyte.com`) getting more security hardening before it's trusted with a second credential and a wider surface. `docs/crosslight/firmware-profiles.md` (where this doc's bridge client would land as a `PersonalIntegration` module) is scoped and not blocked by either — Phase 1 of that doc could start independently any time.
+
 Server-side design, security and risk analysis live in the owner's private `extraction` repo (`docs/unified-api.md`, `docs/claude-account-risk.md`, PR #2 there). This doc covers only the e-reader's view. Evidence tags: `DOCUMENTED` = read in a repo file, `INFERRED` = reasoning, `UNKNOWN` = must be checked.
 
 ## The idea in one paragraph

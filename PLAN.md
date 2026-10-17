@@ -1,6 +1,40 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-12)
+## ▶ RESUME HERE (anchor, 2026-10-17)
+
+**On standby.** Local tree has 4 commits ahead of `fork/crosslight` (not pushed — pushing is
+Logan's call, per the rule below), nothing uncommitted. Version still **26.10.15** (last bumped
+for the BLE hold-to-forget-bond work; no firmware change since). **Two things are being waited
+on before the next real push of work, both outside this repo:**
+
+1. **The unified API** (`docs/crosslight/unified-api.md`) needs to actually exist server-side —
+   routes, scopes, and the usage endpoint — in the private `extraction` repo before Phase A of
+   that doc's own phase table (optional bridge backend in `ClaudeClient`) can start. Nothing to
+   do here until that lands.
+2. **The VPS (`bridge.flyboybyte.com`) needs more security hardening** before it's the thing a
+   second credential (the unified-API server key) and a second always-reachable surface
+   (anything beyond today's Libre-bridge reads) sits behind. Not this repo's work to do, but
+   firmware-side decisions (e.g. whether the bridge becomes anything other than optional/
+   fallback, per `unified-api.md`'s "decision 1 not overturned") shouldn't get ahead of it.
+
+**What's ready and waiting, not blocked on either of those:** `docs/crosslight/firmware-
+profiles.md` (Phase 0 done, all open questions decided 2026-10-17) — Phase 1 (the runtime SD
+profile filter in `UtilityRegistry`) touches nothing unified-API- or VPS-shaped and could start
+any time; it just hasn't been picked up yet because nothing's forced the question. The BLE
+glucose relay (below) is also still waiting on its own separate thing: a real hardware test
+(nRF Connect or the laptop fake-phone tool) that only Logan can run, not blocked by either item
+above.
+
+**Do-not-re-raise, this round:** don't ask again whether to push the local commits (`88cd7959`
+hold-to-forget-bond, `a72bb14c`/`4c1a5360` firmware-profiles scoping) — that's Logan's call,
+raised once already this session, standing rule stays. Don't re-derive the firmware-profiles
+open questions — they're decided, see that doc's own "Decided" section, not "Open questions."
+Don't re-litigate unified-API decision 1 ("no bridge") — it's explicitly not overturned by the
+proposal, only optioned around.
+
+---
+
+## ▶ Previous anchor (2026-10-12)
 
 **Working tree clean on `crosslight`.** Version **26.10.14**.
 
