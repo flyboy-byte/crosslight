@@ -1371,13 +1371,23 @@ and linker-wrap are the FRAGILE parts (closed-blob symbol, can break on an SDK b
 
 ## Backlog (queued 2026-10-01)
 
-**Idea, deferred — not started (2026-10-12):** a way to quickly build CrossLight with different
+**2026-10-17: scoped (still not built).** The pressure arrived — the unified-API proposal
+(`docs/crosslight/unified-api.md`, merged from `flyboy-byte/crosslight` PR #2) grows the
+personal-integration surface further, and Logan wants to keep the whole repo public/MIT while
+making it obvious how to build or run without the personal-shaped pieces. Full scope, module
+tagging, and phase gates written up in `docs/crosslight/firmware-profiles.md` — two mechanisms
+(runtime SD profile, no reflash; compile-time `platformio.ini` flavor envs, needs a reflash),
+built on precedent already in this tree (`UtilityRegistry.cpp`'s `kOffensiveFlag` gate,
+`Utility::available()`). Four open questions for Logan listed there (profile file format, the
+actual Phase-2 flavor set, whether a profile switch gets Settings UI, release artifact naming).
+**Next action: Logan answers the open questions, then Phase 1 (runtime profile) starts.**
+
+~~**Idea, deferred — not started (2026-10-12):** a way to quickly build CrossLight with different
 feature flags, or alternatively cut 3-4 distinct full release flavors with different feature
 sets (e.g. a minimal reader-only build vs. one with the Bible suite vs. one with the Claude
 tools vs. "everything"). Came up alongside the Glucose Monitor utility as a way to keep flash
-usage and the SD-card-config surface area down for people who don't want every feature. **Logan's
-explicit call: write it down, don't build it.** Revisit once there's an actual pressure (flash
-budget, or wanting to hand a build to someone else) rather than speculatively.
+usage and the SD-card-config surface area down for people who don't want every feature. Logan's
+explicit call: write it down, don't build it.~~ Superseded by the scoped plan above.
 
 **26.10.1 test passed → kept building (easy utilities, Logan's pick 2026-10-01).** Shipped since 26.10.1,
 **unreleased, all on `crosslight`, host 542/542 + sim + device green:**
