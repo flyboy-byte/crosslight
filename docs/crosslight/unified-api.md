@@ -15,6 +15,13 @@ via `extraction`'s `tools/libre-keys` (`add ereader --scopes read:glucose,read:s
 --expires 90d`) — not something this session can do. `docs/crosslight/firmware-profiles.md` (where
 this bridge client lands as a `PersonalIntegration` module) is unaffected and not blocked by this.
 
+**This doc covers the Wi-Fi/HTTP routes only.** The BLE glucose relay (`LibreBleServer`,
+`LibreBlePacket`) is a separate, already-frozen contract — confirmed by extraction (2026-10-18,
+`DECISIONS.md` D-029): the Android companion app is the reference sender, the e-reader (like the
+PineTime watch) is a follower that implements the spec as given, never the other way around. Our
+implementation already matches it exactly (8-byte LE packet, same service/characteristic UUIDs) —
+nothing to change there. BLE carries glucose only; everything else in this doc goes over Wi-Fi.
+
 Server-side design, security and risk analysis live in the owner's private `extraction` repo (`docs/unified-api.md`, `docs/claude-account-risk.md`, PR #2 there). This doc covers only the e-reader's view. Evidence tags: `DOCUMENTED` = read in a repo file, `INFERRED` = reasoning, `UNKNOWN` = must be checked.
 
 ## The idea in one paragraph
@@ -53,7 +60,8 @@ Decision 1 says "direct device to Anthropic, **no bridge**", rejected because a 
 | --- | --- | --- | --- |
 | Ask Claude / Bible Q&A | `POST /api/v1/claude/prompt` | `claude:prompt` | Body `{"prompt":"<=4000 chars"}`, 8 KB cap. Reply `{"reply":"<=4000 chars"}`. Stateless — no memory between calls, server picks the model (Haiku), no tools. |
 | Glucose glance | `GET /api/v1/latest/glucose`, `/api/v1/glucose`, `/api/v1/health` | `read:glucose` | Unchanged from today's Libre bridge. Never poll faster than 60s; stop polling on a 401. |
-| Server status | `GET /api/v1/status`, `/api/v1/processes` | `read:status` | Fixed-schema JSON; `age_s` + `stale` flag (stale = >120s old, show as unknown not a number). Other apps are counts only, never names. |
+| Server status | `GET /api/v1/status` | `read:status` | Fixed-schema JSON; `age_s` + `stale` flag (stale = >120s old, show as unknown not a number). Also returns `cpu_pct`, `cores_pct`, `mem_used_gb`/`mem_total_gb`, `disk_used_gb`/`disk_total_gb`, `net_recv_mb`/`net_sent_mb`, and per-unit `cpu_pct` for libre-bridge/nginx/fail2ban/ssh — every one of these is nullable; null means "--", not zero. |
+| Process list | `GET /api/v1/processes` | `read:processes` | **Separate scope from `read:status`** — `read:status` alone gets 403 here. Counts only, never names (per the original contract). Only worth requesting if the e-reader actually wants an app-count tile; not in the e-reader key by default. |
 | Usage glance | `GET /api/v1/latest/claude-usage` | `read:usage` | **Live** (corrected 2026-10-18 — an earlier same-day report said this didn't exist; it does). See shape below. |
 
 The e-reader key needs `read:glucose,read:status,read:usage,claude:prompt` — no admin/process/
@@ -121,7 +129,7 @@ framing: this *replaces* the e-reader's direct-to-Anthropic path, not supplement
 | A | Bridge backend in `ClaudeClient`: URL+key from SD, pin the bridge's ISRG root(s), POST `/api/v1/claude/prompt`, handle the 429/503/4xx set above. | Works on the X4 Pro over USB serial |
 | B | Usage glance via the bridge (`read:usage`, confirmed live 2026-10-18 — an earlier same-day report wrongly said this route didn't exist). | Matches the direct numbers by eye |
 | C | Ask Claude / Bible Passage Q&A actually routed through the bridge call from A, replacing the direct `api.anthropic.com` call; SD-card OAuth token retired if the owner drops the direct fallback. | Quota/error paths behave on real hardware |
-| D | Glucose glance and server-status tiles via `read:glucose`/`read:status` (status route is new; glucose route is a rescope of the existing Libre bridge client, not new code). | Stale rule and HIGH/LOW verified |
+| D | Glucose glance and server-status tiles via `read:glucose`/`read:status` (status route is new; glucose route is a rescope of the existing Libre bridge client, not new code). A process-count tile needs the separate `read:processes` scope — optional, not requested by default. | Stale rule and HIGH/LOW verified |
 
 **Still blocking all of A-D:** the e-reader's own key doesn't exist yet. Ask Logan to run (on his
 laptop, in `extraction`): `tools/libre-keys add ereader --scopes
