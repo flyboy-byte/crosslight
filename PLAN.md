@@ -1,6 +1,42 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-18)
+## ▶ RESUME HERE (anchor, 2026-10-18, later: moving into BLE)
+
+**Unified-API Phases A-C confirmed shipped, now working BLE.** Session picked up post-compaction;
+verified against git/docs that Phases A-C (bridge-backed Claude Panel, Ask Claude, Bible Passage
+Q&A) are done and already committed+pushed (`c4f15903`/`c2f2f1ff`). Moved on to the BLE glucose
+relay per Logan's "lets do c and when thats done we can play with ble" from the prior session.
+
+Found the device is running an **unreleased dev build (26.10.15, commit `88cd7959`)** — wired-
+flashed directly, never cut as a tagged GitHub release (latest release is still 26.10.13). That
+build already has the BLE glucose relay (`LibreBleServer`) and the forget-bond action, so no
+reflash was needed just to *have* the feature — but testing it is still pending a reflash with
+this session's UX fix below, since the device predates it.
+
+**Real UX bug found before testing even started:** Logan called out that switching Glucose
+Monitor's source with a plain **Right-button** tap (`GlucoseMonitorActivity.cpp`) is bad design —
+Right is the same button used for paging/navigation everywhere else, so it's too easy to flip
+sources by accident, and the source was never persisted (every open silently reset to Wi-Fi).
+**Fixed:** added `SETTINGS.glucoseSource` (persisted uint8_t, 0=Wi-Fi/1=Bluetooth) and a toggle
+row in `UtilitiesActivity`'s list, labeled "Glucose Source", inserted immediately before the
+Glucose Monitor row — tap it to flip source *before* opening the app at all. `GlucoseMonitorActivity::onEnter()`
+now reads the persisted value instead of defaulting to Wi-Fi every time; `switchSource()` (the
+in-app Right-button path) still works and writes the same setting back, so both ways of changing
+it stay in sync. `x4pro` and `simulator_x4_pro` both build clean; 884/884 host tests pass.
+**Not yet reflashed or hardware-tested** — device wasn't connected this session (no `/dev/ttyACM*`).
+
+**Still pending, exactly where `docs/ble_glucose_hardware_test.md` left off:** reflash with this
+fix, then drive it with `scripts/fake_phone_ble.py` (Logan's choice over nRF Connect) — bonding
+the laptop with the e-reader via `bluetoothctl` first, then the write-case table in that doc.
+Updated that doc's setup section to describe the new toggle row.
+
+**Do-not-re-raise:** don't re-ask which test method (laptop script, decided); don't re-explain
+that 26.10.14/15 were never tagged releases (established above); don't reintroduce a bare
+Right-button-only toggle as the primary way to pick BLE — the toggle row is the fix for that.
+
+---
+
+## ▶ Previous anchor (2026-10-18)
 
 **Gate cleared — server side is live, Phase A is unblocked except for one key.** The `extraction`
 session reported (two cross-session messages, 2026-10-18, second correcting the first) that

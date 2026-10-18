@@ -391,6 +391,12 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint16_t keyboardLayouts = 0;
   // Bluetooth page turner, saved under the keys lib/BlePageTurner reads and writes (BlePageTurnerJson.h).
   bleturner::Config ble;
+  // Glucose Monitor's acquisition source (0 = Wi-Fi, 1 = Bluetooth), set from
+  // the toggle row in UtilitiesActivity and kept in sync by
+  // GlucoseMonitorActivity::switchSource() -- so the source picked once
+  // sticks for the next time either one is opened, instead of the activity
+  // always defaulting back to Wi-Fi.
+  uint8_t glucoseSource = 0;
   // Quick Resume: keep current content visible with moon icon instead of showing a static sleep screen.
   uint8_t quickResumeSleepScreen = QUICK_RESUME_NEVER;
 

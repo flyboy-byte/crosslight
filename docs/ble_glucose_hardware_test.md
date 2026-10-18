@@ -14,11 +14,16 @@ ever sees it, which is itself worth confirming (see step 3).
 
 ## Setup
 
-1. On the X4 Pro: open **Utilities → Glucose Monitor**.
-2. Press the **Right** button until the small text under the header reads **"Bluetooth"**
-   (not "Wi-Fi · ..."). This is the one easy thing to miss — the GATT server/advertising is
-   foreground-only and only runs while this screen is open *and* this source is selected; the
-   device won't even be visible in a scan otherwise.
+1. On the X4 Pro: open **Utilities**. Tap the **Glucose Source** row (just above Glucose Monitor
+   in the list) until its switch shows checked and the subtitle reads **"Bluetooth"** — this is
+   persisted (`SETTINGS.glucoseSource`), so it sticks for every future open, not just this one.
+   (The in-screen Right-button toggle inside Glucose Monitor still works too and updates the same
+   setting, but needs this list-level toggle to avoid being an accidental page-turn press.)
+2. Open **Glucose Monitor**. The small text under the header should already read **"Bluetooth"**
+   (not "Wi-Fi · ...") — if it doesn't, the toggle in step 1 didn't take; check that first before
+   troubleshooting anything else. The GATT server/advertising is foreground-only and only runs
+   while this screen is open *and* this source is selected; the device won't even be visible in a
+   scan otherwise.
 3. In nRF Connect's scanner, look for a device named **"CrossLight"**. If it's not there, go back
    to step 2 before troubleshooting anything else.
 4. Tap to connect. nRF Connect may show it as connected but **not yet bonded** — that's expected;

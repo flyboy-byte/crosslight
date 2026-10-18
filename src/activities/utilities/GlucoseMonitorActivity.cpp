@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
@@ -40,6 +41,10 @@ GlucoseMonitorActivity::GlucoseMonitorActivity(GfxRenderer& renderer, MappedInpu
 
 void GlucoseMonitorActivity::onEnter() {
   Activity::onEnter();
+  // Respect whatever was last picked, from either this screen's own source
+  // switch or the Utilities-list toggle row -- so Bluetooth stays selected
+  // on the next open instead of defaulting back to Wi-Fi every time.
+  source = SETTINGS.glucoseSource != 0 ? Source::Ble : Source::Wifi;
   statusLine = tr(STR_GLUCOSE_CHECKING);
   requestUpdate();
   beginSource();
@@ -95,6 +100,8 @@ void GlucoseMonitorActivity::switchSource(const Source next) {
   if (next == source) return;
   endSource();
   source = next;
+  SETTINGS.glucoseSource = (next == Source::Ble) ? 1 : 0;
+  SETTINGS.saveToFile();
   haveReading = false;
   stale = false;
   stopped = false;

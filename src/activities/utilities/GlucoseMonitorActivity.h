@@ -15,12 +15,16 @@
 // about once a minute anyway (see kAutoIntervalMs), so a slower screen is
 // never a reason to poll faster.
 //
-// Two acquisition sources, switched with the Right button (see
+// Two acquisition sources, switched with the Right button in-session (see
 // crosslight/PLAN.md "Planned: Bluetooth glucose relay" and
 // ~/projects/extraction/docs/reference/crosslight-ble-glucose-handoff.md):
 // Wi-Fi/VPS (default, existing) and BLE from the companion app, which pushes
 // the frozen 8-byte packet (extraction DECISIONS.md D-020) over one held,
-// bonded GATT connection rather than per-reading reconnects.
+// bonded GATT connection rather than per-reading reconnects. The choice is
+// persisted (SETTINGS.glucoseSource) and also settable from a toggle row in
+// UtilitiesActivity's list, so the source can be picked before opening this
+// screen at all -- a plain Right-button tap is too easy to trigger by
+// accident on a button also used for paging everywhere else.
 class GlucoseMonitorActivity final : public Activity {
  public:
   GlucoseMonitorActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
