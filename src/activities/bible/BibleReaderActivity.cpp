@@ -201,12 +201,15 @@ void BibleReaderActivity::openAskClaude() {
   // Default range = whatever verses are on the current page -- versePages[i]
   // is the page verse i *starts* on (see buildPages()), so the range is every
   // verse whose start page is this page, falling back to the last verse
-  // before it if the page break landed mid-verse.
+  // before it if the page break landed mid-verse. `<=` instead of `==` here
+  // used to accumulate every verse since the start of the chapter (page
+  // numbers only increase), ballooning the default range -- and the prompt
+  // sent to Claude -- the deeper into a chapter the reader was.
   int startIdx = 0;
   int endIdx = 0;
   bool found = false;
   for (size_t i = 0; i < verses.size() && i < versePages.size(); ++i) {
-    if (versePages[i] <= currentPageIndex) {
+    if (versePages[i] == currentPageIndex) {
       if (!found) {
         startIdx = static_cast<int>(i);
         found = true;
@@ -214,6 +217,10 @@ void BibleReaderActivity::openAskClaude() {
       endIdx = static_cast<int>(i);
     } else if (found) {
       break;
+    } else if (versePages[i] < currentPageIndex) {
+      // No verse has started exactly on this page yet -- track the latest
+      // one that started before it, in case the page break landed mid-verse.
+      startIdx = endIdx = static_cast<int>(i);
     }
   }
   startActivityForResult(std::make_unique<BiblePassageQaActivity>(renderer, mappedInput, books[currentBookIndex].name,

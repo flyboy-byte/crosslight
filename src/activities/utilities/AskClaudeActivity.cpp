@@ -12,7 +12,7 @@
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
-#include "claude/ClaudeClient.h"
+#include "claude/ClaudeBridgeClient.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -92,32 +92,45 @@ void AskClaudeActivity::sendQuestion(const std::string& question) {
 
 void AskClaudeActivity::doAsk() {
   requestUpdateAndWait();
-  const claude::AskResult r = claude::ask(pendingQuestion);
-  LOG_INF("CLAUDE", "ask: error=%d http=%d", static_cast<int>(r.error), r.httpCode);
+  const claude::PromptResult r = claude::promptViaBridge(pendingQuestion);
+  LOG_INF("CLAUDE", "ask: error=%d http=%d code=%s", static_cast<int>(r.error), r.httpCode, r.errorCode.c_str());
   RenderLock lock(*this);
   switch (r.error) {
-    case claude::Error::Ok: {
+    case claude::BridgeError::Ok: {
       const auto& metrics = UITheme::getInstance().getMetrics();
       const int textWidth = renderer.getScreenWidth() - metrics.contentSidePadding * 2;
       const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
       const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
       const int avail = safe.y + safe.height - contentTop() - lineH;
-      answerPager.setText(renderer, UI_10_FONT_ID, r.text, textWidth, std::max(1, avail / lineH));
+      answerPager.setText(renderer, UI_10_FONT_ID, r.reply, textWidth, std::max(1, avail / lineH));
       state = State::Answer;
       statusLine.clear();
-      claude::appendHistory(pendingQuestion, r.text);
+      claude::appendHistory(pendingQuestion, r.reply);
       break;
     }
-    case claude::Error::NoToken:
-      statusLine = tr(STR_CLAUDE_NO_TOKEN);
+    case claude::BridgeError::NoConfig:
+      statusLine = tr(STR_CLAUDE_NO_BRIDGE_CONFIG);
       state = State::Menu;
       break;
-    case claude::Error::Unauthorized:
+    case claude::BridgeError::Unauthorized:
+    case claude::BridgeError::Forbidden:
       statusLine = tr(STR_CLAUDE_TOKEN_REJECTED);
       state = State::Menu;
       break;
-    case claude::Error::LowMemory:
+    case claude::BridgeError::LowMemory:
       statusLine = tr(STR_CLAUDE_LOW_MEMORY);
+      state = State::Menu;
+      break;
+    case claude::BridgeError::RateLimited:
+      statusLine = tr(STR_CLAUDE_BRIDGE_RATE_LIMITED);
+      state = State::Menu;
+      break;
+    case claude::BridgeError::Unavailable:
+      statusLine = tr(STR_CLAUDE_BRIDGE_UNAVAILABLE);
+      state = State::Menu;
+      break;
+    case claude::BridgeError::TooLarge:
+      statusLine = tr(STR_CLAUDE_BRIDGE_TOO_LARGE);
       state = State::Menu;
       break;
     default:

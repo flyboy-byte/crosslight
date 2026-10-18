@@ -4,7 +4,7 @@
 #include <string>
 
 #include "activities/Activity.h"
-#include "claude/ClaudeClient.h"
+#include "claude/ClaudeBridgeClient.h"
 
 // Claude Panel: subscription usage (5h + weekly) on the e-ink display.
 // Foreground-only: Wi-Fi and polling live only while this screen is open.
@@ -24,10 +24,10 @@ class ClaudePanelActivity final : public Activity {
  private:
   void onWifiSelectionComplete(bool connected);
   void refresh();
-  void drawWindow(int y, const char* title, const claude::Window& w, int pad, int width) const;
-  std::string resetText(const claude::Window& w) const;
+  void drawWindow(int y, const char* title, const claude::UsageWindow& w, int pad, int width) const;
+  std::string resetText(const claude::UsageWindow& w) const;
 
-  claude::Usage usage;
+  claude::BridgeUsage usage;
   bool haveUsage = false;
   bool stale = false;
   bool autoRefresh = false;

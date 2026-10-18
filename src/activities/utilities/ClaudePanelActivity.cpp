@@ -10,6 +10,7 @@
 
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
+#include "TrustedTime.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -17,6 +18,27 @@
 namespace {
 constexpr uint32_t kAutoIntervalMs = 30000;
 constexpr int kBarHeight = 28;
+
+// Days since 1970-01-01 for a civil date (Howard Hinnant's algorithm), same
+// approach ClaudeClient.cpp uses for its Date header -- avoids timegm/strptime
+// portability questions.
+long long daysFromCivil(long long y, const unsigned m, const unsigned d) {
+  y -= m <= 2;
+  const long long era = (y >= 0 ? y : y - 399) / 400;
+  const unsigned yoe = static_cast<unsigned>(y - era * 400);
+  const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return era * 146097 + static_cast<long long>(doe) - 719468;
+}
+
+// "2026-10-18T03:50:00.000Z" -> unix seconds, 0 on any mismatch (including
+// empty, which the bridge sends for "unknown").
+long long parseIso8601Utc(const std::string& s) {
+  int year = 0, mon = 0, day = 0, hh = 0, mm = 0, ss = 0;
+  if (sscanf(s.c_str(), "%d-%d-%dT%d:%d:%d", &year, &mon, &day, &hh, &mm, &ss) != 6) return 0;
+  return daysFromCivil(year, static_cast<unsigned>(mon), static_cast<unsigned>(day)) * 86400LL + hh * 3600 + mm * 60 +
+         ss;
+}
 }  // namespace
 
 ClaudePanelActivity::ClaudePanelActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -72,27 +94,36 @@ void ClaudePanelActivity::refresh() {
     statusLine = tr(STR_CLAUDE_CHECKING);
   }
   requestUpdateAndWait();
-  claude::Usage fresh;
-  const claude::UsageResult r = claude::fetchUsage(fresh);
+  claude::BridgeUsage fresh;
+  const claude::UsageResult r = claude::fetchUsageViaBridge(fresh);
   RenderLock lock(*this);
   lastFetchMs = millis();
   switch (r.error) {
-    case claude::Error::Ok:
+    case claude::BridgeError::Ok:
       usage = fresh;
       haveUsage = true;
       stale = false;
       statusLine.clear();
       break;
-    case claude::Error::NoToken:
-      statusLine = tr(STR_CLAUDE_NO_TOKEN);
+    case claude::BridgeError::NoConfig:
+      statusLine = tr(STR_CLAUDE_NO_BRIDGE_CONFIG);
       stale = haveUsage;
       break;
-    case claude::Error::Unauthorized:
+    case claude::BridgeError::Unauthorized:
+    case claude::BridgeError::Forbidden:
       statusLine = tr(STR_CLAUDE_TOKEN_REJECTED);
       stale = haveUsage;
       break;
-    case claude::Error::LowMemory:
+    case claude::BridgeError::LowMemory:
       statusLine = tr(STR_CLAUDE_LOW_MEMORY);
+      stale = haveUsage;
+      break;
+    case claude::BridgeError::RateLimited:
+      statusLine = tr(STR_CLAUDE_BRIDGE_RATE_LIMITED);
+      stale = haveUsage;
+      break;
+    case claude::BridgeError::Unavailable:
+      statusLine = tr(STR_CLAUDE_BRIDGE_UNAVAILABLE);
       stale = haveUsage;
       break;
     default:
@@ -133,11 +164,11 @@ void ClaudePanelActivity::loop() {
   if (doRefresh || (autoRefresh && millis() - lastFetchMs >= kAutoIntervalMs)) refresh();
 }
 
-std::string ClaudePanelActivity::resetText(const claude::Window& w) const {
-  if (w.resetEpoch <= 0 || usage.serverNowEpoch <= 0) return "";
-  // Advance the server clock by the time since the fetch.
-  const long long now = usage.serverNowEpoch + (millis() - lastFetchMs) / 1000;
-  long long secs = std::max(0LL, w.resetEpoch - now);
+std::string ClaudePanelActivity::resetText(const claude::UsageWindow& w) const {
+  const long long resetEpoch = parseIso8601Utc(w.resetsAt);
+  const int64_t now = trustedtime::trustedNow();
+  if (resetEpoch <= 0 || now <= 0) return "";
+  long long secs = std::max(0LL, resetEpoch - now);
   const long long days = secs / 86400;
   const long long hours = (secs % 86400) / 3600;
   const long long mins = (secs % 3600) / 60;
@@ -150,14 +181,18 @@ std::string ClaudePanelActivity::resetText(const claude::Window& w) const {
   return buf;
 }
 
-void ClaudePanelActivity::drawWindow(const int y, const char* title, const claude::Window& w, const int pad,
+void ClaudePanelActivity::drawWindow(const int y, const char* title, const claude::UsageWindow& w, const int pad,
                                      const int width) const {
   const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
-  const int pct = std::clamp(static_cast<int>(w.utilization * 100.0f + 0.5f), 0, 100);
+  const int pct = w.hasUsedPct ? std::clamp(w.usedPct, 0, 100) : 0;
 
   renderer.drawText(UI_10_FONT_ID, pad, y, title, true, EpdFontFamily::BOLD);
   char pctText[8];
-  snprintf(pctText, sizeof(pctText), "%d%%", pct);
+  if (w.hasUsedPct) {
+    snprintf(pctText, sizeof(pctText), "%d%%", pct);
+  } else {
+    snprintf(pctText, sizeof(pctText), "--");
+  }
   const int pctW = renderer.getTextWidth(UI_12_FONT_ID, pctText);
   renderer.drawText(UI_12_FONT_ID, width - pad - pctW, y - 4, pctText, true, EpdFontFamily::BOLD);
 
@@ -165,11 +200,14 @@ void ClaudePanelActivity::drawWindow(const int y, const char* title, const claud
   const int barW = width - 2 * pad;
   renderer.drawRect(pad, barY, barW, kBarHeight);
   const int fill = (barW - 4) * pct / 100;
-  if (fill > 0) renderer.fillRect(pad + 2, barY + 2, fill, kBarHeight - 4);
+  if (w.hasUsedPct && fill > 0) renderer.fillRect(pad + 2, barY + 2, fill, kBarHeight - 4);
 
+  // The bridge reports one `state` for both windows together, not a
+  // per-window status -- show it once here when it isn't the normal case.
   std::string detail = resetText(w);
-  if (w.status == "allowed_warning") detail += (detail.empty() ? "" : "  ·  ") + std::string(tr(STR_CLAUDE_WARNING));
-  if (w.status == "rejected") detail += (detail.empty() ? "" : "  ·  ") + std::string(tr(STR_CLAUDE_LIMITED));
+  if (!usage.state.empty() && usage.state != "allowed") {
+    detail += (detail.empty() ? "" : "  ·  ") + usage.state;
+  }
   if (!detail.empty()) renderer.drawText(UI_10_FONT_ID, pad, barY + kBarHeight + 6, detail.c_str());
 }
 
