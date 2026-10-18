@@ -3,19 +3,22 @@
 ## ▶ RESUME HERE (anchor, 2026-10-18)
 
 **Gate cleared — server side is live, Phase A is unblocked except for one key.** The `extraction`
-session reported (cross-session message, 2026-10-18) that `bridge.flyboybyte.com` now serves
-scoped Bearer keys, `POST /api/v1/claude/prompt`, `/api/v1/status`+`/processes`, and the existing
-glucose routes under the new scope model. Full contract rewritten into
-`docs/crosslight/unified-api.md` (the old "proposal" framing is gone — read that doc fresh, don't
-trust memory of its 2026-10-16 version). Key facts that changed the plan:
-- The **usage glance never got built** server-side (extraction: "unknown whether the binary can
-  report it") — dropped from scope, not just deferred. Don't re-propose it without a route to call.
+session reported (two cross-session messages, 2026-10-18, second correcting the first) that
+`bridge.flyboybyte.com` now serves scoped Bearer keys, `POST /api/v1/claude/prompt`,
+`GET /api/v1/latest/claude-usage`, `/api/v1/status`+`/processes`, and the existing glucose routes
+under the new scope model — **all four routes CrossLight could want exist**, nothing dropped.
+Full contract rewritten into `docs/crosslight/unified-api.md` (the old "proposal" framing is
+gone — read that doc fresh, don't trust memory of its 2026-10-16 version). Key facts that changed
+the plan:
 - `claude:prompt` **replaces** the device's direct `api.anthropic.com` path for Ask Claude / Bible
   Passage Q&A, not a usage-only add-on as originally scoped — the SD-card OAuth token can go away
   entirely once that's wired up.
+- Usage glance (`read:usage`) IS built — extraction's first message that day wrongly said it
+  wasn't; corrected same day. Shape and polling cadence are in `unified-api.md`.
 - **One thing still blocks all of it**: the e-reader's own scoped key doesn't exist. Only Logan can
   mint it (his laptop, `extraction/tools/libre-keys add ereader --scopes
-  read:glucose,read:status,claude:prompt --expires 90d`) — this repo has no path to do that itself.
+  read:glucose,read:status,read:usage,claude:prompt --expires 90d`) — this repo has no path to do
+  that itself.
 
 **Also still true from the prior anchor:** local tree is 6 commits ahead of `fork/crosslight`
 (unpushed, Logan's call); `crosslight-simulator` has an unpushed fix commit too (`40a1a62`, HAL
@@ -31,9 +34,9 @@ verify any of it end-to-end until the key exists.
 
 **Do-not-re-raise:** don't ask again whether to push commits — Logan's call, standing rule.
 Don't re-derive the firmware-profiles open questions — decided, see that doc's "Decided" section.
-Don't re-propose the usage-glance tile — no route exists, confirmed by extraction, not an
-oversight. Don't assume the bridge's TLS chain matches Anthropic's — it's a different CA
-(Let's Encrypt/ISRG vs. GTS/GlobalSign).
+Don't assume the bridge's TLS chain matches Anthropic's — it's a different CA (Let's
+Encrypt/ISRG vs. GTS/GlobalSign). Don't cite "usage glance isn't built" — that was corrected the
+same day; it's live.
 
 ---
 

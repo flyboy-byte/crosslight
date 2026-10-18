@@ -1,9 +1,11 @@
 # Unified API: what it means for Claude Panel and the e-reader
 
 **Status: server side is LIVE as of 2026-10-18.** `https://bridge.flyboybyte.com` now serves scoped
-Bearer keys (`llk_...`), Claude prompts, host status, and the existing glucose routes. Reported by
-the `extraction` session over cross-session message, 2026-10-18 — tagged `DOCUMENTED` below where
-it quotes that message directly, since it's the authoritative server-side source, not `INFERRED`.
+Bearer keys (`llk_...`), Claude prompts, Claude usage, host status, and the existing glucose
+routes — all four routes CrossLight could want. Reported by the `extraction` session over two
+cross-session messages, 2026-10-18 (the second correcting the first's claim that usage wasn't
+built — it is) — tagged `DOCUMENTED` below where it quotes those messages directly, since
+`extraction` is the authoritative server-side source, not `INFERRED`.
 Firmware-side work (this repo) has not started yet. The shipped Claude Panel design in
 `docs/crosslight/claude-panel.md` is unchanged until Phase C below actually ships: Ask Claude and
 Bible Passage Q&A still go device-direct to `api.anthropic.com` today.
@@ -27,12 +29,12 @@ One authenticated HTTPS API on the owner's own server that the phone app, the la
 
 ## Scale: what actually shipped vs. what was scoped
 
-The 2026-10-16 scoping below (usage-first, prompt deferred) predates the server work. What
-`extraction` actually built and reported live 2026-10-18 is different in one important way:
-**`claude:prompt` shipped, `read:usage` did not** — the usage glance (5h/7d) is explicitly
-**not built** ("unknown whether the binary can report it", per extraction). So for CrossLight,
-Ask Claude / Bible Passage Q&A via the bridge (old Phase C) is now the thing that's actually
-ready to build, while the usage-glance tile (old Phase B) has nothing to call yet.
+The 2026-10-16 scoping below (usage-first, prompt deferred) predates the server work. Extraction
+first reported (2026-10-18) that `claude:prompt` shipped but the usage glance did not; a same-day
+**correction** reversed that second half — `read:usage` is also live (`GET
+/api/v1/latest/claude-usage`). So as of 2026-10-18, **all four routes CrossLight could want exist**:
+`claude:prompt`, `read:usage`, `read:glucose`, `read:status`. Nothing is left to wait on
+server-side; Phase A-D in the table below are all buildable once the key exists.
 
 ## What would NOT change
 
@@ -52,11 +54,27 @@ Decision 1 says "direct device to Anthropic, **no bridge**", rejected because a 
 | Ask Claude / Bible Q&A | `POST /api/v1/claude/prompt` | `claude:prompt` | Body `{"prompt":"<=4000 chars"}`, 8 KB cap. Reply `{"reply":"<=4000 chars"}`. Stateless — no memory between calls, server picks the model (Haiku), no tools. |
 | Glucose glance | `GET /api/v1/latest/glucose`, `/api/v1/glucose`, `/api/v1/health` | `read:glucose` | Unchanged from today's Libre bridge. Never poll faster than 60s; stop polling on a 401. |
 | Server status | `GET /api/v1/status`, `/api/v1/processes` | `read:status` | Fixed-schema JSON; `age_s` + `stale` flag (stale = >120s old, show as unknown not a number). Other apps are counts only, never names. |
-| Usage glance | — | — | **Not built.** Extraction: "unknown whether the binary can report it." No route to call; drop this tile from scope until/unless one exists. |
+| Usage glance | `GET /api/v1/latest/claude-usage` | `read:usage` | **Live** (corrected 2026-10-18 — an earlier same-day report said this didn't exist; it does). See shape below. |
 
-The e-reader key carries exactly `read:glucose,read:status,claude:prompt` — no admin/process/action
-scope. A valid key missing a route's scope gets 403; expired/revoked gets 401. Keys expire (90d is
-the planned e-reader cap), so this needs a re-issue path, not a one-time setup.
+The e-reader key needs `read:glucose,read:status,read:usage,claude:prompt` — no admin/process/
+action scope. A valid key missing a route's scope gets 403; expired/revoked gets 401. Keys expire
+(90d is the planned e-reader cap), so this needs a re-issue path, not a one-time setup.
+
+### Usage glance shape (`GET /api/v1/latest/claude-usage`, `DOCUMENTED`)
+
+200 response:
+```json
+{"five_hour":{"used_pct":40,"resets_at":"2026-10-18T03:50:00.000Z"},
+ "seven_day":{"used_pct":63,"resets_at":"2026-10-19T07:00:00.000Z"},
+ "state":"allowed","age_s":0}
+```
+`used_pct` is 0-100 or `null`; `resets_at` is ISO UTC or `null`; `state` is `"allowed"` or a short
+word for limited. The number comes straight from the unmodified `claude` binary's own output — no
+Anthropic header probing, so this route needs no Claude token or Anthropic call of any kind.
+Cached 10 min server-side, probed at most once per 5 min — polling faster than every few minutes
+gains nothing; poll on demand or every 5-10 min. If `age_s` is large, or a `503 {"error":"unknown"}`
+comes back (the server returns that once its own data passes 30 min old), show "unknown", never a
+stale number. `429`/other `503`s follow the same plain-display, no-retry-loop rule as `claude:prompt`.
 
 Auth: `Authorization: Bearer llk_...`; no `anthropic-beta` header. **The Claude OAuth token no
 longer needs to exist on the SD card at all** once `claude:prompt` is wired up — extraction's own
@@ -101,13 +119,13 @@ framing: this *replaces* the e-reader's direct-to-Anthropic path, not supplement
 | --- | --- | --- |
 | 0 | ~~Nothing in firmware; wait for server scopes/routes.~~ **Cleared 2026-10-18** — server's live. | Done |
 | A | Bridge backend in `ClaudeClient`: URL+key from SD, pin the bridge's ISRG root(s), POST `/api/v1/claude/prompt`, handle the 429/503/4xx set above. | Works on the X4 Pro over USB serial |
-| B | ~~Usage glance via the bridge.~~ **Dropped — no route exists.** Revisit only if extraction ships one. | N/A |
+| B | Usage glance via the bridge (`read:usage`, confirmed live 2026-10-18 — an earlier same-day report wrongly said this route didn't exist). | Matches the direct numbers by eye |
 | C | Ask Claude / Bible Passage Q&A actually routed through the bridge call from A, replacing the direct `api.anthropic.com` call; SD-card OAuth token retired if the owner drops the direct fallback. | Quota/error paths behave on real hardware |
 | D | Glucose glance and server-status tiles via `read:glucose`/`read:status` (status route is new; glucose route is a rescope of the existing Libre bridge client, not new code). | Stale rule and HIGH/LOW verified |
 
 **Still blocking all of A-D:** the e-reader's own key doesn't exist yet. Ask Logan to run (on his
-laptop, in `extraction`): `tools/libre-keys add ereader --scopes read:glucose,read:status,claude:prompt
---expires 90d`. This repo cannot mint it.
+laptop, in `extraction`): `tools/libre-keys add ereader --scopes
+read:glucose,read:status,read:usage,claude:prompt --expires 90d`. This repo cannot mint it.
 
 ## Decided / superseded (2026-10-18)
 
@@ -118,8 +136,10 @@ The four "open questions for the owner" below are substantially answered by what
 2. Fallback-to-direct-on-bridge-down: still open — needs the owner's call once A/C are built and
    there's a real "bridge down" case to design against, not before.
 3. Glucose/status screens: yes — both routes exist and are in scope now (Phase D).
-4. Model/cap: answered by the server, not configurable from the firmware side — Haiku, 40/day/key,
-   100/day total, fixed by extraction.
+4. Model/cap: answered by the server for `claude:prompt`, not configurable from the firmware
+   side — Haiku, 40/day/key, 100/day total, fixed by extraction. `read:usage` has its own separate
+   cadence limit (cached 10 min, probed ≤once/5 min server-side) — poll on demand or every 5-10
+   min, not tied to the prompt route's caps.
 
 ## Where the truth lives
 
