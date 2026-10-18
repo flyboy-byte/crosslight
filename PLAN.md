@@ -1,48 +1,39 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-17b)
+## ▶ RESUME HERE (anchor, 2026-10-18)
 
-**Off standby — moving into unified-API work.** Synced `develop` to upstream
-`crosspoint-reader` (30 commits, through `fc2de152`) and merged into `crosslight`
-(`9033bd3c`). 9 real conflicts, all resolved and verified: `x4pro` builds clean, all 884 host
-tests pass. Local tree is 6 commits ahead of `fork/crosslight` (not pushed — pushing is Logan's
-call). Version still **26.10.15** — no firmware behavior change from the merge itself, beyond
-one real bug this merge introduced and fixed in the same commit (below).
+**Gate cleared — server side is live, Phase A is unblocked except for one key.** The `extraction`
+session reported (cross-session message, 2026-10-18) that `bridge.flyboybyte.com` now serves
+scoped Bearer keys, `POST /api/v1/claude/prompt`, `/api/v1/status`+`/processes`, and the existing
+glucose routes under the new scope model. Full contract rewritten into
+`docs/crosslight/unified-api.md` (the old "proposal" framing is gone — read that doc fresh, don't
+trust memory of its 2026-10-16 version). Key facts that changed the plan:
+- The **usage glance never got built** server-side (extraction: "unknown whether the binary can
+  report it") — dropped from scope, not just deferred. Don't re-propose it without a route to call.
+- `claude:prompt` **replaces** the device's direct `api.anthropic.com` path for Ask Claude / Bible
+  Passage Q&A, not a usage-only add-on as originally scoped — the SD-card OAuth token can go away
+  entirely once that's wired up.
+- **One thing still blocks all of it**: the e-reader's own scoped key doesn't exist. Only Logan can
+  mint it (his laptop, `extraction/tools/libre-keys add ereader --scopes
+  read:glucose,read:status,claude:prompt --expires 90d`) — this repo has no path to do that itself.
 
-**What the merge changed that matters here:**
-- Upstream's **Settings grouping refactor** (`addAction`/`SettingsSection`, #3862) replaced the
-  old per-category `systemSettings`/`readerSettings` vectors. Our rows (Startup Password,
-  Plugins, Keyboard Layouts, About, Text Settings, Manage Fonts, Customise Status Bar) were
-  carried over as `addAction()` calls — same screens, new plumbing.
-- Upstream **removed the NotoSerif builtin font entirely** (#4022) — it's SD-only now,
-  unconditionally, in every build. Our `OMIT_FONTS` branch in `TextSettingsActivity.cpp` was
-  doing the same thing by hand (SD-fallback for NotoSerif); that's now redundant and was dropped
-  in favor of upstream's version. **Caught and fixed in the same merge commit:** two leftover
-  `NOTOSERIF_14_FONT_ID` references (`CrossPointSettings::getReaderFontId()`'s `OMIT_FONTS`
-  branch, `GlucoseMonitorActivity::render()`) didn't get caught by the conflict markers — they
-  were untouched lines that just silently stopped compiling once the id was removed from
-  `fontIds.h`. Both now point at `NOTOSANS_14_FONT_ID`, the one font this build actually
-  registers. Worth remembering: a font-id rename/removal upstream won't always show as a merge
-  conflict — grep `fontIds.h`'s symbols across `src/` after any future font-related sync.
-- **freeink-sdk submodule pointer**: nearly resolved this wrong. `crosslight`'s own pointer
-  (`084fdfb2`) is *ahead* of what `develop`'s synced commit recorded (`7fcd3b34`) — it already
-  carries `BleRemoteProfiles.h`, which upstream's new `BlePageTurner` lib needs. Kept `084fdfb2`.
-  If a future sync conflicts here again: check ancestry (`git -C freeink-sdk merge-base
-  --is-ancestor <a> <b>`) before assuming "theirs" is newer — CrossLight tracks freeink-sdk
-  somewhat independently of what upstream crosspoint-reader pins.
+**Also still true from the prior anchor:** local tree is 6 commits ahead of `fork/crosslight`
+(unpushed, Logan's call); `crosslight-simulator` has an unpushed fix commit too (`40a1a62`, HAL
+stubs + a real duplicate-definition bug from upstream's EEGO A4 merge). `x4pro`, `simulator_x4_pro`,
+and all 884 host tests are green as of the last merge.
 
-**Next:** Logan wants to start scoping/building toward the unified API
-(`docs/crosslight/unified-api.md`) now — see that doc and `docs/crosslight/firmware-
-profiles.md` for where it lands (`PersonalIntegration` module, Phase A). The standby condition
-from the previous anchor (server-side routes not existing yet in `extraction`, VPS hardening)
-hasn't changed on its own — confirm with Logan whether this is early scoping/prep work ahead of
-that gate, or whether the gate has actually cleared, before writing code that assumes a live
-server endpoint.
+**Next, once the key exists:** Phase A in `docs/crosslight/unified-api.md`'s phase table — a second
+`ClaudeClient` backend reading `/claude/bridge.txt` from SD, pinned to the bridge's ISRG root(s)
+(different chain than `api.anthropic.com`'s — needs its own wolfSSL flag check, don't assume the
+existing pins carry over), calling `POST /api/v1/claude/prompt`, handling the 429/503/4xx set
+that doc lists. Can start the TLS-pinning and SD-file-read plumbing without the key in hand; can't
+verify any of it end-to-end until the key exists.
 
 **Do-not-re-raise:** don't ask again whether to push commits — Logan's call, standing rule.
-Don't re-derive the firmware-profiles open questions — decided, see that doc's "Decided"
-section. Don't re-litigate unified-API decision 1 ("no bridge") — not overturned, only optioned
-around.
+Don't re-derive the firmware-profiles open questions — decided, see that doc's "Decided" section.
+Don't re-propose the usage-glance tile — no route exists, confirmed by extraction, not an
+oversight. Don't assume the bridge's TLS chain matches Anthropic's — it's a different CA
+(Let's Encrypt/ISRG vs. GTS/GlobalSign).
 
 ---
 
