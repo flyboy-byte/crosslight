@@ -126,9 +126,9 @@ framing: this *replaces* the e-reader's direct-to-Anthropic path, not supplement
 | # | Do | Gate |
 | --- | --- | --- |
 | 0 | ~~Nothing in firmware; wait for server scopes/routes.~~ **Cleared 2026-10-18** — server's live. | Done |
-| A | Bridge backend in `ClaudeClient`: URL+key from SD, pin the bridge's ISRG root(s), POST `/api/v1/claude/prompt`, handle the 429/503/4xx set above. | Works on the X4 Pro over USB serial |
-| B | Usage glance via the bridge (`read:usage`, confirmed live 2026-10-18 — an earlier same-day report wrongly said this route didn't exist). | Matches the direct numbers by eye |
-| C | Ask Claude / Bible Passage Q&A actually routed through the bridge call from A, replacing the direct `api.anthropic.com` call; SD-card OAuth token retired if the owner drops the direct fallback. | Quota/error paths behave on real hardware |
+| A | ~~Bridge backend in `ClaudeClient`...~~ **Done 2026-10-18** — `ClaudeBridgeClient` (`src/claude/`), confirmed on the X4 Pro over USB serial: `promptViaBridge()`/`fetchUsageViaBridge()` both verified against the live server. | Done |
+| B | ~~Usage glance via the bridge...~~ **Done 2026-10-18** — Claude Panel now calls `fetchUsageViaBridge()` instead of the direct path; confirmed on hardware. | Done |
+| C | ~~Ask Claude / Bible Passage Q&A actually routed through the bridge...~~ **Done 2026-10-18, bridge-only (no direct fallback kept)** — both now call `promptViaBridge()`. `ClaudeClient.{h,cpp}` (direct `api.anthropic.com` path, SD-card OAuth token) is unreferenced outside its own file; left in place, not deleted. Hardware-testing this also surfaced and fixed a real bug in `BibleReaderActivity::openAskClaude()`'s default verse-range selection (it accumulated every verse since the chapter start instead of just the current page). | Done |
 | D | Glucose glance and server-status tiles via `read:glucose`/`read:status` (status route is new; glucose route is a rescope of the existing Libre bridge client, not new code). A process-count tile needs the separate `read:processes` scope — optional, not requested by default. | Stale rule and HIGH/LOW verified |
 
 **Still blocking all of A-D:** the e-reader's own key doesn't exist yet. Ask Logan to run (on his
