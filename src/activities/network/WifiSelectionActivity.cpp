@@ -122,6 +122,15 @@ void WifiSelectionActivity::onEnter() {
   // Nothing to try quietly without a saved network — don't suppress in that
   // case, so the normal scanning UI still shows right away.
   suppressRender = quiet && allowAutoConnect && savedCredentialCount != 0;
+  if (suppressRender) {
+    // The caller's own frame stays up (see the class comment), but with
+    // nothing drawn at all a multi-network background attempt can run for
+    // several seconds looking identical to a hang. One small popup -- not a
+    // full clearScreen/render pass, so it doesn't fight the "stay quiet"
+    // intent -- is enough to tell the user something is happening.
+    RenderLock lock(*this);
+    GUI.drawPopup(renderer, tr(STR_FINDING_SAVED_WIFI));
+  }
 
   // Read the hardware-derived station MAC directly. WiFi.macAddress() depends
   // on the STA netif already existing, but this screen is entered while WiFi
