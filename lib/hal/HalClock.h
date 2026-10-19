@@ -50,4 +50,8 @@ class HalClock {
   // Debouncing (skip if already synced once) is enforced by the caller, not here,
   // so the HAL stays free of any app-layer settings dependency.
   bool syncFromNTP();
+
+  // Set the RTC from a UTC epoch (e.g. the companion phone's clock over BLE).
+  // Returns false without an RTC or when the write fails.
+  bool setUtc(time_t epoch);
 };

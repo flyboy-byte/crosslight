@@ -397,6 +397,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // sticks for the next time either one is opened, instead of the activity
   // always defaulting back to Wi-Fi.
   uint8_t glucoseSource = 0;
+  // Watch face on sleep: timer-wake every few minutes and draw time + glucose
+  // over the sleep screen (src/glance). Off by default; battery cost unmeasured.
+  uint8_t glanceOnSleep = 0;
   // Quick Resume: keep current content visible with moon icon instead of showing a static sleep screen.
   uint8_t quickResumeSleepScreen = QUICK_RESUME_NEVER;
 

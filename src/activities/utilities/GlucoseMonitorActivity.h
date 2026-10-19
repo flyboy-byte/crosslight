@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "activities/Activity.h"
 #include "libre/LibreBleServer.h"
@@ -58,8 +59,10 @@ class GlucoseMonitorActivity final : public Activity {
   void switchSource(Source next);
   void beginSource();
   void endSource(bool returnToMonitor = false);
+  void connectWifi();
+  void beginBle();
   void pollBle();
-  void forgetBlePeer();
+  void drawGraph(int x, int y, int w, int h) const;
   const char* trendArrow() const;
   std::string statusText() const;
 
@@ -75,5 +78,13 @@ class GlucoseMonitorActivity final : public Activity {
   std::string statusLine;
   uint32_t lastFetchMs = 0;
   uint32_t lastBleWriteMs = 0;  // millis() when the last BLE packet arrived (receipt-time freshness)
+  // Graph samples, either source. atMs is a millis()-based timestamp (may be
+  // earlier than boot-relative zero for server history), so it is signed 64-bit.
+  struct Sample {
+    int16_t value;
+    int64_t atMs;
+  };
+  std::vector<Sample> history;
+  uint32_t historyFetchedMs = 0;
   bool forceBleRecheck = false;  // Read pressed on BLE: re-judge freshness now instead of at the next 10 s tick
 };

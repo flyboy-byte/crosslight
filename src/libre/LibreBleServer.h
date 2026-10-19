@@ -26,6 +26,9 @@ namespace libre {
 
 constexpr char kBleServiceUuid[] = "0c0cd14d-6582-46f7-91b6-b4cf2a7cebac";
 constexpr char kBleCharacteristicUuid[] = "4e9715ab-ed4d-4a77-b8e7-f70fb5e26fc5";
+// Time sync (minted 2026-10-19, same service): write 4 bytes, u32 little-endian
+// unix UTC seconds. The reader sets its clock from it; no response data.
+constexpr char kBleTimeCharacteristicUuid[] = "84b38d8a-686e-4663-bbe8-73ba7d3e1774";
 
 class LibreBleServer {
  public:
@@ -45,15 +48,9 @@ class LibreBleServer {
   // older ones are dropped, since only the newest reading is ever shown.
   bool takeLatest(BlePacket& out);
 
-  // Clears every bond this device holds (NimBLEDevice::deleteAllBonds() --
-  // there's only ever one bonding use in this codebase, the companion
-  // phone, so "all" and "the phone" are the same thing today; revisit if
-  // that changes) and disconnects any live peer, so a fresh pairing can
-  // start clean. This is the reader-side half of extraction's re-pair flow
-  // (docs/companion-app-onboarding.md section 4) -- the UI step is "hold
-  // Confirm" while the BLE source is selected on the Glucose Monitor
-  // screen, see GlucoseMonitorActivity.
-  void forgetBond();
+  // Returns true with the phone's UTC epoch if a time-sync write arrived since
+  // the last call. Range-checked (2025-2100); out-of-range writes are dropped.
+  bool takeTimeSync(int64_t& epochOut);
 
  private:
   bool active = false;

@@ -3,10 +3,13 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <HalClock.h>
+#include <TrustedTime.h>
 #include <WiFi.h>
 
 #include <algorithm>
 #include <cstdio>
+#include <vector>
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
@@ -28,11 +31,10 @@ constexpr uint32_t kAutoIntervalMs = 60000;
 // 10-minute cutoff doesn't need finer granularity than this.
 constexpr uint32_t kBleRecheckMs = 10000;
 
-// How long to hold Confirm, in BLE mode, to clear the bond and re-advertise
-// for a fresh pairing (extraction docs/companion-app-onboarding.md section 4
-// "Re-pair" flow -- this is the reader-side half of it). Long enough that a
-// normal press never triggers it by accident.
-constexpr unsigned long kForgetBondHoldMs = 1500;
+// The graph spans the bridge's default history window.
+constexpr int64_t kGraphWindowMs = 3LL * 60 * 60 * 1000;
+constexpr uint32_t kHistoryEveryMs = 5UL * 60 * 1000;  // history is a bigger fetch than "latest"; space it out
+constexpr size_t kMaxBleHistory = 200;
 }  // namespace
 
 GlucoseMonitorActivity::GlucoseMonitorActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -60,13 +62,27 @@ void GlucoseMonitorActivity::beginSource() {
       onWifiSelectionComplete(true);
       return;
     }
+    // Don't join Wi-Fi on open: the screen (and its source switch) must be
+    // usable immediately, even out of range. Read starts the connection.
+    connected = false;
+    RenderLock lock(*this);
+    statusLine = tr(STR_GLUCOSE_TAP_READ);
+    requestUpdate();
+  } else {
+    beginBle();
+  }
+}
+
+void GlucoseMonitorActivity::connectWifi() {
+  {
     WiFi.mode(WIFI_STA);
     startActivityForResult(
         std::make_unique<WifiSelectionActivity>(renderer, mappedInput, /*autoConnect=*/true, /*quiet=*/true),
         [this](const ActivityResult& result) { onWifiSelectionComplete(!result.isCancelled); });
-    return;
   }
+}
 
+void GlucoseMonitorActivity::beginBle() {
   // BLE: nothing to await like Wi-Fi association -- advertising starts (or
   // doesn't, if there's no radio) and pollBle() drains whatever the
   // companion writes from here on.
@@ -101,6 +117,7 @@ void GlucoseMonitorActivity::endSource(const bool returnToMonitor) {
 
 void GlucoseMonitorActivity::switchSource(const Source next) {
   if (next == source) return;
+  history.clear();
   // Persist first: leaving Wi-Fi reboots (heap defrag) and the monitor must reopen on the new source.
   SETTINGS.glucoseSource = (next == Source::Ble) ? 1 : 0;
   SETTINGS.saveToFile();
@@ -143,8 +160,21 @@ void GlucoseMonitorActivity::refresh() {
   }
   requestUpdateAndWait();
   const libre::FetchResult r = libre::fetchLatest();
+  // History rides along on a slower cadence, fetched before the render lock is
+  // taken (it is a second TLS request). Failure just leaves the old graph.
+  std::vector<libre::HistoryPoint> fetched;
+  bool gotHistory = false;
+  if (r.error == libre::Error::Ok && (history.empty() || millis() - historyFetchedMs >= kHistoryEveryMs)) {
+    gotHistory = libre::fetchHistory(fetched) == libre::Error::Ok;
+  }
   RenderLock lock(*this);
   lastFetchMs = millis();
+  if (gotHistory) {
+    history.clear();
+    const int64_t base = static_cast<int64_t>(millis());
+    for (const auto& pt : fetched) history.push_back({pt.value, base - static_cast<int64_t>(pt.ageS) * 1000});
+    historyFetchedMs = millis();
+  }
   switch (r.error) {
     case libre::Error::Ok:
       reading = r.reading;
@@ -244,13 +274,15 @@ void GlucoseMonitorActivity::loop() {
       return;
     }
   }
+  if (source == Source::Wifi && !connected) {
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || (tapped && layout.read.contains(x, y))) {
+      connectWifi();
+    }
+    return;
+  }
   if (!connected) return;
 
   if (source == Source::Ble) {
-    if (mappedInput.wasLongPressed(MappedInputManager::Button::Confirm, kForgetBondHoldMs)) {
-      forgetBlePeer();
-      return;
-    }
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || (tapped && layout.read.contains(x, y))) {
       readNow();
     }
@@ -278,6 +310,12 @@ void GlucoseMonitorActivity::loop() {
 void GlucoseMonitorActivity::pollBle() {
   if (!bleServer.running()) return;  // statusLine already says so from beginSource()
 
+  int64_t phoneEpoch = 0;
+  if (bleServer.takeTimeSync(phoneEpoch)) {
+#if defined(ARDUINO_ARCH_ESP32)  // the desktop simulator's clock has no setter
+    if (halClock.setUtc(static_cast<time_t>(phoneEpoch))) trustedtime::adopt(phoneEpoch);
+#endif
+  }
   const bool gotNew = bleServer.takeLatest(lastBlePacket);
   const uint32_t now = millis();
   if (gotNew) {
@@ -308,18 +346,11 @@ void GlucoseMonitorActivity::pollBle() {
     reading.ageS = static_cast<int>(sinceWriteMs / 1000);
   }
   haveReading = true;
+  if (gotNew && reading.status == libre::ReadingStatus::Ok) {
+    if (history.size() >= kMaxBleHistory) history.erase(history.begin());
+    history.push_back({static_cast<int16_t>(reading.value), static_cast<int64_t>(now)});
+  }
   statusLine = "";
-  requestUpdate();
-}
-
-void GlucoseMonitorActivity::forgetBlePeer() {
-  bleServer.forgetBond();
-  haveReading = false;
-  stale = false;
-  lastBlePacket = libre::BlePacket{};
-  lastFetchMs = millis();
-  RenderLock lock(*this);
-  statusLine = tr(STR_GLUCOSE_BLE_FORGOT);
   requestUpdate();
 }
 
@@ -368,6 +399,48 @@ std::string GlucoseMonitorActivity::statusText() const {
   return "";
 }
 
+void GlucoseMonitorActivity::drawGraph(const int x, const int y, const int w, const int h) const {
+  const int64_t nowMs = static_cast<int64_t>(millis());
+  int lo = 70;
+  int hi = 180;
+  int count = 0;
+  int minV = 1000;
+  int maxV = 0;
+  for (const auto& pt : history) {
+    if (nowMs - pt.atMs > kGraphWindowMs) continue;
+    minV = std::min<int>(minV, pt.value);
+    maxV = std::max<int>(maxV, pt.value);
+    ++count;
+  }
+  if (count < 2) return;
+  lo = std::min(lo, minV - 10);
+  hi = std::max(hi, maxV + 10);
+  const int range = hi - lo;
+
+  auto yFor = [&](const int v) { return y + h - 1 - (v - lo) * (h - 1) / range; };
+  renderer.drawRect(x, y, w, h, 1, true);
+  // Target range guides, 70 and 180 mg/dL.
+  for (const int guide : {70, 180}) {
+    const int gy = yFor(guide);
+    for (int gx = x + 2; gx < x + w - 2; gx += 8) renderer.drawLine(gx, gy, gx + 3, gy, true);
+  }
+  int px = -1;
+  int py = -1;
+  for (const auto& pt : history) {
+    const int64_t age = nowMs - pt.atMs;
+    if (age > kGraphWindowMs || age < 0) continue;
+    const int gx = x + w - 1 - static_cast<int>(age * (w - 1) / kGraphWindowMs);
+    const int gy = yFor(pt.value);
+    if (px >= 0) renderer.drawLine(px, py, gx, gy, 2, true);
+    px = gx;
+    py = gy;
+  }
+  char cap[48];
+  const int capY = y + h + 6;
+  snprintf(cap, sizeof(cap), tr(STR_GLUCOSE_HISTORY_FMT), minV, maxV, count);
+  renderer.drawText(UI_10_FONT_ID, x, capY, cap);
+}
+
 void GlucoseMonitorActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int pageWidth = renderer.getScreenWidth();
@@ -401,8 +474,6 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
     const char* modeText =
         I18n::getInstance().get(autoRefresh ? StrId::STR_GLUCOSE_AUTO_60S : StrId::STR_GLUCOSE_MANUAL);
     renderer.drawText(UI_10_FONT_ID, pad, layout.infoY, modeText);
-  } else {
-    renderer.drawText(UI_10_FONT_ID, pad, layout.infoY, tr(STR_GLUCOSE_FORGET_LINE));
   }
   int y = layout.bodyTop;
 
@@ -433,7 +504,11 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
   }
   if (!statusLine.empty()) {
     renderer.drawText(UI_10_FONT_ID, pad, std::min(y, layout.read.y - lineH - 12), statusLine.c_str());
+    y += lineH + 12;
   }
+  // Trend graph in whatever room is left above the Read button.
+  const int graphBottom = layout.read.y - 2 * lineH - 24;
+  if (history.size() >= 2 && graphBottom - y >= 90) drawGraph(pad, y, pageWidth - 2 * pad, graphBottom - y);
 
   // Read button, bottom of the content area.
   renderer.drawRect(layout.read.x, layout.read.y, layout.read.w, layout.read.h, 2, true);
@@ -445,8 +520,7 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
                       layout.read.y + (layout.read.h - th) / 2, label, true, EpdFontFamily::BOLD);
   }
 
-  // Confirm is Read on both sources; on BLE a long press also forgets the
-  // bond. Source is only ever changed on the on-screen switch.
+  // Confirm is Read on both sources. Source is only ever changed on the on-screen switch.
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_GLUCOSE_READ),
                                              source == Source::Wifi ? tr(STR_GLUCOSE_MODE_HINT) : "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);

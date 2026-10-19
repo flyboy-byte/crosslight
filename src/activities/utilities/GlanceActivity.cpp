@@ -11,6 +11,7 @@
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "glance/GlanceWake.h"
 
 GlanceActivity::GlanceActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
     : Activity("Glance", renderer, mappedInput) {}
@@ -91,6 +92,26 @@ void GlanceActivity::render(RenderLock&&) {
   renderer.drawText(NOTOSANS_14_FONT_ID, gx, y, trend, true, EpdFontFamily::BOLD);
   y += numH + 10;
   centerText(UI_10_FONT_ID, y, ageLine, false);
+
+  // ---- Sleep watch-face cost, read off the device's own counters ----
+  // Only present after a sleep with "Watch Face on Sleep" on; RTC memory, so it
+  // is gone after a power loss. This is the measurement that replaces guessing.
+  const glance::Stats& gs = glance::stats();
+  if (gs.armedBattery != 0 && gs.wakes > 0) {
+    char buf[64];
+    int sy = h - 44 - 3 * renderer.getLineHeight(UI_10_FONT_ID) - 30;
+    snprintf(buf, sizeof(buf), tr(STR_GLANCE_STATS_FMT), static_cast<unsigned>(gs.wakes),
+             static_cast<unsigned>(gs.bleHits));
+    centerText(UI_10_FONT_ID, sy, buf, false);
+    sy += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+    const int64_t nowEpoch = static_cast<int64_t>(time(nullptr));
+    if (gs.armedEpoch > 0 && nowEpoch > gs.armedEpoch) {
+      snprintf(buf, sizeof(buf), tr(STR_GLANCE_BATT_FMT), static_cast<unsigned>(gs.armedBattery),
+               static_cast<unsigned>(powerManager.getBatteryPercentage()),
+               static_cast<int>((nowEpoch - gs.armedEpoch) / 60));
+      centerText(UI_10_FONT_ID, sy, buf, false);
+    }
+  }
 
   // ---- Bottom hint ----
   centerText(SMALL_FONT_ID, h - 44, tr(STR_GLANCE_HINT), false);

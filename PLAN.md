@@ -1,3 +1,28 @@
+## ▶ UPDATE 2026-10-19 (later): release 26.10.18 -- the "whole system" pass (NOT hardware-verified)
+Logan confirmed 26.10.17's Wi-Fi->Bluetooth switch works. Then asked for the rest of the plan and a release. Shipped in 26.10.18,
+all built clean (x4pro + simulator, host tests 884/884) but **none of it has run on the reader**:
+- **Wi-Fi no longer blocks the screen.** Opening Glucose Monitor on Wi-Fi shows "Tap Read to connect"; Wi-Fi joins only on Read, so the
+  source switch is always usable (previously the whole join/scan flow had to finish first). Auto-connect timeout 7 s -> 15 s
+  (`WifiSelectionActivity.h`); that is a GUESS at the "only works in good signal" complaint, not a confirmed cause.
+- **History.** Wi-Fi: `libre::fetchHistory()` (GET /api/v1/glucose, default 3 h) streamed through `HistoryScanner`
+  (`src/libre/LibreHistory.*`, 4 host tests incl. every chunk split) every 5 min; BLE: each write is appended in RAM. A graph (target
+  guides at 70/180) + "Last 3 h: lo-hi (n)" caption draws in the space above Read. Graph layout never seen on screen.
+- **Dead "forget this phone" UI removed** (`forgetBond`, strings, long-press).
+- **Time sync characteristic** (same service) UUID `84b38d8a-686e-4663-bbe8-73ba7d3e1774`: write 4 bytes u32 LE unix UTC; range 2025-2100;
+  sets the RTC (`HalClock::setUtc`) + `trustedtime::adopt`. Applied while Glucose Monitor is open on BLE and in glance wakes.
+  TELL extraction (done via SendMessage 2026-10-19 -- check its reply).
+- **Watch Face on Sleep** (Settings > Display, **off by default**). On a hand-initiated sleep with it on: save a clean copy of the sleep
+  screen (`/.crosspoint/glance_base.bin`), `esp_sleep_enable_timer_wakeup(5 min)`. A timer wake is a chip reset: `setup()` detects it
+  (`glance::isGlanceWake()`), skips all UI, runs `glanceWakeCycle()` in `main.cpp`: listen 8 s for the companion (reading + time sync),
+  load the base frame, draw a framed face (time, date, battery, glucose + age or "no recent reading"), FAST refresh (HALF every 6th),
+  re-arm, deep sleep. Not re-armed below 8 % battery. Counters live in RTC_NOINIT (`glance::Stats`): wakes, companion hits, awake ms,
+  battery at arm; Utilities > Watch Face shows wakes/hits and battery %-drop over elapsed minutes.
+  **UNKNOWN until measured on the device:** deep-sleep current with the timer armed; whether a FAST redraw of the saved 1-bit frame
+  preserves a 4-gray wallpaper (likely loses the grays: the saved buffer is the BW plane); whether the Android app's background
+  connect lands inside the 8 s window; whether power-button wake still behaves after a glance wake. First thing to try: turn it on, sleep,
+  watch it for an hour, read the Watch Face stats screen.
+- Test plan for all of this: `docs/ble_glucose_hardware_test.md` Part C.
+
 ## ▶ UPDATE 2026-10-19: Wi-Fi -> Bluetooth switch fix (release 26.10.17)
 Hardware report (Logan): Wi-Fi works on 26.10.16; switching to Bluetooth "crashed" to Home. DOCUMENTED cause (code
 read, not device-logged): `endSource()` on Wi-Fi calls `silentRestart()` (heap defrag) BEFORE the new source was saved,

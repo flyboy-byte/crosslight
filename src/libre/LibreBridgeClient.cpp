@@ -162,4 +162,40 @@ FetchResult fetchLatest() {
   return out;
 }
 
+Error fetchHistory(std::vector<HistoryPoint>& out) {
+  out.clear();
+  const std::string baseUrl = trimTrailingSlash(readTrimmed(kUrlPath));
+  const std::string token = readTrimmed(kTokenPath);
+  if (baseUrl.empty() || token.empty()) return Error::NoConfig;
+
+  if (ESP.getFreeHeap() < HttpDownloader::MIN_TLS_FREE_HEAP ||
+      ESP.getMaxAllocHeap() < HttpDownloader::MIN_TLS_MAX_ALLOC) {
+    return Error::LowMemory;
+  }
+
+  freeink::SecureHttpClient http;
+  http.setCACert(kRootCa);
+  http.setTimeout(15000);
+  if (!http.begin(baseUrl + "/api/v1/glucose")) return Error::Network;
+  http.addHeader("Authorization", "Bearer " + token);
+  http.addHeader("Accept", "application/json");
+
+  HistoryScanner scanner(out);
+  const int code = http.GET([&scanner](const uint8_t* data, size_t len) {
+    scanner.feed(reinterpret_cast<const char*>(data), len);
+    return true;
+  });
+  http.end();
+
+  if (code <= 0) return Error::Network;
+  if (code == 401) return Error::Unauthorized;
+  if (code == 404) return Error::NoData;
+  if (code < 200 || code >= 300) {
+    LOG_ERR("LIBRE", "fetchHistory: http=%d", code);
+    return Error::Http;
+  }
+  LOG_INF("LIBRE", "history: %u points", static_cast<unsigned>(out.size()));
+  return out.empty() ? Error::NoData : Error::Ok;
+}
+
 }  // namespace libre

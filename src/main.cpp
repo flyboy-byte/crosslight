@@ -43,6 +43,9 @@
 #include "activities/ActivityManager.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "activities/utilities/GlucoseMonitorActivity.h"
+#include "glance/GlanceWake.h"
+#include "libre/LibreBleServer.h"
+#include "libre/LibreBlePacket.h"
 #include "activities/util/LockScreenActivity.h"
 #include "util/DeviceLock.h"
 #include "components/UITheme.h"
@@ -321,14 +324,31 @@ static void saveSleepFrameBuffer() {
   file.close();
 }
 
-static bool loadSleepFrameBuffer() {
+// Clean copy of the sleep screen for the watch face. Unlike the Quick Resume
+// frame it is kept (not consumed) so every glance wake overlays a fresh face on
+// the same base instead of stacking faces.
+constexpr char GLANCE_BASE_FILE[] = "/.crosspoint/glance_base.bin";
+
+static void saveGlanceBase() {
   HalFile file;
-  if (!Storage.openFileForRead("SLP", SLEEP_FRAME_FILE, file)) return false;
+  if (!Storage.openFileForWrite("SLP", GLANCE_BASE_FILE, file)) return;
+  file.write(renderer.getFrameBuffer(), renderer.getBufferSize());
+  file.close();
+}
+
+// Reads a saved frame into the display buffer; does not delete the file.
+static bool loadSleepFrameBufferFrom(const char* path) {
+  HalFile file;
+  if (!Storage.openFileForRead("SLP", path, file)) return false;
   const size_t bufferSize = display.getBufferSize();
   const size_t bytesRead = file.read(display.getFrameBuffer(), bufferSize);
   file.close();
-  if (bytesRead != bufferSize) {
-    Storage.remove(SLEEP_FRAME_FILE);
+  return bytesRead == bufferSize;
+}
+
+static bool loadSleepFrameBuffer() {
+  if (!loadSleepFrameBufferFrom(SLEEP_FRAME_FILE)) {
+    if (Storage.exists(SLEEP_FRAME_FILE)) Storage.remove(SLEEP_FRAME_FILE);
     return false;
   }
   Storage.remove(SLEEP_FRAME_FILE);
@@ -426,6 +446,16 @@ void enterDeepSleep(bool fromTimeout = false) {
     Storage.remove(SLEEP_FRAME_FILE);
   }
 
+  // Watch face on sleep: keep a clean copy of the sleep screen and arm the timer
+  // wake. The timer coexists with the power-button wake (nothing in the sleep path
+  // clears wake sources). Not armed on a low battery: a dead battery is worse
+  // than a missing face.
+  if (SETTINGS.glanceOnSleep && powerManager.getBatteryPercentage() > glance::kMinBatteryPct) {
+    saveGlanceBase();
+    glance::armFirst(static_cast<uint8_t>(powerManager.getBatteryPercentage()),
+                     static_cast<int64_t>(time(nullptr)));
+  }
+
   // Tear down WiFi so the modem power domain isn't held alive across deep sleep.
   // Wake from deep sleep is effectively a chip reset, so no state needs to survive.
   if (WiFi.getMode() != WIFI_MODE_NULL) {
@@ -480,6 +510,85 @@ void setupDisplayAndFonts(bool seamless = false) {
   sdFontSystem.begin(renderer);
 
   LOG_DBG("MAIN", "Fonts setup");
+}
+
+// One watch-face wake: listen briefly for the companion, draw the face over the
+// saved sleep screen, go back to sleep. Never returns. Any failure falls through
+// to a plain power-button-only sleep (timer not re-armed), never to a half-booted UI.
+[[noreturn]] static void glanceWakeCycle() {
+  const uint32_t startMs = millis();
+  glance::Stats& st = glance::stats();
+  const uint16_t battery = powerManager.getBatteryPercentage();
+  const bool lowBattery = battery <= glance::kMinBatteryPct && !gpio.isUsbConnected();
+
+  if (!lowBattery && Storage.exists(GLANCE_BASE_FILE)) {
+    // Listen for the companion first so the face shows what just arrived.
+    {
+      libre::LibreBleServer ble;
+      const uint32_t bleStart = millis();
+      if (ble.begin()) {
+        libre::BlePacket packet;
+        while (millis() - bleStart < glance::kBleWindowMs) {
+          int64_t phoneEpoch = 0;
+#if defined(ARDUINO_ARCH_ESP32)
+          if (ble.takeTimeSync(phoneEpoch) && halClock.setUtc(static_cast<time_t>(phoneEpoch))) {
+            trustedtime::adopt(phoneEpoch);
+          }
+#endif
+          if (ble.takeLatest(packet)) {
+            st.value = packet.unavailable ? 0xFFFF : packet.valueMgdl;
+            st.trend = static_cast<uint8_t>(packet.trend);
+            st.flags = static_cast<uint8_t>((packet.high ? 1 : 0) | (packet.low ? 2 : 0) | (packet.unavailable ? 4 : 0));
+            st.rxEpoch = static_cast<int64_t>(time(nullptr));
+            st.bleHits++;
+            break;
+          }
+          delay(50);
+        }
+        ble.end();
+      }
+      st.bleMs += millis() - bleStart;
+    }
+
+    glance::FaceData face;
+    face.batteryPct = static_cast<uint8_t>(battery);
+    struct tm now;
+    if (halClock.localTime(now)) {
+      face.haveTime = true;
+      strftime(face.time, sizeof(face.time), "%H:%M", &now);
+      strftime(face.date, sizeof(face.date), "%a %b %-d", &now);
+    }
+    const int64_t nowEpoch = static_cast<int64_t>(time(nullptr));
+    if (face.haveTime && st.rxEpoch > 0 && st.value != 0xFFFF && (st.flags & 4) == 0 && nowEpoch >= st.rxEpoch) {
+      const int64_t ageS = nowEpoch - st.rxEpoch;
+      // Same 10-minute freshness cutoff as the Glucose Monitor screen.
+      if (ageS < static_cast<int64_t>(libre::kBleStaleAfterS)) {
+        face.hasGlucose = true;
+        face.value = st.value;
+        face.ageMin = static_cast<int>(ageS / 60);
+        static const char* const kTrend[] = {"", "vv", "v", "-", "^", "^^"};
+        face.trend = kTrend[st.trend <= 5 ? st.trend : 0];
+      }
+    }
+
+    if (loadSleepFrameBufferFrom(GLANCE_BASE_FILE)) {
+      glance::drawOverlay(renderer, face);
+      st.wakes++;
+      // Fast refresh over the retained image; a periodic half refresh clears ghosting.
+      renderer.displayBuffer(st.wakes % glance::kHalfRefreshEvery == 0 ? HalDisplay::HALF_REFRESH
+                                                                        : HalDisplay::FAST_REFRESH);
+      glance::armNext();
+    }
+  }
+  // else: low battery or no base frame -> no re-arm, so the device settles into
+  // ordinary power-button sleep.
+
+  st.awakeMs += millis() - startMs;
+  halTiltSensor.deepSleep();
+  display.deepSleep();
+  Storage.prepareForDeepSleep();
+  powerManager.startDeepSleep(gpio);
+  for (;;) delay(1000);  // startDeepSleep() does not return
 }
 
 void setup() {
@@ -612,8 +721,9 @@ void setup() {
   // light off unless Restore Light on Wake is enabled; silent maintenance
   // reboots replay the live state captured at restart, so they neither go dark
   // nor light up against the user's wake preference.
+  const bool glanceWake = SETTINGS.glanceOnSleep != 0 && glance::isGlanceWake();
   const bool restoreLightOn =
-      isSilentReboot ? silentRebootLightOn : (SETTINGS.frontlightOn != 0 && SETTINGS.frontlightRestoreOnWake != 0);
+      glanceWake ? false : isSilentReboot ? silentRebootLightOn : (SETTINGS.frontlightOn != 0 && SETTINGS.frontlightRestoreOnWake != 0);
   Frontlight.begin(SETTINGS.frontlightBrightness, SETTINGS.frontlightWarmth, restoreLightOn);
 
   switch (wakeupReason) {
@@ -666,7 +776,8 @@ void setup() {
   bool allowFastInitialReaderRefresh = false;
   bool needsWakeRefresh = false;
 
-  setupDisplayAndFonts(resume != BootResume::Splash);
+  setupDisplayAndFonts(resume != BootResume::Splash || glanceWake);
+  if (glanceWake) glanceWakeCycle();  // never returns
 
   switch (resume) {
     case BootResume::Silent:

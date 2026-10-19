@@ -2,6 +2,7 @@
 
 #include <Logging.h>
 
+#include <atomic>
 #include <cstring>
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -75,6 +76,25 @@ class CharCallbacks final : public NimBLECharacteristicCallbacks {
 
 CharCallbacks g_charCallbacks;
 
+// Latest time-sync write, 0 = none pending. A single 64-bit atomic: the host task
+// stores, the UI task exchanges.
+std::atomic<int64_t> g_pendingTime{0};
+
+class TimeCallbacks final : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* chr, NimBLEConnInfo& /*connInfo*/) override {
+    const NimBLEAttValue value = chr->getValue();
+    if (value.size() != 4) return;
+    const uint8_t* b = value.data();
+    const int64_t epoch = static_cast<int64_t>(b[0]) | (static_cast<int64_t>(b[1]) << 8) |
+                          (static_cast<int64_t>(b[2]) << 16) | (static_cast<int64_t>(b[3]) << 24);
+    if (epoch < 1735689600LL || epoch > 4102444800LL) return;  // 2025-01-01 .. 2100-01-01
+    LOG_INF("LIBRE_BLE", "time sync write: %lld", static_cast<long long>(epoch));
+    g_pendingTime.store(epoch);
+  }
+};
+
+TimeCallbacks g_timeCallbacks;
+
 }  // namespace
 #endif  // ARDUINO_ARCH_ESP32
 
@@ -133,6 +153,13 @@ bool LibreBleServer::begin() {
       return false;
     }
     chr->setCallbacks(&g_charCallbacks);
+    NimBLECharacteristic* timeChr = service->createCharacteristic(
+        kBleTimeCharacteristicUuid, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    if (!timeChr) {
+      LOG_ERR("LIBRE_BLE", "Could not create time characteristic");
+      return false;
+    }
+    timeChr->setCallbacks(&g_timeCallbacks);
     service->start();
   }
 
@@ -185,14 +212,15 @@ bool LibreBleServer::connected() const {
 #endif
 }
 
-void LibreBleServer::forgetBond() {
+bool LibreBleServer::takeTimeSync(int64_t& epochOut) {
 #if defined(ARDUINO_ARCH_ESP32)
-  if (g_connected && g_server) {
-    for (const uint16_t connHandle : g_server->getPeerDevices()) g_server->disconnect(connHandle);
-  }
-  NimBLEDevice::deleteAllBonds();
-  LOG_INF("LIBRE_BLE", "Cleared all bonds (%d remaining); advertising for a fresh pairing",
-          NimBLEDevice::getNumBonds());
+  const int64_t e = g_pendingTime.exchange(0);
+  if (e == 0) return false;
+  epochOut = e;
+  return true;
+#else
+  (void)epochOut;
+  return false;
 #endif
 }
 

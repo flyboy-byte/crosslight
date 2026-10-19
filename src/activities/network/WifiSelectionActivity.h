@@ -109,7 +109,7 @@ class WifiSelectionActivity final : public Activity, private UiAppHost {
 
   // Connection timeout
   static constexpr unsigned long CONNECTION_TIMEOUT_MS = 15000;
-  static constexpr unsigned long AUTO_CONNECTION_TIMEOUT_MS = 7000;
+  static constexpr unsigned long AUTO_CONNECTION_TIMEOUT_MS = 15000;
   unsigned long connectionStartTime = 0;
 
   // The UiAppHost app hosts the network list and the save/forget prompts

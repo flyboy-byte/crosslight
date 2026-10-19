@@ -81,6 +81,18 @@ python3 scripts/make_ble_glucose_packet.py --value 260 --trend rising --flags hi
 | B10 | Leave the screen, re-enter it, connect again | Exactly **one** copy of the service in nRF Connect after "Refresh services" (the old build stacked a duplicate each entry). |
 | B11 | Extraction's vector `E2 00 03 00 1F A1 CD 6A` | **226** steady. |
 
+## Part C: release 26.10.18 additions (also never run on hardware)
+
+| # | Do this | Expect |
+| --- | --- | --- |
+| C1 | Open Glucose Monitor with Wi-Fi saved as the source | Opens at once with "Tap Read to connect"; tapping Bluetooth works immediately. Read joins Wi-Fi. |
+| C2 | Wi-Fi Read, wait ~5 min on Auto | A graph appears under the reading with "Last 3 h: lo-hi (n)". |
+| C3 | BLE: send 3-4 different values a minute apart | Graph builds from the writes (needs >= 2). |
+| C4 | nRF Connect: write a 4-byte u32 LE epoch to `84b38d8a-686e-4663-bbe8-73ba7d3e1774` (e.g. `python3 -c "import struct,time;print(struct.pack('<I',int(time.time())).hex())"`) | Serial `time sync write: N`; Watch Face clock matches the phone. |
+| C5 | Settings > Display > Watch Face on Sleep ON, then sleep the device | After ~5 min the screen redraws with the face over the sleep screen (watch it for a few cycles). Power button still wakes normally. |
+| C6 | After an hour asleep, wake and open Utilities > Watch Face | Stats lines show wakes / phone reached and battery % over minutes. Record them in PLAN.md: they are the first real battery number. |
+| C7 | With Wi-Fi off the phone app running | Whether a wake's 8 s window catches a write ("phone reached" > 0). |
+
 ## If nothing shows
 
 1. Is the monitor on **Bluetooth** (selected half filled) and does the status say "Waiting for phone..."? "Bluetooth

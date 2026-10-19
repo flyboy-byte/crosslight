@@ -126,3 +126,22 @@ bool HalClock::syncFromNTP() {
   setTimezone(savedTz);
   return false;
 }
+
+bool HalClock::setUtc(const time_t epoch) {
+  if (!_available) return false;
+  struct tm t;
+  gmtime_r(&epoch, &t);
+  Rtc::DateTime dt;
+  dt.year = static_cast<uint16_t>(t.tm_year + 1900);
+  dt.month = static_cast<uint8_t>(t.tm_mon + 1);
+  dt.day = static_cast<uint8_t>(t.tm_mday);
+  dt.hour = static_cast<uint8_t>(t.tm_hour);
+  dt.minute = static_cast<uint8_t>(t.tm_min);
+  dt.second = static_cast<uint8_t>(t.tm_sec);
+  dt.weekday = static_cast<uint8_t>(t.tm_wday);
+  if (!_sdkRtc.set(dt)) return false;
+  _cachedUtc = epoch;
+  _hasCachedTime = true;
+  _lastPollMs = 0;
+  return true;
+}

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <string>
+#include <vector>
+
+#include "LibreHistory.h"
 
 // Client for Logan's own Libre glucose bridge (personal VPS project, see
 // ~/projects/extraction/docs/agent-api.md for the full API contract this
@@ -43,5 +46,10 @@ struct FetchResult {
 // rate limit (120 req/min) and a 10-bad-key lockout, so callers must not
 // retry on Error::Unauthorized (see agent-api.md "Etiquette and limits").
 FetchResult fetchLatest();
+
+// GET <base-url>/api/v1/glucose (the server's default window: last 3 hours,
+// oldest first). Streamed through HistoryScanner so the ~40 KB body is never
+// held. Same etiquette as fetchLatest(); callers space these out (minutes).
+Error fetchHistory(std::vector<HistoryPoint>& out);
 
 }  // namespace libre
