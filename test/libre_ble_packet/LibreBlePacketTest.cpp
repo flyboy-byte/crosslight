@@ -113,72 +113,32 @@ TEST(DecodeBlePacket, NoValueSentinel) {
 }
 
 // ---- bleReadingFromPacket -------------------------------------------------
+// Pure function of the packet now: status from flags/sentinel only. Freshness
+// is judged by receipt time (millis uptime) in GlucoseMonitorActivity, not
+// here, so there are no clock-based cases left to test at this layer.
 
-TEST(BleReadingFromPacket, NoTrustedClockNeverShowsANumber) {
-  libre::BlePacket p;
-  p.valueMgdl = 120;
-  p.readingTimeUnix = 1000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, /*nowUnix=*/0);
-  EXPECT_EQ(r.status, libre::ReadingStatus::Unavailable);
-
-  const libre::Reading r2 = libre::bleReadingFromPacket(p, /*nowUnix=*/-5);
-  EXPECT_EQ(r2.status, libre::ReadingStatus::Unavailable);
-}
-
-TEST(BleReadingFromPacket, FreshReadingIsOk) {
+TEST(BleReadingFromPacket, PlainReadingIsOk) {
   libre::BlePacket p;
   p.valueMgdl = 143;
   p.trend = libre::Trend::Falling;
-  p.readingTimeUnix = 1000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, /*nowUnix=*/1030);  // 30s old
+  const libre::Reading r = libre::bleReadingFromPacket(p);
   EXPECT_EQ(r.status, libre::ReadingStatus::Ok);
   EXPECT_EQ(r.value, 143);
   EXPECT_EQ(r.trend, libre::Trend::Falling);
-  EXPECT_EQ(r.ageS, 30);
-}
-
-TEST(BleReadingFromPacket, JustUnderStaleCutoffIsOk) {
-  libre::BlePacket p;
-  p.valueMgdl = 100;
-  p.readingTimeUnix = 1000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, 1000 + libre::kBleStaleAfterS - 1);
-  EXPECT_EQ(r.status, libre::ReadingStatus::Ok);
-}
-
-TEST(BleReadingFromPacket, AtOrPastStaleCutoffShowsNoNumber) {
-  libre::BlePacket p;
-  p.valueMgdl = 100;
-  p.readingTimeUnix = 1000;
-  const libre::Reading atCutoff = libre::bleReadingFromPacket(p, 1000 + libre::kBleStaleAfterS);
-  EXPECT_EQ(atCutoff.status, libre::ReadingStatus::Unavailable);
-
-  const libre::Reading pastCutoff = libre::bleReadingFromPacket(p, 1000 + libre::kBleStaleAfterS + 120);
-  EXPECT_EQ(pastCutoff.status, libre::ReadingStatus::Unavailable);
-}
-
-TEST(BleReadingFromPacket, FutureDatedReadingShowsNoNumber) {
-  // Clock skew or a replayed packet -- not current either way.
-  libre::BlePacket p;
-  p.valueMgdl = 100;
-  p.readingTimeUnix = 2000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, /*nowUnix=*/1000);
-  EXPECT_EQ(r.status, libre::ReadingStatus::Unavailable);
 }
 
 TEST(BleReadingFromPacket, UnavailableFlagWinsOverValue) {
   libre::BlePacket p;
   p.valueMgdl = 100;
   p.unavailable = true;
-  p.readingTimeUnix = 1000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, 1010);
+  const libre::Reading r = libre::bleReadingFromPacket(p);
   EXPECT_EQ(r.status, libre::ReadingStatus::Unavailable);
 }
 
 TEST(BleReadingFromPacket, NoValueSentinelIsUnavailableEvenWithoutFlag) {
   libre::BlePacket p;
   p.valueMgdl = libre::kBleNoValueMgdl;
-  p.readingTimeUnix = 1000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, 1010);
+  const libre::Reading r = libre::bleReadingFromPacket(p);
   EXPECT_EQ(r.status, libre::ReadingStatus::Unavailable);
 }
 
@@ -186,8 +146,7 @@ TEST(BleReadingFromPacket, HighFlagSetsHighStatusAndKeepsNumber) {
   libre::BlePacket p;
   p.valueMgdl = 260;
   p.high = true;
-  p.readingTimeUnix = 1000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, 1010);
+  const libre::Reading r = libre::bleReadingFromPacket(p);
   EXPECT_EQ(r.status, libre::ReadingStatus::High);
   EXPECT_EQ(r.value, 260);
 }
@@ -196,8 +155,7 @@ TEST(BleReadingFromPacket, LowFlagSetsLowStatus) {
   libre::BlePacket p;
   p.valueMgdl = 55;
   p.low = true;
-  p.readingTimeUnix = 1000;
-  const libre::Reading r = libre::bleReadingFromPacket(p, 1010);
+  const libre::Reading r = libre::bleReadingFromPacket(p);
   EXPECT_EQ(r.status, libre::ReadingStatus::Low);
   EXPECT_EQ(r.value, 55);
 }

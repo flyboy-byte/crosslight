@@ -3,7 +3,6 @@
 #include <GfxRenderer.h>
 #include <I18n.h>
 #include <Logging.h>
-#include <TrustedTime.h>
 #include <WiFi.h>
 
 #include <algorithm>
@@ -228,17 +227,31 @@ void GlucoseMonitorActivity::pollBle() {
 
   const bool gotNew = bleServer.takeLatest(lastBlePacket);
   const uint32_t now = millis();
-  if (!gotNew) {
-    if (!haveReading) return;                           // never received a packet yet
-    if (now - lastFetchMs < kBleRecheckMs) return;       // not due for a staleness re-check
+  if (gotNew) {
+    // A real write just arrived: this is the receipt time freshness is judged
+    // against from here on -- the reader's own clock is never consulted.
+    lastBleWriteMs = now;
+    LOG_INF("LIBRE_BLE", "write: value=%u trend=%u flags(H/L/U)=%u/%u/%u", lastBlePacket.valueMgdl,
+            static_cast<unsigned>(lastBlePacket.trend), lastBlePacket.high, lastBlePacket.low,
+            lastBlePacket.unavailable);
+  } else {
+    if (!haveReading) return;                       // never received a packet yet
+    if (now - lastFetchMs < kBleRecheckMs) return;  // not due for a staleness re-check
   }
   lastFetchMs = now;
 
-  const int64_t trustedNow = trustedtime::trustedNow();
   RenderLock lock(*this);
-  reading = libre::bleReadingFromPacket(lastBlePacket, trustedNow);
+  reading = libre::bleReadingFromPacket(lastBlePacket);
+  // Freshness by receipt time: once no write has landed for the stale window,
+  // drop to Unavailable no matter what the last packet said.
+  const uint32_t sinceWriteMs = now - lastBleWriteMs;
+  if (sinceWriteMs >= libre::kBleStaleAfterMs) {
+    reading.status = libre::ReadingStatus::Unavailable;
+  } else if (reading.status == libre::ReadingStatus::Ok) {
+    reading.ageS = static_cast<int>(sinceWriteMs / 1000);
+  }
   haveReading = true;
-  statusLine = trustedNow <= 0 ? tr(STR_GLUCOSE_BLE_NO_CLOCK) : "";
+  statusLine = "";
   requestUpdate();
 }
 

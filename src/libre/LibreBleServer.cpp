@@ -27,6 +27,7 @@ constexpr size_t QUEUE_DEPTH = 4;  // writes land ~once a minute; never a flood
 QueueHandle_t g_queue = nullptr;
 NimBLEServer* g_server = nullptr;
 bool g_connected = false;
+bool g_advertisedUuid = false;
 
 // Long interval + slave latency: the companion only writes about once a
 // minute, so there's no reason to hold the link awake faster than that
@@ -54,12 +55,20 @@ ServerCallbacks g_serverCallbacks;
 
 class CharCallbacks final : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic* chr, NimBLEConnInfo& /*connInfo*/) override {
-    if (!g_queue) return;
     const NimBLEAttValue value = chr->getValue();
+    if (!g_queue) return;
     RawWrite w;
     w.len = value.size() > sizeof(w.bytes) ? static_cast<uint16_t>(sizeof(w.bytes))
                                             : static_cast<uint16_t>(value.size());
     std::memcpy(w.bytes, value.data(), w.len);
+    // Log the raw bytes as hex so a write can be traced end to end from the
+    // serial console without guessing whether it reached this callback.
+    char hex[kBlePacketSize * 3 + 1];
+    size_t pos = 0;
+    for (uint16_t i = 0; i < w.len && pos + 3 < sizeof(hex); ++i) {
+      pos += snprintf(hex + pos, sizeof(hex) - pos, "%02X ", w.bytes[i]);
+    }
+    LOG_INF("LIBRE_BLE", "onWrite %u bytes: %s", static_cast<unsigned>(w.len), hex);
     xQueueSend(g_queue, &w, 0);
   }
 };
@@ -81,41 +90,61 @@ bool LibreBleServer::begin() {
 
   if (!NimBLEDevice::isInitialized()) {
     NimBLEDevice::init("CrossLight");
-    // Bonding required, no MITM passkey flow (there's no screen-to-screen
-    // pairing UX here -- just confirm on first connect), secure connections.
-    NimBLEDevice::setSecurityAuth(/*bonding=*/true, /*mitm=*/false, /*sc=*/true);
+    // Bring-up: NO encryption/bonding yet. The held-connection + WRITE_ENC
+    // design failed on hardware (2026-10-18); this rebuild confirms the plain
+    // write path end to end first, then Just-Works bonding comes back as a
+    // separate, deliberate step. See PLAN.md "BLE rework".
   }
 
-  g_server = NimBLEDevice::createServer();
+  // Server/service/characteristic are created exactly once and reused across
+  // every begin()/end() cycle (the screen opening and closing repeatedly) --
+  // NimBLE has no "remove service" call, so creating a fresh one on every
+  // begin() left stale duplicate services (same UUIDs) piling up in the GATT
+  // table, confirmed on real hardware 2026-10-18 (6 identical services after
+  // a few screen reopens).
   if (!g_server) {
-    LOG_ERR("LIBRE_BLE", "Could not create GATT server");
-    return false;
-  }
-  g_server->setCallbacks(&g_serverCallbacks, /*deleteCallbacks=*/false);
+    g_server = NimBLEDevice::createServer();
+    if (!g_server) {
+      LOG_ERR("LIBRE_BLE", "Could not create GATT server");
+      return false;
+    }
+    g_server->setCallbacks(&g_serverCallbacks, /*deleteCallbacks=*/false);
+    // NimBLEServer::m_advertiseOnDisconnect defaults to false (confirmed by
+    // reading NimBLE-Arduino's own source, 2026-10-18) -- without this, the
+    // very first disconnect after begin() permanently kills advertising
+    // until the screen is closed and reopened (which re-runs begin()), with
+    // no visible symptom: the screen just sits there silently unreachable.
+    // Real-hardware-confirmed root cause of this session's "nothing reaches
+    // the device" failures.
+    g_server->advertiseOnDisconnect(true);
 
-  NimBLEService* service = g_server->createService(kBleServiceUuid);
-  if (!service) {
-    LOG_ERR("LIBRE_BLE", "Could not create glucose relay service");
-    return false;
+    NimBLEService* service = g_server->createService(kBleServiceUuid);
+    if (!service) {
+      LOG_ERR("LIBRE_BLE", "Could not create glucose relay service");
+      return false;
+    }
+    // WRITE + WRITE_NR, no WRITE_ENC during bring-up: any client may write,
+    // so a plain unbonded write is enough to prove the path. Encryption is
+    // added back with bonding later (PLAN.md "BLE rework").
+    NimBLECharacteristic* chr = service->createCharacteristic(
+        kBleCharacteristicUuid, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    if (!chr) {
+      LOG_ERR("LIBRE_BLE", "Could not create glucose characteristic");
+      return false;
+    }
+    chr->setCallbacks(&g_charCallbacks);
+    service->start();
   }
-  // WRITE_ENC: only an encrypted (i.e. bonded) link may write. WRITE_NR: the
-  // companion uses Write Without Response (crosslight/PLAN.md power design)
-  // -- no ack round-trip for a value that's superseded within a minute.
-  NimBLECharacteristic* chr = service->createCharacteristic(
-      kBleCharacteristicUuid, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::WRITE_ENC);
-  if (!chr) {
-    LOG_ERR("LIBRE_BLE", "Could not create glucose characteristic");
-    return false;
-  }
-  chr->setCallbacks(&g_charCallbacks);
-  service->start();
 
   NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
   if (!adv) {
     LOG_ERR("LIBRE_BLE", "No advertising handle");
     return false;
   }
-  adv->addServiceUUID(kBleServiceUuid);
+  if (!g_advertisedUuid) {
+    adv->addServiceUUID(kBleServiceUuid);
+    g_advertisedUuid = true;
+  }
   if (!adv->start()) {
     LOG_ERR("LIBRE_BLE", "Could not start advertising");
     return false;

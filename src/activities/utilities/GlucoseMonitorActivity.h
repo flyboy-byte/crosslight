@@ -59,4 +59,5 @@ class GlucoseMonitorActivity final : public Activity {
   bool stopped = false;  // set on 401 -- never retried, see agent-api.md
   std::string statusLine;
   uint32_t lastFetchMs = 0;
+  uint32_t lastBleWriteMs = 0;  // millis() when the last BLE packet arrived (receipt-time freshness)
 };

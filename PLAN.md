@@ -1,6 +1,103 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-18, later: moving into BLE)
+## ▶ RESUME HERE (anchor, 2026-10-18 evening: BLE rework + glance mode)
+
+**Hardware BLE test today exposed design problems; decision is a top-down rework.** The radio
+path itself works — a phone write (nRF Connect over adb) arrived and decoded byte-for-byte
+(110 mg/dL, steady). But three things were wrong, and the fixes below are the new direction.
+
+**What was wrong**
+1. NimBLE lifecycle bugs (mine): `begin()` recreated the GATT service on every screen entry
+   (duplicate services piled up — confirmed 6 on hardware), and advertising never resumed after
+   a disconnect (`advertiseOnDisconnect` defaults false). Both are patched in `LibreBleServer.cpp`
+   (commits not yet made — patched working-tree only) but the rework supersedes the patch.
+2. Reader-clock staleness: the screen shows a number only if `reader_now - reading_time` is in
+   [0, 600s). On BLE there's no Wi-Fi to sync the clock; after a reboot it restores a possibly-old
+   persisted floor, so a fresh reading looks future-dated and renders **Unavailable**. This is the
+   likely cause of "decoded fine but shows Unavailable" (inferred — never captured the clock log).
+3. Too many moving parts for a first bring-up (bonding, custom conn params, foreground-only radio,
+   strict staleness, per-loop debug logging, flaky serial reads).
+
+**The rework (firmware owns the contract now — see [[crosslight-ble-contract-ownership]])**
+Logan confirmed: build the firmware however is cleanest; extraction's companion app conforms.
+So extraction's D-020 packet freeze and D-017 staleness rule no longer constrain us.
+1. **BLE: rebuild on the stock NimBLE server shape.** Create server/service once; advertise after
+   disconnect; bring up with NO encryption first; log each write as hex. Add Just-Works bonding
+   back as a separate step after plain writes are confirmed.
+2. **Freshness by receipt time, not reader clock.** "No write in 10 min -> Unavailable" keyed off
+   the reader's own `millis()` uptime (no reboot can corrupt it). Phone still sets the UNAVAILABLE
+   flag when its own reading is old. Packet format otherwise unchanged.
+3. **Testing: one monitor into a file; drop per-loop logging; one write tool at a time.**
+
+**Then: glance mode (new idea, 2026-10-18).** "E-reader pocket watch." Glance mode = the device's
+**sleep state**: deep sleep, timer-wake every **5 min** (Logan's pick), partial-refresh time +
+glucose, back to sleep; any button drops into the full e-reader. E-ink holds the face at zero
+power. Implications:
+- Flips the BLE model to **short connect/write/disconnect per wake** (phone holds a background
+  auto-connect to the bonded reader) — much more standard/documented than the held connection.
+- Each phone write also **sets the reader clock** (fixes the time problem; makes the watch face
+  show correct time with no Wi-Fi). Likely a second small characteristic (my call now).
+- Battery: biggest win is a **fast wake path** that skips full e-reader boot (SD/fonts/UI). Rough
+  math ~5s awake @ ~50mA / 300s ≈ <1mA avg + sleep current. **Sleep current on X4 Pro is the real
+  unknown and MUST be measured** (display controller / touch / PSRAM / SD often dominate) before
+  promising any battery number.
+
+**Order:** BLE rework (1-3) -> measure deep-sleep current -> fast wake path + glance face ->
+timed BLE window. Branch off `crosslight` for glance mode.
+
+**Do-not-re-raise:** receipt-time freshness and the time characteristic are decided (firmware owns
+the contract); 5-min wake interval is decided; don't re-pitch a held BLE connection as the model
+for glance mode.
+
+---
+
+## Glance mode — product intent (UI-independent, captured 2026-10-18)
+
+This is the *why*, kept separate from any specific UI so it survives a change of
+direction on layout, interaction, or framing. If the implementation below (watch
+face, 5-min wake, etc.) gets reworked, these principles are what a new design
+still has to serve.
+
+**The core insight.** The hardware is a genuinely nice little ESP32-S3 device —
+8 MB PSRAM, capacitive touch, dual frontlight, e-ink. It happens to ship as an
+e-reader, and the whole Utilities effort has been bolting glanceable tools (time,
+glucose, Claude) onto a reader app. The reframe: treat the e-reader as *one mode*
+of a capable pocket device, not the whole identity. Get more native, less
+sandboxed-reader-app, and let the reader be the thing you switch *into* for deep
+work rather than the thing everything else lives inside.
+
+**The vision in one line.** An e-reader pocket watch: grab it, know the time and
+your glucose at a glance, then switch into the e-reader for reading and the
+heavier utilities — without ever giving up the e-ink device's absurd battery life.
+
+**Principles any UI for this must keep (these don't change even if the UI does):**
+1. **Near-zero cost at rest.** E-ink holds a static image for free; the glance
+   state should cost almost nothing (deep sleep between brief wakes). Battery life
+   is *the* advantage of this hardware and is non-negotiable — never trade it for
+   UI richness. A design that halves battery life to look nicer is the wrong design.
+2. **Glance-first.** The two things you want without thinking — time and glucose —
+   are readable with no interaction, no menu, no app to open.
+3. **Glance mode is a state, not a second firmware.** One build, one codebase
+   (keeps upstream reader fixes flowing). You switch *into* glance and *out of* it;
+   you don't flash something different.
+4. **Instant, obvious escape hatch to the full reader.** Glance is the resting
+   state; any deliberate interaction drops you into the rich e-reader world.
+5. **The phone is the source of truth for data and accurate time; the reader
+   displays.** The device shouldn't depend on its own (offline, untrustworthy)
+   clock or on Wi-Fi to show something correct at a glance.
+
+**What this intent deliberately does NOT fix** (open UI choices, free to change):
+the face layout; whether glance is literally a "watch face" vs a compact
+dashboard; how you switch modes (button, gesture, tap target, cover sensor);
+whether other glanceable data (battery, weather, next reading trend) joins time +
+glucose; and the exact wake cadence. The mechanics currently chosen (5-min wake,
+timed BLE window, fast wake path skipping full reader boot) live in the resume
+anchor above as *one* implementation of the principles — not as the principles
+themselves.
+
+---
+
+## ▶ Previous anchor (2026-10-18, earlier: moving into BLE)
 
 **Unified-API Phases A-C confirmed shipped, now working BLE.** Session picked up post-compaction;
 verified against git/docs that Phases A-C (bridge-backed Claude Panel, Ask Claude, Bible Passage

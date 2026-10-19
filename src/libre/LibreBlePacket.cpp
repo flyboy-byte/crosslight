@@ -47,22 +47,10 @@ bool decodeBlePacket(const uint8_t* data, const size_t len, BlePacket& out) {
   return true;
 }
 
-Reading bleReadingFromPacket(const BlePacket& packet, const int64_t nowUnix) {
+Reading bleReadingFromPacket(const BlePacket& packet) {
   Reading r;
   r.trend = packet.trend;
   r.unit = "mg/dL";
-
-  if (nowUnix <= 0) {
-    r.status = ReadingStatus::Unavailable;
-    return r;
-  }
-
-  const int64_t ageS = nowUnix - static_cast<int64_t>(packet.readingTimeUnix);
-  if (ageS < 0 || static_cast<uint32_t>(ageS) >= kBleStaleAfterS) {
-    r.status = ReadingStatus::Unavailable;
-    return r;
-  }
-  r.ageS = static_cast<int>(ageS);
 
   if (packet.unavailable || packet.valueMgdl == kBleNoValueMgdl) {
     r.status = ReadingStatus::Unavailable;

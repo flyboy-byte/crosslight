@@ -15,9 +15,14 @@ namespace libre {
 constexpr size_t kBlePacketSize = 8;
 constexpr uint16_t kBleNoValueMgdl = 0xFFFF;
 
-// 10 minutes -- same cutoff as agent-api.md, the laptop widget, and the
-// Wi-Fi path's own STALE handling. Frozen alongside the packet contract.
+// 10 minutes. The relay judges freshness by RECEIPT time (how long since the
+// reader last got a write), not by the packet's own reading_time against the
+// reader's clock -- a reader without Wi-Fi has no trustworthy clock, so an
+// otherwise-fine reading used to render Unavailable after any reboot. Receipt
+// time comes from millis() uptime, which no reboot can corrupt. The activity
+// owns that comparison; this constant is the window it uses.
 constexpr uint32_t kBleStaleAfterS = 600;
+constexpr uint32_t kBleStaleAfterMs = kBleStaleAfterS * 1000;
 
 struct BlePacket {
   uint16_t valueMgdl = kBleNoValueMgdl;
@@ -35,17 +40,17 @@ struct BlePacket {
 // D-020, never a length that this quietly tolerates.
 bool decodeBlePacket(const uint8_t* data, size_t len, BlePacket& out);
 
-// Turns a decoded packet plus a trusted "now" into the same Reading shape the
-// Wi-Fi path produces, so the Glucose Monitor screen renders either source
-// identically.
-//
-// `nowUnix` must come from a trusted clock (trustedtime::trustedNow() on
-// device); pass <= 0 to mean "no trusted clock available". This relay's own
-// rule (extraction DECISIONS.md D-017) is stricter than the Wi-Fi path's own
-// STALE status: once a reading is untimed, future-dated (clock skew) or
-// older than kBleStaleAfterS, NO NUMBER is shown at all -- so those cases map
-// to ReadingStatus::Unavailable (which already renders without one) rather
-// than Stale (which still renders the last known value on the Wi-Fi path).
-Reading bleReadingFromPacket(const BlePacket& packet, int64_t nowUnix);
+// Turns a decoded packet into the same Reading shape the Wi-Fi path produces,
+// so the Glucose Monitor screen renders either source identically. Pure
+// function of the packet's own contents -- status comes from the flags and the
+// value sentinel only:
+//   - HIGH / LOW flag  -> High / Low (value kept, but never shown for these)
+//   - UNAVAILABLE flag or 0xFFFF sentinel -> Unavailable
+//   - otherwise         -> Ok with the value.
+// Freshness is NOT decided here: the caller tracks when the last write arrived
+// (receipt time) and forces Unavailable once that exceeds kBleStaleAfterMs,
+// since the reader's own clock is not trustworthy offline. ageS is left 0 for
+// the caller to fill from receipt time.
+Reading bleReadingFromPacket(const BlePacket& packet);
 
 }  // namespace libre
