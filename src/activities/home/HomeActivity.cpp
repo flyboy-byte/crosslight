@@ -24,6 +24,7 @@
 #include "OpdsServerStore.h"
 #include "RecentBooksStore.h"
 #include "activities/plugins/PluginCatalogActivity.h"  // anyPluginInstalled()
+#include "activities/utilities/GlucoseMonitorActivity.h"
 #include "activities/utilities/UtilitiesActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -323,8 +324,8 @@ void HomeActivity::loop() {
       case HomeMenuItem::OPDS_BROWSER:  // the library slot
         hasPlugins ? onPluginsOpen() : onOpdsBrowserOpen();
         break;
-      case HomeMenuItem::FILE_TRANSFER:
-        onFileTransferOpen();
+      case HomeMenuItem::GLUCOSE:
+        onGlucoseOpen();
         break;
       case HomeMenuItem::SETTINGS_MENU:
         onSettingsOpen();
@@ -532,10 +533,10 @@ void HomeActivity::render(RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_FILE_TRANSFER),
+  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_GLUCOSE_MONITOR),
                                         tr(STR_SETTINGS_TITLE), tr(STR_BIBLE),
                                         tr(STR_UTILITIES)};
-  std::vector<UIIcon> menuIcons = {Folder, Library, Transfer, Settings, Book, Blocks};
+  std::vector<UIIcon> menuIcons = {Folder, Library, Droplet, Settings, Book, Blocks};
 
   if (hasLibrarySlot()) {
     menuItems.insert(menuItems.begin() + 2, hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));
@@ -582,7 +583,9 @@ void HomeActivity::onLibraryOpen() { activityManager.goToLibrary(); }
 
 void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 
-void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
+void HomeActivity::onGlucoseOpen() {
+  activityManager.replaceActivity(std::make_unique<GlucoseMonitorActivity>(renderer, mappedInput));
+}
 
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
 

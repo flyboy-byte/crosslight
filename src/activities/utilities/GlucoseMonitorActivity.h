@@ -15,16 +15,14 @@
 // about once a minute anyway (see kAutoIntervalMs), so a slower screen is
 // never a reason to poll faster.
 //
-// Two acquisition sources, switched with the Right button in-session (see
-// crosslight/PLAN.md "Planned: Bluetooth glucose relay" and
-// ~/projects/extraction/docs/reference/crosslight-ble-glucose-handoff.md):
-// Wi-Fi/VPS (default, existing) and BLE from the companion app, which pushes
-// the frozen 8-byte packet (extraction DECISIONS.md D-020) over one held,
-// bonded GATT connection rather than per-reading reconnects. The choice is
-// persisted (SETTINGS.glucoseSource) and also settable from a toggle row in
-// UtilitiesActivity's list, so the source can be picked before opening this
-// screen at all -- a plain Right-button tap is too easy to trigger by
-// accident on a button also used for paging everywhere else.
+// Lives on the Home menu (not under Utilities). Two acquisition sources,
+// picked with an on-screen Wi-Fi / Bluetooth switch (touch targets, never a
+// physical button -- a plain Right-button tap was too easy to trigger by
+// accident on a button also used for paging everywhere else): Wi-Fi/VPS
+// polling, and BLE pushed by the companion app (the firmware owns that
+// contract; see crosslight/PLAN.md "BLE rework"). The choice is persisted in
+// SETTINGS.glucoseSource. A Read button fetches now on Wi-Fi; on BLE the phone
+// pushes, so Read just re-judges freshness.
 class GlucoseMonitorActivity final : public Activity {
  public:
   GlucoseMonitorActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
@@ -37,6 +35,23 @@ class GlucoseMonitorActivity final : public Activity {
 
  private:
   enum class Source { Wifi, Ble };
+
+  // Touch targets, shared by render() and loop() so a drawn button and its hit
+  // area can never drift apart.
+  struct Box {
+    int x = 0, y = 0, w = 0, h = 0;
+    bool contains(int px, int py) const { return px >= x && px < x + w && py >= y && py < y + h; }
+  };
+  struct Layout {
+    Box wifi;      // left half of the source switch
+    Box ble;       // right half of the source switch
+    Box mode;      // Wi-Fi only: "Auto 60s" / "Manual" line (tap toggles); empty on BLE
+    Box read;      // Read button
+    int infoY = 0;    // text baseline of the line under the switch (mode on Wi-Fi, forget hint on BLE)
+    int bodyTop = 0;  // first y below the controls
+  };
+  Layout computeLayout() const;
+  void readNow();
 
   void onWifiSelectionComplete(bool connected);
   void refresh();
@@ -60,4 +75,5 @@ class GlucoseMonitorActivity final : public Activity {
   std::string statusLine;
   uint32_t lastFetchMs = 0;
   uint32_t lastBleWriteMs = 0;  // millis() when the last BLE packet arrived (receipt-time freshness)
+  bool forceBleRecheck = false;  // Read pressed on BLE: re-judge freshness now instead of at the next 10 s tick
 };

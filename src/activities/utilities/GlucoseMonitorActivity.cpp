@@ -40,9 +40,9 @@ GlucoseMonitorActivity::GlucoseMonitorActivity(GfxRenderer& renderer, MappedInpu
 
 void GlucoseMonitorActivity::onEnter() {
   Activity::onEnter();
-  // Respect whatever was last picked, from either this screen's own source
-  // switch or the Utilities-list toggle row -- so Bluetooth stays selected
-  // on the next open instead of defaulting back to Wi-Fi every time.
+  // Respect whatever was last picked on this screen's source switch, so
+  // Bluetooth stays selected on the next open instead of defaulting back to
+  // Wi-Fi every time.
   source = SETTINGS.glucoseSource != 0 ? Source::Ble : Source::Wifi;
   statusLine = tr(STR_GLUCOSE_CHECKING);
   requestUpdate();
@@ -176,17 +176,65 @@ void GlucoseMonitorActivity::refresh() {
   requestUpdate();
 }
 
+GlucoseMonitorActivity::Layout GlucoseMonitorActivity::computeLayout() const {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int pageWidth = renderer.getScreenWidth();
+  const int pageHeight = renderer.getScreenHeight();
+  const int pad = metrics.contentSidePadding;
+  const int lineH = renderer.getLineHeight(UI_10_FONT_ID);
+  constexpr int kCtlH = 56;
+
+  Layout l;
+  const int top = metrics.topPadding + metrics.headerHeight + 12;
+  const int half = (pageWidth - 2 * pad) / 2;
+  l.wifi = {pad, top, half, kCtlH};
+  l.ble = {pad + half, top, half, kCtlH};
+  int y = top + kCtlH + 14;
+  l.infoY = y;
+  // The line under the switch is the auto/manual mode on Wi-Fi (tappable) and
+  // the forget-phone hint on BLE (text only), so it takes the same space either way.
+  if (source == Source::Wifi) l.mode = {pad, y - 6, pageWidth - 2 * pad, lineH + 12};
+  y += lineH + 28;
+  l.bodyTop = y + 16;
+  const int readH = 64;
+  l.read = {pad, pageHeight - metrics.buttonHintsHeight - 16 - readH, pageWidth - 2 * pad, readH};
+  return l;
+}
+
+void GlucoseMonitorActivity::readNow() {
+  if (source == Source::Wifi) {
+    stopped = false;  // an explicit Read is a deliberate retry, not an automatic one
+    refresh();
+    return;
+  }
+  // BLE is push-based: the phone writes, the reader can't pull. Read just
+  // re-judges freshness now instead of waiting for the next recheck tick.
+  forceBleRecheck = true;
+  RenderLock lock(*this);
+  requestUpdate();
+}
+
 void GlucoseMonitorActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     finish();
     return;
   }
+  const Layout layout = computeLayout();
+  int x = 0;
+  int y = 0;
+  const bool tapped = mappedInput.wasScreenTapped(x, y);
   // Switching source must work even if the current one failed to connect
   // (Wi-Fi join failure, or no BLE radio), so this runs before the
   // `!connected` gate below.
-  if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
-    switchSource(source == Source::Wifi ? Source::Ble : Source::Wifi);
-    return;
+  if (tapped) {
+    if (layout.wifi.contains(x, y)) {
+      switchSource(Source::Wifi);
+      return;
+    }
+    if (layout.ble.contains(x, y)) {
+      switchSource(Source::Ble);
+      return;
+    }
   }
   if (!connected) return;
 
@@ -195,23 +243,20 @@ void GlucoseMonitorActivity::loop() {
       forgetBlePeer();
       return;
     }
+    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || (tapped && layout.read.contains(x, y))) {
+      readNow();
+    }
     pollBle();
     return;
   }
 
-  bool doRefresh = mappedInput.wasReleased(MappedInputManager::Button::Confirm);
-  bool toggle = mappedInput.wasReleased(MappedInputManager::Button::Left);
-  int x = 0;
-  int y = 0;
-  if (mappedInput.wasScreenTapped(x, y)) {
-    const auto& metrics = UITheme::getInstance().getMetrics();
-    if (y < metrics.topPadding + metrics.headerHeight + 48) {
-      toggle = true;
-    } else {
-      doRefresh = true;
-    }
-  }
-  if (doRefresh) stopped = false;  // an explicit tap/Confirm is a deliberate retry, not an automatic one
+  // Wi-Fi: only a deliberate press reads or toggles -- a stray tap elsewhere
+  // does nothing, unlike the old whole-screen tap-to-refresh.
+  const bool doRefresh = mappedInput.wasReleased(MappedInputManager::Button::Confirm) ||
+                         (tapped && layout.read.contains(x, y));
+  const bool toggle = mappedInput.wasReleased(MappedInputManager::Button::Left) ||
+                      (tapped && layout.mode.contains(x, y));
+  if (doRefresh) stopped = false;
   if (toggle) {
     autoRefresh = !autoRefresh;
     lastFetchMs = millis();
@@ -235,9 +280,13 @@ void GlucoseMonitorActivity::pollBle() {
             static_cast<unsigned>(lastBlePacket.trend), lastBlePacket.high, lastBlePacket.low,
             lastBlePacket.unavailable);
   } else {
-    if (!haveReading) return;                       // never received a packet yet
-    if (now - lastFetchMs < kBleRecheckMs) return;  // not due for a staleness re-check
+    if (!haveReading) {
+      forceBleRecheck = false;  // nothing received yet, so there is nothing to re-judge
+      return;
+    }
+    if (!forceBleRecheck && now - lastFetchMs < kBleRecheckMs) return;  // not due for a staleness re-check
   }
+  forceBleRecheck = false;
   lastFetchMs = now;
 
   RenderLock lock(*this);
@@ -321,17 +370,33 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
   renderer.clearScreen();
   GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight}, tr(STR_GLUCOSE_MONITOR));
 
-  int y = metrics.topPadding + metrics.headerHeight + 12;
-  std::string chip;
+  const Layout layout = computeLayout();
+
+  // Source switch: the selected half is filled, the other an outline. Both
+  // halves are touch targets (see loop()).
+  auto drawSegment = [&](const Box& b, const char* label, bool selected) {
+    if (selected) {
+      renderer.fillRect(b.x, b.y, b.w, b.h, true);
+    } else {
+      renderer.drawRect(b.x, b.y, b.w, b.h, 2, true);
+    }
+    const int tw = renderer.getTextWidth(UI_12_FONT_ID, label, EpdFontFamily::BOLD);
+    const int th = renderer.getLineHeight(UI_12_FONT_ID);
+    renderer.drawText(UI_12_FONT_ID, b.x + (b.w - tw) / 2, b.y + (b.h - th) / 2, label, /*black=*/!selected,
+                      EpdFontFamily::BOLD);
+  };
+  drawSegment(layout.wifi, tr(STR_GLUCOSE_SOURCE_WIFI), source == Source::Wifi);
+  drawSegment(layout.ble, tr(STR_GLUCOSE_SOURCE_BLE), source == Source::Ble);
+
   if (source == Source::Wifi) {
+    // Tapping this line flips auto/manual (see loop()).
     const char* modeText =
         I18n::getInstance().get(autoRefresh ? StrId::STR_GLUCOSE_AUTO_60S : StrId::STR_GLUCOSE_MANUAL);
-    chip = std::string(tr(STR_GLUCOSE_SOURCE_WIFI)) + " \xc2\xb7 " + modeText;  // "Wi-Fi · Auto 60s"
+    renderer.drawText(UI_10_FONT_ID, pad, layout.infoY, modeText);
   } else {
-    chip = tr(STR_GLUCOSE_SOURCE_BLE);
+    renderer.drawText(UI_10_FONT_ID, pad, layout.infoY, tr(STR_GLUCOSE_FORGET_LINE));
   }
-  renderer.drawText(UI_10_FONT_ID, pad, y, chip.c_str());
-  y += lineH + 40;
+  int y = layout.bodyTop;
 
   // Values that show HI/LO/no-number states (agent-api.md "Status") never
   // render a number -- only OK/STALE carry one, and STALE must read as old,
@@ -358,17 +423,24 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
     if (showNumber) renderer.drawText(UI_10_FONT_ID, pad, y, statusText().c_str());
     y += lineH + 32;
   }
-  if (!statusLine.empty()) renderer.drawText(UI_10_FONT_ID, pad, std::min(y, pageHeight - 120), statusLine.c_str());
+  if (!statusLine.empty()) {
+    renderer.drawText(UI_10_FONT_ID, pad, std::min(y, layout.read.y - lineH - 12), statusLine.c_str());
+  }
 
-  // Confirm means "Refresh" on Wi-Fi, but "hold to forget the bond" on BLE --
-  // it's push-based there, so a plain press has nothing to refresh. Mode
-  // (auto/manual) only means something on Wi-Fi too. Source (Right button)
-  // always works, so the user can escape a failed source either way.
-  const auto labels = mappedInput.mapLabels(tr(STR_BACK),
-                                             source == Source::Wifi ? tr(STR_GLUCOSE_REFRESH)
-                                                                     : tr(STR_GLUCOSE_FORGET_HINT),
-                                             source == Source::Wifi ? tr(STR_GLUCOSE_MODE_HINT) : "",
-                                             tr(STR_GLUCOSE_SOURCE_HINT));
+  // Read button, bottom of the content area.
+  renderer.drawRect(layout.read.x, layout.read.y, layout.read.w, layout.read.h, 2, true);
+  {
+    const char* label = tr(STR_GLUCOSE_READ);
+    const int tw = renderer.getTextWidth(UI_12_FONT_ID, label, EpdFontFamily::BOLD);
+    const int th = renderer.getLineHeight(UI_12_FONT_ID);
+    renderer.drawText(UI_12_FONT_ID, layout.read.x + (layout.read.w - tw) / 2,
+                      layout.read.y + (layout.read.h - th) / 2, label, true, EpdFontFamily::BOLD);
+  }
+
+  // Confirm is Read on both sources; on BLE a long press also forgets the
+  // bond. Source is only ever changed on the on-screen switch.
+  const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_GLUCOSE_READ),
+                                             source == Source::Wifi ? tr(STR_GLUCOSE_MODE_HINT) : "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

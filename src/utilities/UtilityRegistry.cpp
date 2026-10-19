@@ -7,7 +7,7 @@
 #include "activities/utilities/CalculatorActivity.h"
 #include "activities/utilities/ClaudePanelActivity.h"
 #include "activities/utilities/FlashlightActivity.h"
-#include "activities/utilities/GlucoseMonitorActivity.h"
+#include "activities/utilities/GlanceActivity.h"
 #include "activities/utilities/UnitConverterActivity.h"
 #include "activities/utilities/WifiScanActivity.h"
 // Offensive / radio-audit tools live in src/offensive and are hidden by
@@ -28,6 +28,13 @@ namespace {
 // Scanner are plain receive-only radio tools (channel/signal/vendor info).
 // Adding one: include its header above and add one line here.
 const std::vector<Utility> kGeneral = {
+    // Glance face first: it's the "pocket watch" resting view (PLAN.md glance
+    // mode), so it sits at the top of the list. v1 is a foreground screen;
+    // later it becomes the deep-sleep resting state.
+    {StrId::STR_WATCH_FACE, Recent,
+     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
+       return std::make_unique<GlanceActivity>(renderer, mappedInput);
+     }},
     {StrId::STR_CALCULATOR, Calculator,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<CalculatorActivity>(renderer, mappedInput);
@@ -47,10 +54,6 @@ const std::vector<Utility> kGeneral = {
     {StrId::STR_ASK_CLAUDE, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
        return std::make_unique<AskClaudeActivity>(renderer, mappedInput);
-     }},
-    {StrId::STR_GLUCOSE_MONITOR, Droplet,
-     [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {
-       return std::make_unique<GlucoseMonitorActivity>(renderer, mappedInput);
      }},
     {StrId::STR_WIFI_SCAN, Wifi,
      [](GfxRenderer& renderer, MappedInputManager& mappedInput) -> std::unique_ptr<Activity> {

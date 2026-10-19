@@ -361,9 +361,11 @@ void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefr
       initialMenuItem = HomeMenuItem::LIBRARY;
     } else if (activityName == "OpdsBookBrowser" || activityName == "PluginCatalog") {
       initialMenuItem = HomeMenuItem::OPDS_BROWSER;
-    } else if (activityName == "CrossPointWebServer") {
-      initialMenuItem = HomeMenuItem::FILE_TRANSFER;
-    } else if (activityName == "Settings" || activityName == "SettingsList") {
+    } else if (activityName == "GlucoseMonitor") {
+      initialMenuItem = HomeMenuItem::GLUCOSE;
+    } else if (activityName == "CrossPointWebServer" || activityName == "Settings" || activityName == "SettingsList") {
+      // CrossLight: File Transfer lives under Settings > Network now, so leaving
+      // it returns to the Settings entry.
       initialMenuItem = HomeMenuItem::SETTINGS_MENU;
     }
   }

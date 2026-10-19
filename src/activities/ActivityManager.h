@@ -18,7 +18,19 @@
 class Activity;    // forward declaration
 class RenderLock;  // forward declaration
 
-enum class HomeMenuItem { NONE, FILE_BROWSER, LIBRARY, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU, BIBLE, UTILITIES };
+// CrossLight: GLUCOSE takes the slot FILE_TRANSFER had (File Transfer moved under Settings > Network).
+// FILE_TRANSFER stays in the enum, unused on Home, to keep the upstream diff small.
+enum class HomeMenuItem {
+  NONE,
+  FILE_BROWSER,
+  LIBRARY,
+  OPDS_BROWSER,
+  FILE_TRANSFER,
+  SETTINGS_MENU,
+  BIBLE,
+  UTILITIES,
+  GLUCOSE
+};
 
 /**
  * ActivityManager

@@ -33,6 +33,7 @@ enum class SettingAction {
   HomeButton,
   StartupPassword,
   About,
+  FileTransfer,  // CrossLight: moved here from the Home menu
 };
 
 struct SettingInfo {

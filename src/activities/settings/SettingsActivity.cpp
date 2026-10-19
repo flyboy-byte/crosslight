@@ -139,6 +139,7 @@ void SettingsActivity::rebuildSettings() {
   addAction(SettingsSection::Network, StrId::STR_KOREADER_SYNC, SettingAction::KOReaderSync);
   addAction(SettingsSection::Network, StrId::STR_OPDS_SERVERS, SettingAction::OPDSBrowser);
   addAction(SettingsSection::Network, StrId::STR_PLUGINS, SettingAction::Plugins);
+  addAction(SettingsSection::Network, StrId::STR_FILE_TRANSFER, SettingAction::FileTransfer);
 
   // OTA fetches this board's own release asset (see OtaUpdater); boards whose
   // asset isn't published yet just report no update available.
@@ -333,6 +334,9 @@ void SettingsActivity::toggleSelectedSetting() {
         });
         break;
       }
+      case SettingAction::FileTransfer:
+        activityManager.goToFileTransfer();
+        break;
       case SettingAction::Bluetooth: {
         auto activity = makeUniqueNoThrow<BleSettingsActivity>(renderer, mappedInput);
         if (!activity) {
