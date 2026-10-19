@@ -29,6 +29,23 @@ So extraction's D-020 packet freeze and D-017 staleness rule no longer constrain
    flag when its own reading is old. Packet format otherwise unchanged.
 3. **Testing: one monitor into a file; drop per-loop logging; one write tool at a time.**
 
+**BLE security: DROPPED, decided 2026-10-18 (Logan: "drop security if it works better").** No bonding,
+no encryption, no WRITE_ENC. Anyone in BLE range can write a reading; Logan accepts that. Do not
+re-raise adding it back unprompted. Dead weight to clean up when convenient: the hold-Confirm "forget
+this phone" path (`forgetBlePeer`, `LibreBleServer::forgetBond`, `kForgetBondHoldMs`, STR_GLUCOSE_BLE_FORGOT,
+STR_GLUCOSE_FORGET_HINT, STR_GLUCOSE_FORGET_LINE) -- it is meaningless without bonds and its on-screen line
+("Hold Select to forget this phone") is now misleading.
+
+**Companion-app contract v2 -- SENT to the `extraction` session 2026-10-18** (cross-session message):
+unchanged UUIDs + 8-byte packet; no pairing/bonding (app must not createBond); freshness by receipt time,
+so the APP must send UNAVAILABLE when its own reading is >~10 min old; reader keeps latest write only,
+one connection at a time, re-advertises after disconnect, name "CrossLight", scan by service UUID, dev unit
+7C:0C:5F:41:8E:51. Heads-up sent: timed wake (~5 min advertise windows, app uses background autoConnect,
+writes on connect then disconnects) and a future time-sync characteristic (UUID to be minted when built).
+Asked back: can the app set UNAVAILABLE itself; connect strategy; any Android background limits; results of
+testing against the dev unit. `docs/ble_glucose_hardware_test.md` is PARTLY STALE (still describes
+WRITE_ENC/bonding and the reader-clock staleness rule) -- rewrite it before the next hardware session.
+
 **Then: glance mode (new idea, 2026-10-18).** "E-reader pocket watch." Glance mode = the device's
 **sleep state**: deep sleep, timer-wake every **5 min** (Logan's pick), partial-refresh time +
 glucose, back to sleep; any button drops into the full e-reader. E-ink holds the face at zero
@@ -94,6 +111,97 @@ glucose; and the exact wake cadence. The mechanics currently chosen (5-min wake,
 timed BLE window, fast wake path skipping full reader boot) live in the resume
 anchor above as *one* implementation of the principles — not as the principles
 themselves.
+
+---
+
+## Glance-on-sleep overlay — design notes (2026-10-18, after Watch Face v1 preview)
+
+Logan's refinement after seeing the v1 Watch Face (`GlanceActivity`, uncommitted at time of
+writing): the glance face is **overdrawn on the existing sleep-screen wallpaper**, redrawn about
+every 5 minutes via timer wake; **easy on/off**; a way to **monitor its battery cost**; the
+foreground Watch Face / Glucose Monitor utilities stay (live data with the device on, not only in
+sleep); **File Transfer moves from Home into Settings** to free a Home slot; stay realistic and
+stay oriented to CrossPoint upstream. Evidence tags: DOCUMENTED = read in this tree, INFERRED =
+reasoned, UNKNOWN = needs hardware.
+
+**Feasibility findings**
+- DOCUMENTED: no timer wake exists today. Deep sleep arms only the power button
+  (`PowerManager::deepSleepUntilPowerButton` = wait-release + `armPowerButtonWakeup` + `deepSleep`).
+  `armPowerButtonWakeup` only *adds* a GPIO wake source, so `esp_sleep_enable_timer_wakeup()` called
+  from `enterDeepSleep()` (main.cpp) should coexist -- **no freeink-sdk (submodule) change needed**.
+- INFERRED: a timer wake is a chip reset, so boot must branch on `ESP_SLEEP_WAKEUP_TIMER`
+  (HalGPIO.cpp ~L248 only classifies GPIO/EXT1 today) to run a minimal "refresh overlay, sleep again"
+  path and never fall into the normal Home boot.
+- DOCUMENTED: Quick Resume already saves the sleep frame to SD (`saveSleepFrameBuffer`,
+  `SLEEP_FRAME_FILE`) -- an existing mechanism to restore the wallpaper in RAM, draw the overlay
+  region, and push it, instead of re-decoding the wallpaper BMP every wake.
+- UNKNOWN (top risk, needs hardware): whether a redraw every 5 min **preserves a 4-gray wallpaper**.
+  `HalDisplay` exposes only whole-buffer refresh modes (FULL/HALF/FAST) -- no windowed/partial
+  update -- and a FAST refresh of a BW-plane frame may degrade grays. Mitigations to test: overlay
+  confined to a solid plate strip; or add a windowed update path (bigger change, lives in the display
+  driver/SDK).
+- UNKNOWN: X4 Pro deep-sleep current. The peripheral-rail latch (GPIO1) is held HIGH through sleep and
+  the panel rail stays powered; SD and touch rails ARE cut. **Measure before quoting any battery number.**
+
+**Battery -- realistic expectations (INFERRED, to be measured)**
+- Time-only overlay is cheap: RTC time, no radio, one e-ink refresh + SD read per wake (~1-3 s awake).
+- **The radio window is the expensive part.** A BLE advertise/connect window of a few seconds per wake
+  likely costs MORE than the display refresh. So phase it: **Phase 1 = time-only overlay (no radio)**;
+  **Phase 2 = add glucose via a BLE window**, possibly on a longer interval than the clock tick, so the
+  glucose-freshness-vs-battery tradeoff is an explicit knob rather than a surprise.
+- Monitoring: count wakes and awake-ms per wake in `RTC_NOINIT` memory (survives timer wakes, not
+  power loss), flush to NVS every N wakes (avoid flash wear), and record battery % at enable time. A
+  Settings "Glance power" screen shows wakes today, avg awake ms, battery % since enabled, and a
+  projected %/day. Battery % is coarse (1% steps), so real validation is over days, not minutes.
+
+**Easy on/off**: one persisted setting (`glanceOnSleep`, manual toggle row like `glucoseSource`), plus
+a toggle row in Settings. When off, sleep is exactly today's behavior (no timer armed) -- the safe default.
+
+**Home slot**: moving File Transfer to Settings touches `HomeActivity.{h,cpp}` (menu enum + index
+mapping), which upstream edits often (the 2026-09-16 merge already conflicted exactly there; see
+`UtilityRegistry.h`). Keep it a small, isolated, last commit, with the enum value retained and a
+CrossLight comment, to keep rebases cheap. **Decided 2026-10-18 (Logan): Glucose Monitor takes the freed
+Home slot** (not Watch Face) -- one entry for both Wi-Fi and BLE.
+
+**Glucose Monitor redesign -- BUILT 2026-10-18 (uncommitted; sim-verified + x4pro builds + host tests
+880/880; NOT hardware-tested): Home slot swap, on-screen Wi-Fi/Bluetooth switch, Read button, File
+Transfer moved to Settings > Network, glucose removed from Utilities (and the Utilities toggle row
+reverted). STILL TO BUILD: the history readout.** Opens straight from Home onto one screen:
+- A deliberate **Wi-Fi / BLE source switch** on the screen itself (a touch target, never the Right button).
+  This supersedes the Utilities-list "Glucose Source" toggle row (`029b49f8`), which was the stopgap for
+  the accident-prone Right button; remove it once the on-screen switch exists. `SETTINGS.glucoseSource`
+  stays as the persisted value.
+- A **Read** button. Wi-Fi: fetch now (today's refresh). BLE: the phone pushes, the reader can't pull, so
+  "Read" can only mean redraw/re-judge freshness now (later, with glance wake: open a listening window now).
+- **Reading age** always visible (receipt-time age on BLE, `source_time` age on Wi-Fi).
+- **History readout**. Wi-Fi: DOCUMENTED -- the bridge serves `GET /api/v1/glucose?since=<ISO>&limit=<n>`
+  (oldest first, 30 days kept, default last 3 h); the firmware client only calls `/latest` today, so this is
+  one new call. BLE: no pull, so the reader accumulates history from received writes into a small ring
+  buffer (~1 reading/min; 3 h is ~180 entries, ~1 KB), optionally persisted so a reboot doesn't blank it.
+  Display shape (list vs sparkline) is open -- see the Watch Face preview for the e-ink look.
+- Decided: no Utilities entry (Logan, 2026-10-18: "its getting ranked up in importance").
+- History endpoint: **already exists, confirmed by Logan** -- `GET /api/v1/glucose?since=<ISO-8601>&limit=<n>`,
+  oldest first, default last 3 h / limit 1440, cap 10080, 30 days kept, any `read:glucose` key, in
+  extraction `docs/agent-api.md`. Nothing to add server-side. Firmware note: the default window is ~180
+  full reading objects -- parse through an ArduinoJson filter keeping only value + time, never the whole
+  document (heap is tight; `LowMemory` already exists as an error). `since` needs a real clock to build
+  the ISO string; Wi-Fi has SNTP so that's fine, or just take the default window with no params.
+- Known, pre-existing, not fixed: long `statusLine` text (e.g. "Not set up. Put the bridge URL in
+  /libre/url.txt and ...") is drawn on one line and clips at the right edge instead of wrapping.
+- Home icon: Lyra's Home menu uses the legacy 32x32 bitmaps (`src/components/icons/*.h`), separate from
+  the SDK list icons; added `droplet.h` (generated via `scripts/convert_icon.py` from the SDK's Lucide
+  droplet) and a `UIIcon::Droplet` case in `LyraTheme.cpp`.
+- Physical-button fallback for switching source was deliberately NOT added (the Right button is gone from
+  this screen); X4 Pro has touch. Revisit if a no-touch board ever matters.
+
+**Upstream hygiene**: new logic in new files (`GlanceActivity`, a glance-sleep module); only thin
+hooks in `main.cpp` (`enterDeepSleep` + a timer-wake boot branch); no freeink-sdk edits; one settings
+field; i18n via `english.yaml`. Everything gated behind the toggle so stock behavior is the default.
+
+**Proposed order**: (1) commit Watch Face v1 -> (2) timer-wake spike with a trivial overlay, measure
+sleep current + whether the wallpaper survives (hardware) -> (3) power-stats + toggle -> (4) File
+Transfer -> Settings, Glucose Monitor to Home (+ on-screen source switch, Read, age, history)
+-> (5) glucose via BLE window.
 
 ---
 
