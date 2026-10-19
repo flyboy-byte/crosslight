@@ -1,70 +1,90 @@
 # PLAN.md
 
-## ▶ RESUME HERE (anchor, 2026-10-18 evening: BLE rework + glance mode)
+## ▶ RESUME HERE (anchor, 2026-10-18 late: 26.10.16 released, awaiting the first hardware test)
 
-**Hardware BLE test today exposed design problems; decision is a top-down rework.** The radio
-path itself works — a phone write (nRF Connect over adb) arrived and decoded byte-for-byte
-(110 mg/dL, steady). But three things were wrong, and the fixes below are the new direction.
+**Where things stand.** Release **26.10.16** is published (tag on `08d2dc28`, asset
+`crosslight-26.10.16-x4pro.bin`, latest on `flyboy-byte/crosslight`; its notes say "not yet tested on the
+device"). `crosslight` is pushed through `08d2dc28`. The dev unit has **NOT run any of it** -- it is still on an
+older flash (encryption/bonding still on the characteristic), so **nothing below is hardware-verified**. Verify the
+running version instead of assuming: the boot log prints `CrossPoint version: 26.10.16-x4pro`, or Settings > About.
 
-**What was wrong**
-1. NimBLE lifecycle bugs (mine): `begin()` recreated the GATT service on every screen entry
-   (duplicate services piled up — confirmed 6 on hardware), and advertising never resumed after
-   a disconnect (`advertiseOnDisconnect` defaults false). Both are patched in `LibreBleServer.cpp`
-   (commits not yet made — patched working-tree only) but the rework supersedes the patch.
-2. Reader-clock staleness: the screen shows a number only if `reader_now - reading_time` is in
-   [0, 600s). On BLE there's no Wi-Fi to sync the clock; after a reboot it restores a possibly-old
-   persisted floor, so a fresh reading looks future-dated and renders **Unavailable**. This is the
-   likely cause of "decoded fine but shows Unavailable" (inferred — never captured the clock log).
-3. Too many moving parts for a first bring-up (bonding, custom conn params, foreground-only radio,
-   strict staleness, per-loop debug logging, flaky serial reads).
+**What 26.10.16 contains** (all simulator-verified, `x4pro` builds, host tests 880/880; none of it on hardware):
+- Glucose Monitor lives on **Home** (File Transfer's old slot, droplet icon). File Transfer moved to
+  Settings > Network. Glucose is no longer in Utilities. On-screen **Wi-Fi | Bluetooth** switch + **Read** button
+  (touch targets; the Right button no longer switches source).
+- BLE relay rebuilt (`src/libre/LibreBleServer.cpp`): server/service created once, `advertiseOnDisconnect(true)`,
+  NO bonding/encryption (plain WRITE + WRITE_NR), each write logged as hex, freshness by receipt time (`millis()`);
+  `bleReadingFromPacket()` is now a pure function of the packet.
+- Watch Face (`GlanceActivity`): first entry in Utilities; layout preview with SAMPLE glucose, not live.
 
-**The rework (firmware owns the contract now — see [[crosslight-ble-contract-ownership]])**
-Logan confirmed: build the firmware however is cleanest; extraction's companion app conforms.
-So extraction's D-020 packet freeze and D-017 staleness rule no longer constrain us.
-1. **BLE: rebuild on the stock NimBLE server shape.** Create server/service once; advertise after
-   disconnect; bring up with NO encryption first; log each write as hex. Add Just-Works bonding
-   back as a separate step after plain writes are confirmed.
-2. **Freshness by receipt time, not reader clock.** "No write in 10 min -> Unavailable" keyed off
-   the reader's own `millis()` uptime (no reboot can corrupt it). Phone still sets the UNAVAILABLE
-   flag when its own reading is old. Packet format otherwise unchanged.
-3. **Testing: one monitor into a file; drop per-loop logging; one write tool at a time.**
+**Uncommitted in the working tree (NOT in the 26.10.16 release):** Back from Glucose Monitor now calls
+`activityManager.goHome(HomeMenuItem::GLUCOSE)` so Home keeps the Glucose row highlighted (the released build
+returns to the top row; sim-verified fix). Also this session's docs: the new anchor here and the rewritten
+`docs/ble_glucose_hardware_test.md`. **Pre-existing, not fixed:** pressing Back in the Wi-Fi network picker that
+Glucose Monitor opens (Wi-Fi source, not yet joined) also exits the monitor, because the same Back release is seen by
+the parent on the next frame.
 
-**BLE security: DROPPED, decided 2026-10-18 (Logan: "drop security if it works better").** No bonding,
-no encryption, no WRITE_ENC. Anyone in BLE range can write a reading; Logan accepts that. Do not
-re-raise adding it back unprompted. Dead weight to clean up when convenient: the hold-Confirm "forget
-this phone" path (`forgetBlePeer`, `LibreBleServer::forgetBond`, `kForgetBondHoldMs`, STR_GLUCOSE_BLE_FORGOT,
-STR_GLUCOSE_FORGET_HINT, STR_GLUCOSE_FORGET_LINE) -- it is meaningless without bonds and its on-screen line
-("Hold Select to forget this phone") is now misleading.
+**Next steps, in order**
+1. (Logan, physical) Update the reader (Settings > Check for Updates, or wired flash), open Glucose Monitor and tap
+   Bluetooth, then run `docs/ble_glucose_hardware_test.md` (Part A UI smoke, Part B BLE writes). Logan will say
+   when it's flashed and tested.
+2. **Ping the `extraction` session** (name `extraction`; find it with ListAgents, send with SendMessage) once the
+   unit is flashed and the screen is open on Bluetooth. Its companion app v0.2.6 is released and waiting to measure
+   connect latency and write behavior against the dev unit (7C:0C:5F:41:8E:51).
+3. Build next: history readout (existing `GET /api/v1/glucose`, filtered parse), remove the dead "forget this phone"
+   UI, then glance-on-sleep (timer-wake spike -> measure sleep current -> power stats + toggle). When the time-sync
+   characteristic is built, mint its UUID and TELL extraction (it asked for it).
 
-**Companion-app contract v2 -- SENT to the `extraction` session 2026-10-18** (cross-session message):
-unchanged UUIDs + 8-byte packet; no pairing/bonding (app must not createBond); freshness by receipt time,
-so the APP must send UNAVAILABLE when its own reading is >~10 min old; reader keeps latest write only,
-one connection at a time, re-advertises after disconnect, name "CrossLight", scan by service UUID, dev unit
-7C:0C:5F:41:8E:51. Heads-up sent: timed wake (~5 min advertise windows, app uses background autoConnect,
-writes on connect then disconnects) and a future time-sync characteristic (UUID to be minted when built).
-Asked back: can the app set UNAVAILABLE itself; connect strategy; any Android background limits; results of
-testing against the dev unit. `docs/ble_glucose_hardware_test.md` is PARTLY STALE (still describes
-WRITE_ENC/bonding and the reader-clock staleness rule) -- rewrite it before the next hardware session.
+**Decisions made -- do not re-raise**
+- BLE security is DROPPED (Logan, 2026-10-18: "drop security if it works better"). No bonding, no encryption.
+- The firmware owns the BLE contract; extraction's companion app conforms (its D-020 freeze / D-017 staleness rule
+  no longer bind this side).
+- Freshness is by receipt time; the APP sends UNAVAILABLE when its own reading is more than ~10 min old.
+- Glucose Monitor is on Home with no Utilities entry. Watch Face stays in Utilities for now.
+- 5-minute wake interval for glance mode; do not re-pitch a held BLE connection as the glance model.
+- Commits/pushes/releases need Logan's explicit say each time (he approved the 2026-10-18 batch and the 26.10.16
+  release). Next release number would be 26.10.17.
 
-**Then: glance mode (new idea, 2026-10-18).** "E-reader pocket watch." Glance mode = the device's
-**sleep state**: deep sleep, timer-wake every **5 min** (Logan's pick), partial-refresh time +
-glucose, back to sleep; any button drops into the full e-reader. E-ink holds the face at zero
-power. Implications:
-- Flips the BLE model to **short connect/write/disconnect per wake** (phone holds a background
-  auto-connect to the bonded reader) — much more standard/documented than the held connection.
-- Each phone write also **sets the reader clock** (fixes the time problem; makes the watch face
-  show correct time with no Wi-Fi). Likely a second small characteristic (my call now).
-- Battery: biggest win is a **fast wake path** that skips full e-reader boot (SD/fonts/UI). Rough
-  math ~5s awake @ ~50mA / 300s ≈ <1mA avg + sleep current. **Sleep current on X4 Pro is the real
-  unknown and MUST be measured** (display controller / touch / PSRAM / SD often dominate) before
-  promising any battery number.
+**Unconfirmed -- do not state as fact:** why the screen showed "Unavailable" after a correctly decoded write on the
+OLD build. The reader-clock-skew theory is INFERRED only (the X4 Pro has an RTC, so it may be wrong). Receipt-time
+freshness removes the clock dependency, so the next hardware run settles it. If a fresh write still shows
+Unavailable, read the serial `onWrite ...` / `write: ...` lines before theorizing.
 
-**Order:** BLE rework (1-3) -> measure deep-sleep current -> fast wake path + glance face ->
-timed BLE window. Branch off `crosslight` for glance mode.
+**Tooling traps** (cost real time on 2026-10-18; details in `docs/ble_glucose_hardware_test.md`): repeated
+`cat /dev/ttyACM0` is flaky -- run ONE monitor writing to a file; Android caches GATT (use "Refresh services" in
+nRF Connect); the adb wireless-debugging port rotates (ask Logan for IP:port); adb tap coordinates are 1.2x the
+displayed screenshot's; `adb input text` must not contain spaces.
 
-**Do-not-re-raise:** receipt-time freshness and the time characteristic are decided (firmware owns
-the contract); 5-min wake interval is decided; don't re-pitch a held BLE connection as the model
-for glance mode.
+**Companion-app contract v2 (current, canonical).** Sent to `extraction` 2026-10-18; it replied the same day that
+the app (v0.2.6, released) implements it. Unchanged: service `0c0cd14d-6582-46f7-91b6-b4cf2a7cebac`,
+characteristic `4e9715ab-ed4d-4a77-b8e7-f70fb5e26fc5`, the 8-byte packet (u16 LE value, 0xFFFF = none; u8 trend;
+u8 flags bit0 HIGH/bit1 LOW/bit2 UNAVAILABLE; u32 LE reading_time). Changed: no pairing/bonding (the app no longer
+calls createBond; it connects with autoConnect and writes, WITH response); reader keeps only the latest write, one
+connection at a time, re-advertises after a disconnect, advertises only while the Glucose Monitor screen is open on
+Bluetooth, name "CrossLight"; stale = 10 min since the last write of any kind, so the app re-sends UNAVAILABLE
+(0xFFFF, flag bit2, trend 0) at most once a minute while its reading is >600 s old or the server says STALE.
+Planned, not built: timed wake (~5 min, a few seconds of advertising; app uses background autoConnect, writes on
+connect, disconnects) and a time-sync characteristic (u32 LE UTC; UUID to be minted). Extraction's open question: a
+UUID-filtered scan fallback near each wake -- I said NOT yet; measure first (advertise window + interval will be knobs).
+
+**Why the rework happened (history, evidence-tagged).** A phone write (nRF Connect over adb) arrived and decoded
+byte-for-byte (110 mg/dL steady), so the radio path works. Three things were wrong: (1) DOCUMENTED, mine: `begin()`
+recreated the GATT service on every screen entry (6 duplicate services seen on hardware, and Android's GATT cache
+kept showing them until "Refresh services"), and advertising never resumed after a disconnect
+(`NimBLEServer::m_advertiseOnDisconnect` defaults false) -- both fixed in the rework. (2) INFERRED: the old
+reader-clock staleness rule could render a fresh reading as Unavailable -- replaced by receipt time. (3) Too many
+moving parts for first bring-up (bonding, custom connection params, per-loop logging, flaky serial reads).
+
+**Dead weight to remove when convenient:** the hold-Confirm "forget this phone" path (`forgetBlePeer`,
+`LibreBleServer::forgetBond`, `kForgetBondHoldMs`, STR_GLUCOSE_BLE_FORGOT, STR_GLUCOSE_FORGET_HINT,
+STR_GLUCOSE_FORGET_LINE). Meaningless without bonds, and its on-screen line ("Hold Select to forget this phone") is
+misleading.
+
+**Glance mode** (e-reader pocket watch): product intent and the sleep-overlay design notes are the two sections
+right below this anchor. Short version: glance = the device's sleep state, timer-woken every ~5 min, time +
+glucose overdrawn on the sleep wallpaper, easy on/off, a battery-monitor screen; BLE becomes a short
+connect/write/disconnect per wake. Deep-sleep current on the X4 Pro is UNMEASURED -- measure before quoting any
+battery number.
 
 ---
 
@@ -206,6 +226,10 @@ Transfer -> Settings, Glucose Monitor to Home (+ on-screen source switch, Read, 
 ---
 
 ## ▶ Previous anchor (2026-10-18, earlier: moving into BLE)
+
+> **SUPERSEDED.** The Utilities "Glucose Source" toggle row described below was added in `029b49f8` and removed
+> again in `0d01b688` (Glucose Monitor moved to Home with an on-screen switch). The "pending: drive it with
+> `scripts/fake_phone_ble.py` after bonding" plan is also obsolete (no bonding now). Kept for history only.
 
 **Unified-API Phases A-C confirmed shipped, now working BLE.** Session picked up post-compaction;
 verified against git/docs that Phases A-C (bridge-backed Claude Panel, Ask Claude, Bible Passage

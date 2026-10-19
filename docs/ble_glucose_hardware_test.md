@@ -1,172 +1,112 @@
-# BLE glucose relay: real-hardware test checklist
+# Hardware test checklist: Glucose Monitor on Home + BLE relay (release 26.10.16)
 
-Status: test not yet run. For verifying `LibreBleServer`/`GlucoseMonitorActivity`'s BLE path
-against a real BLE client, independent of extraction's companion app — its BLE writer (Phase 3)
-isn't built yet, so this is the only way to exercise CrossLight's GATT server for real right now.
-Needs the X4 Pro flashed with 26.10.14+, and either **nRF Connect for Mobile on a phone** (below)
-or **the laptop itself** acting as the BLE central (`scripts/fake_phone_ble.py`, further down) —
-same reader, same contract, two different ways to write to it.
+Status: **not yet run.** Rewritten 2026-10-18 for release 26.10.16, replacing an older version that described
+bonding and the reader-clock staleness rule (both gone). Everything in 26.10.16 is simulator-verified only; this
+is the first time it meets the real device. Part A is the UI; Part B is the BLE write path.
 
-Service `0c0cd14d-6582-46f7-91b6-b4cf2a7cebac`, characteristic `4e9715ab-ed4d-4a77-b8e7-f70fb5e26fc5`
-(frozen, extraction DECISIONS.md D-020). The characteristic requires a bonded link
-(`WRITE_ENC`) — an unbonded write will be rejected by the stack before CrossLight's own code
-ever sees it, which is itself worth confirming (see step 3).
+Contract in one paragraph: service `0c0cd14d-6582-46f7-91b6-b4cf2a7cebac`, characteristic
+`4e9715ab-ed4d-4a77-b8e7-f70fb5e26fc5`, 8-byte packet (u16 LE value mg/dL, `0xFFFF` = none; u8 trend 0 unknown /
+1 falling fast / 2 falling / 3 steady / 4 rising / 5 rising fast; u8 flags bit0 HIGH, bit1 LOW, bit2 UNAVAILABLE;
+u32 LE reading_time). **No pairing, no bonding, no encryption** (decided 2026-10-18); both Write and Write Without
+Response are accepted. The reader keeps only the latest write and judges freshness by **when the write arrived**
+(its own uptime), NOT by `reading_time`. Full contract: `PLAN.md`, "Companion-app contract v2".
 
-## Setup
+## 0. Before you start
 
-1. On the X4 Pro: open **Utilities**. Tap the **Glucose Source** row (just above Glucose Monitor
-   in the list) until its switch shows checked and the subtitle reads **"Bluetooth"** — this is
-   persisted (`SETTINGS.glucoseSource`), so it sticks for every future open, not just this one.
-   (The in-screen Right-button toggle inside Glucose Monitor still works too and updates the same
-   setting, but needs this list-level toggle to avoid being an accidental page-turn press.)
-2. Open **Glucose Monitor**. The small text under the header should already read **"Bluetooth"**
-   (not "Wi-Fi · ...") — if it doesn't, the toggle in step 1 didn't take; check that first before
-   troubleshooting anything else. The GATT server/advertising is foreground-only and only runs
-   while this screen is open *and* this source is selected; the device won't even be visible in a
-   scan otherwise.
-3. In nRF Connect's scanner, look for a device named **"CrossLight"**. If it's not there, go back
-   to step 2 before troubleshooting anything else.
-4. Tap to connect. nRF Connect may show it as connected but **not yet bonded** — that's expected;
-   bonding happens on the first write attempt (see step 3 of the write cases below), not at
-   connect time.
+1. **Confirm the reader is actually on 26.10.16.** Settings > About, or the boot log line
+   `CrossPoint version: 26.10.16-x4pro`. Update via Settings > Check for Updates (needs Wi-Fi) or a wired flash:
+   `pio run -e x4pro -t upload --upload-port /dev/ttyACM0`. The previous flash still required encryption on the
+   characteristic, so writes would fail against it.
+2. **Serial log, done once and done right.** Run ONE monitor that writes to a file for the whole session; do not
+   re-open the port with repeated `cat` calls (that dropped output and invented a "device stalled" scare on
+   2026-10-18). For example: `pio device monitor -p /dev/ttyACM0 -b 115200 > /tmp/xteink.log` in the background, then
+   `grep LIBRE_BLE /tmp/xteink.log`. Release builds log at INFO level, which is enough for the lines below.
+3. Lines to look for: `Glucose relay GATT server up, advertising`, `Companion connected`,
+   `Companion disconnected (reason=N)`, `onWrite 8 bytes: 6E 00 03 00 ...`, `write: value=110 trend=2 flags(H/L/U)=0/0/0`.
+   (`trend=` is the firmware's internal enum, 0-based: steady prints as 2.)
 
-## Building a packet
+## Part A: UI smoke (no phone needed)
 
-Each write below is 8 bytes: `value_mgdl` (u16 LE), `trend` (u8), `flags` (u8), `reading_time`
-(u32 LE, Unix UTC seconds). Use the helper script rather than hand-computing bytes — the
-timestamp has to be genuinely recent for anything testing the "fresh" cases, and it goes stale
-(by the firmware's own 10-minute rule) if you build it ahead of time and sit on it:
+| # | Do this | Expect |
+| --- | --- | --- |
+| A1 | Look at Home | A **Glucose Monitor** row with a droplet icon sits in File Transfer's old slot (between Library and Settings). No File Transfer row. |
+| A2 | Settings > Network | A **File Transfer** row exists and opens the web server screen. Leaving it returns to Settings, not Home. |
+| A3 | Utilities | No Glucose Monitor entry. **Watch Face** is the first entry. |
+| A4 | Open Watch Face | Time, date, battery %, a divider, and a sample "112 mg/dL ^ / 2 min ago" (sample data, not live). Any button or a tap returns. |
+| A5 | Open Glucose Monitor | Opens straight onto the monitor: a Wi-Fi \| Bluetooth switch at the top (selected half filled black), a mode line under it, a **Read** button at the bottom. Back returns to Home. **26.10.16 as released lands on the top row (Browse Files), not on Glucose Monitor** (cosmetic; fixed in the working tree after the release, so the next release highlights the Glucose row). |
+| A6 | Tap the **Bluetooth** half, then **Wi-Fi** half | Selection flips each time; the choice persists after leaving and re-entering. On Bluetooth the line under the switch reads "Hold Select to forget this phone" (a dead leftover, see PLAN.md). |
+| A7 | On Wi-Fi: tap the mode line ("Auto 60s" / "Manual"), tap **Read** | Mode flips; Read fetches now. Tapping empty space does nothing (the old whole-screen tap-to-refresh is gone). |
+| A8 | Wi-Fi source with the bridge configured (`/libre/url.txt`, `/libre/token.txt` on the SD card) | A real reading with the age shown under the number. This is the regression check that the Wi-Fi path still works. |
+| A9 | Fonts | Nothing garbled or stacked (the release build only registers `UI_10`, `UI_12`, `SMALL`, `NOTOSANS_14`; new screens use only those). |
+
+## Part B: BLE writes
+
+**Setup.** Glucose Monitor open, **Bluetooth** selected. The status should read "Waiting for phone..." and the
+serial log should show `Glucose relay GATT server up, advertising`. The reader only advertises while this screen is
+open on the Bluetooth source; nothing else is needed on the reader.
+
+**Writer.** Use whichever is handy:
+- **nRF Connect for Mobile** on the Pixel (package `no.nordicsemi.android.mcp`): scan, connect to "CrossLight"
+  (dev unit 7C:0C:5F:41:8E:51), open the unknown service, tap the unknown characteristic's row, set the value type
+  to **BYTE ARRAY**, type the hex as one string with no spaces (e.g. `6E000300C651D56A`), SEND. No pairing prompt
+  should appear. If the service list looks wrong (duplicates, missing characteristic) it is Android's cache: use the
+  overflow menu > **Refresh services**, or disconnect and reconnect.
+- **The companion app** (extraction's v0.2.6): add the device; it connects with autoConnect and writes with
+  response. Ask the `extraction` session to report connect latency and write behavior.
+- `scripts/fake_phone_ble.py` (BlueZ, laptop): **untested end to end.** It no longer needs pairing, but BlueZ must
+  have seen the device (`bluetoothctl scan on` for a few seconds) and the script's own error messages still talk
+  about bonding (ignore those). Pass `--address 7C:0C:5F:41:8E:51` because the advertised name is not always
+  resolved in BlueZ's cache.
+
+**Building a packet** (timestamp is just the current time; the reader ignores it for freshness, but keep it real):
 
 ```
 python3 scripts/make_ble_glucose_packet.py --value 110 --trend steady
+python3 scripts/make_ble_glucose_packet.py --value 260 --trend rising --flags high
 ```
 
-Run it **immediately before each write** for every "fresh" case below — it prints the hex string
-to paste into nRF Connect's write dialog (set the dialog to HEX, not text/UTF-8).
+**Write cases.**
 
-## Write cases
-
-For each one: run the script command shown, paste the printed hex into nRF Connect, write it to
-the characteristic (either write type works — CrossLight's characteristic allows both Write and
-Write Without Response; for this test, **prefer plain "Write"**, not "Write Without Response" —
-nRF Connect shows an explicit success/failure result for a request, which is more useful for
-debugging than a no-response write that fails silently). Allow a few seconds for the screen to
-update (BLE is push-driven but staleness is re-checked on a ~10s cadence, so a redraw can lag the
-write by up to that long).
-
-| # | Command | Expect on screen |
+| # | Packet | Expect on screen |
 | --- | --- | --- |
-| 1 | `--value 110 --trend steady` | Big number **110**, unit `mg/dL`, a `-` trend mark, small age text ("0 s ago" or similar, counting up) |
-| 2 | `--value 260 --trend rising --flags high` | Big text **HIGH** — no number anywhere. This is correct, not a bug: HIGH/LOW/UNAVAILABLE never render a value (agent-api.md's rule, enforced on this path too). |
-| 3 | `--value 55 --trend falling --flags low` | Big text **LOW** — again, no number shown. |
-| 4 | `--flags unavailable` | Big text **Unavailable**. |
-| 5 | `--no-value` (the 0xFFFF sentinel, no flags set) | Big text **Unavailable** — confirms the sentinel alone forces this even with a fresh timestamp and no explicit flag. |
-| 6 | `--value 110 --age 700` (reading stamped ~11.5 min in the past) | Big text **Unavailable** — *not* "Stale · Nm ago" the way the Wi-Fi path would show it. This is intentional: the BLE relay's rule is stricter (never show a number once it's too old), see `LibreBlePacket.h`'s comment on `bleReadingFromPacket()`. |
-| 7 | (cross-check) Write the literal bytes `E2 00 03 00 1F A1 CD 6A` — extraction's own test vector, matches `LibreBlePacketTest.cpp`'s `MatchesExtractionTestVector` | Same as case 6 (**Unavailable**) by the time you actually run this — that vector's timestamp is 2026-10-13T03:10:23Z, which is already old. If you ever want to see it as a *fresh* 226 mg/dL steady reading instead, use the script: `--value 226 --trend steady` and compare the hex it prints against `E2 00 03 00 1F A1 CD 6A` with the last 4 (timestamp) bytes ignored — the rest should match exactly. |
+| B1 | `--value 110 --trend steady` | Big **110**, `mg/dL`, a `-` trend mark, small age text starting near "0 s ago". Serial shows `onWrite 8 bytes: 6E 00 03 00 ...` then `write: value=110 ...`. **This is the case that previously rendered "Unavailable"; it is the main thing this test settles.** |
+| B2 | `--value 260 --trend rising --flags high` | Big text **HIGH**, no number anywhere. |
+| B3 | `--value 55 --trend falling --flags low` | Big text **LOW**, no number. |
+| B4 | `--flags unavailable` (value anything) | Big text **Unavailable**. |
+| B5 | `--no-value` (the 0xFFFF sentinel) | Big text **Unavailable**. |
+| B6 | `--value 110 --age 700` (reading_time 11+ minutes old) | A normal **110**. This is the **changed** behavior: `reading_time` is ignored; freshness is by receipt. (The old doc expected Unavailable here.) |
+| B7 | Write B1 once, then do nothing for 10+ minutes (re-check the screen after ~10 min, it re-judges on a ~10 s tick) | The number drops to **Unavailable** about 10 minutes after the write. |
+| B8 | Write B1, then tap **Read** on the reader | The screen re-judges and redraws immediately; the number stays while fresh. |
+| B9 | Disconnect the phone, wait, reconnect | The reader resumes advertising by itself (serial: `Companion disconnected`, then it must be connectable again without leaving the screen). This was the "advertising dies after the first disconnect" bug. |
+| B10 | Leave the screen, re-enter it, connect again | Exactly **one** copy of the service in nRF Connect after "Refresh services" (the old build stacked a duplicate each entry). |
+| B11 | Extraction's vector `E2 00 03 00 1F A1 CD 6A` | **226** steady. |
 
-## If nothing shows at all
+## If nothing shows
 
-Check in this order:
+1. Is the monitor on **Bluetooth** (selected half filled) and does the status say "Waiting for phone..."? "Bluetooth
+   unavailable" means `LibreBleServer::begin()` failed; on a real device that is a genuine bug, stop and capture the log.
+2. No `Glucose relay GATT server up, advertising` line: the source is not Bluetooth or the screen is not open.
+3. Advertising line present but the phone cannot find or connect: check the serial for `Companion connected`. No
+   line at all means the connect request never reached the reader (not advertising, or out of range).
+4. `onWrite` appears but the screen does not change: wait one ~10 s tick, then check `write: value=...`. If that line
+   is present, the packet decoded and the problem is rendering/freshness (note the exact number it printed).
+5. The write fails with an authentication/encryption error in the app: the reader is still on an OLD build that
+   requires encryption. Reflash 26.10.16.
 
-1. **Is the chip under the header actually "Bluetooth"?** If it still says "Wi-Fi", the Right
-   button press didn't register, or you're reading an old screenshot/memory of the screen. BLE
-   writes are silently ignored while the Wi-Fi source is active — that's by design, not a bug.
-2. **Does the small status line say "Waiting for phone..."?** That means advertising is up and
-   nothing's connected/written yet — normal before your first connect, a problem if it never
-   changes after a successful-looking write.
-3. **Does the small status line say "Bluetooth unavailable"?** That means `LibreBleServer::begin()`
-   itself failed — this should not happen on real x4pro hardware (it's the expected result only on
-   the desktop simulator, which has no BLE radio at all). If you see this on the real device,
-   that's a genuine bug — stop and report it rather than continuing the checklist.
-4. **Did nRF Connect report "Insufficient Authentication" / "Insufficient Encryption" on the
-   write?** The characteristic requires a bonded link and the stack hasn't bonded with your phone
-   yet. Back out to Android's own Bluetooth settings, pair with "CrossLight" there directly (no
-   PIN should be needed — `sc=true, mitm=false` means "Just Works" pairing), then reconnect in
-   nRF Connect and retry the write.
-5. **Did the write succeed in nRF Connect (green checkmark / "Success") but the screen never
-   changes?** Give it the full ~10 seconds (see "Write cases" above) before concluding anything's
-   wrong. If it's still stuck after that, this is the actual bug to report — the GATT
-   wiring/decoding has a real problem, not a test-setup mistake.
+## Driving nRF Connect from the laptop over adb (what cost time on 2026-10-18)
 
-## Laptop-side "fake phone" (no nRF Connect / no phone app needed)
-
-`scripts/fake_phone_ble.py` is the same idea as the nRF Connect section above, but runs as a BLE
-central directly from Logan's Arch laptop — useful for testing the reader before extraction's
-real companion app writer (Phase 3) exists, without needing a phone in hand.
-
-**Why BlueZ D-Bus, not `bleak`:** `bleak` was the first choice, but it isn't installed on this
-machine (`python3 -c "import bleak"` fails) — `pip list` shows `dbus-fast` (bleak's own Linux
-backend) already present, but not the `bleak` package itself. Nothing in this repo installs
-anything; the script instead uses `dbus-python`, which **is** already installed system-wide, to
-talk to BlueZ's own D-Bus GATT API directly. If `bleak` ever does get installed deliberately,
-this script doesn't need to change — it's a reasonable rewrite target then, not a requirement now.
-
-### Evidence tags (matches extraction's `DOCUMENTED`/`INFERRED`/`UNKNOWN` convention)
-
-- `DOCUMENTED`: the BlueZ D-Bus GATT API shape this script uses (`Device1.Connect()`,
-  `GattCharacteristic1.WriteValue(value, options)`, `ObjectManager.GetManagedObjects()`) — this is
-  BlueZ's own published D-Bus API, not guessed.
-- `INFERRED`: that pairing will be "Just Works" (no PIN/passkey prompt) against CrossLight's
-  `setSecurityAuth(bonding=true, mitm=false, sc=true)`. That's what those settings are supposed to
-  produce, but it hasn't been confirmed against this laptop's actual BlueZ agent behavior yet.
-- `UNKNOWN`: whether a `command`-type write (Write Without Response — what the real companion app
-  will actually use) surfaces a failure back through BlueZ's D-Bus call at all, or just succeeds
-  locally and drops silently on the air. This script defaults to `request`-type writes (`--write-
-  type request`) for exactly that reason — same call as nRF Connect's plain "Write," for a clear
-  pass/fail. Pass `--write-type command` deliberately if you want to test the production write
-  type's actual behavior, understanding that a silent failure is possible and wouldn't be this
-  script's fault.
-- **Not claimed to work** until Logan runs it against the real e-reader — this is the script as
-  written, not a report of a result.
-
-### Bonding the laptop with the e-reader (one-time, `DOCUMENTED` BlueZ flow)
-
-The script does **not** automate pairing — do this once via `bluetoothctl` first (the GATT
-characteristic requires a bonded link; an unpaired write will be rejected before CrossLight's own
-code ever runs):
-
-```
-bluetoothctl
-power on
-agent on
-default-agent
-scan on
-# wait for a line mentioning "CrossLight" (make sure the e-reader's Glucose
-# Monitor screen is open with the source set to Bluetooth first), note its
-# address, e.g. AA:BB:CC:DD:EE:FF
-scan off
-pair AA:BB:CC:DD:EE:FF
-trust AA:BB:CC:DD:EE:FF
-exit
-```
-
-If `pair` fails or hangs:
-
-- Make sure the adapter is pairable: `bluetoothctl pairable on` before `pair`.
-- A stale bond from an earlier flash can cause this (NimBLE's bond store lives in the ESP32's NVS
-  and gets wiped on some reflashes, but the laptop's half of the bond doesn't know that) — run
-  `bluetoothctl remove AA:BB:CC:DD:EE:FF`, then `pair` again from a clean state on both sides.
-- Confirm the Bluetooth service is actually running: `systemctl is-active bluetooth`.
-
-### Running it
-
-```
-python3 scripts/fake_phone_ble.py --value 140 --trend steady         # one fresh write
-python3 scripts/fake_phone_ble.py --value 260 --high                 # HIGH flag
-python3 scripts/fake_phone_ble.py --unavailable                      # UNAVAILABLE flag
-python3 scripts/fake_phone_ble.py --raw "E2 00 03 00 1F A1 CD 6A"    # extraction's exact test vector
-python3 scripts/fake_phone_ble.py --value 110 --loop                 # fresh write every 60s; Ctrl+C, then
-                                                                       # watch the reader age it out on its own
-```
-
-It looks up the bonded device by name (`CrossLight` by default; `--address` skips that and
-connects directly), waits for GATT service discovery to finish, then writes. Error messages are
-written to point at the likely fix (not bonded yet, bond gone stale, services not resolved) rather
-than just surfacing a raw D-Bus exception.
+- Wireless debugging: `adb pair IP:PAIRPORT CODE` once, then `adb connect IP:PORT`. **The connect port changes
+  every few minutes and whenever the screen sleeps**; ask Logan for the current `IP:port` shown under Settings >
+  Developer options > Wireless debugging.
+- `adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png` for screenshots. The device is 1080x2400; the
+  viewer displays them at 900x2000, so **multiply every tap coordinate read from a screenshot by 1.2**.
+- nRF Connect: the write dialog opens from the characteristic row; layout shifts down by a line once a value is
+  shown, so re-screenshot before each tap. `adb shell input text` must be a single token (no spaces); clear the
+  field first with repeated `input keyevent KEYCODE_DEL`.
+- nRF Connect's overflow menu has **Refresh services**, **Delete bond information**, and **Show log**.
 
 ## When done
 
-Message the `extraction-f0` session with the result — especially anything about connection
-parameters, bonding behavior, or write type that surprised you, since Phase 3 (the companion
-app's own BLE writer) will be built to match what's real on the actual device, not what was
-assumed while scoping this.
+Record results in `PLAN.md` (top anchor) and tell the `extraction` session what you saw: connect latency,
+whether writes needed the with-response type, anything surprising on the Android side. Its companion app is
+released and waiting on the reader being flashed with its Glucose Monitor screen open on Bluetooth.
