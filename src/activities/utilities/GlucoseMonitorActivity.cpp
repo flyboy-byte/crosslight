@@ -216,7 +216,10 @@ void GlucoseMonitorActivity::readNow() {
 
 void GlucoseMonitorActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    finish();
+    // Launched from Home with an empty stack, so a plain finish() lands on Home
+    // with the top row selected; name the row so Home keeps Glucose highlighted
+    // like every other Home-launched screen.
+    activityManager.goHome(HomeMenuItem::GLUCOSE);
     return;
   }
   const Layout layout = computeLayout();
