@@ -1,3 +1,10 @@
+## ▶ UPDATE 2026-10-19: Wi-Fi -> Bluetooth switch fix (release 26.10.17)
+Hardware report (Logan): Wi-Fi works on 26.10.16; switching to Bluetooth "crashed" to Home. DOCUMENTED cause (code
+read, not device-logged): `endSource()` on Wi-Fi calls `silentRestart()` (heap defrag) BEFORE the new source was saved,
+so the device rebooted to Home still on Wi-Fi. Fix: save source first, new `silentRestartToGlucose()` (target 4) reboots
+straight back into the monitor on the saved source. Simulator can't exercise this (no Wi-Fi radio); NOT yet hardware-verified.
+Still pending: the rest of docs/ble_glucose_hardware_test.md (Part B), and pinging `extraction`.
+
 # PLAN.md
 
 ## ▶ RESUME HERE (anchor, 2026-10-18 late: 26.10.16 released, awaiting the first hardware test)

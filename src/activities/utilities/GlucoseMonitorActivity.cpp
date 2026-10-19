@@ -81,14 +81,18 @@ void GlucoseMonitorActivity::beginSource() {
   requestUpdate();
 }
 
-void GlucoseMonitorActivity::endSource() {
+void GlucoseMonitorActivity::endSource(const bool returnToMonitor) {
   if (source == Source::Wifi) {
     // Same radio teardown as ClaudePanelActivity: TLS leaves the heap too
     // fragmented to keep running, so a silent restart reclaims it.
     if (WiFi.getMode() != WIFI_MODE_NULL) {
       WiFi.disconnect(false);
       delay(30);
-      silentRestart();
+      if (returnToMonitor) {
+        silentRestartToGlucose();  // source already saved; the monitor reopens on it
+      } else {
+        silentRestart();
+      }
     }
   } else {
     bleServer.end();
@@ -97,10 +101,11 @@ void GlucoseMonitorActivity::endSource() {
 
 void GlucoseMonitorActivity::switchSource(const Source next) {
   if (next == source) return;
-  endSource();
-  source = next;
+  // Persist first: leaving Wi-Fi reboots (heap defrag) and the monitor must reopen on the new source.
   SETTINGS.glucoseSource = (next == Source::Ble) ? 1 : 0;
   SETTINGS.saveToFile();
+  endSource(/*returnToMonitor=*/true);
+  source = next;
   haveReading = false;
   stale = false;
   stopped = false;

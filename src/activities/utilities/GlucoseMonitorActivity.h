@@ -57,7 +57,7 @@ class GlucoseMonitorActivity final : public Activity {
   void refresh();
   void switchSource(Source next);
   void beginSource();
-  void endSource();
+  void endSource(bool returnToMonitor = false);
   void pollBle();
   void forgetBlePeer();
   const char* trendArrow() const;
