@@ -17,9 +17,9 @@ running version instead of assuming: the boot log prints `CrossPoint version: 26
   `bleReadingFromPacket()` is now a pure function of the packet.
 - Watch Face (`GlanceActivity`): first entry in Utilities; layout preview with SAMPLE glucose, not live.
 
-**Uncommitted in the working tree (NOT in the 26.10.16 release):** Back from Glucose Monitor now calls
-`activityManager.goHome(HomeMenuItem::GLUCOSE)` so Home keeps the Glucose row highlighted (the released build
-returns to the top row; sim-verified fix). Also this session's docs: the new anchor here and the rewritten
+**Committed after the release, so NOT in 26.10.16 (it will ship in the next release, 26.10.17):** `89df0f9d` --
+Back from Glucose Monitor now calls `activityManager.goHome(HomeMenuItem::GLUCOSE)` so Home keeps the Glucose row
+highlighted (the released build returns to the top row; sim-verified). `56234fa0` -- this anchor and the rewritten
 `docs/ble_glucose_hardware_test.md`. **Pre-existing, not fixed:** pressing Back in the Wi-Fi network picker that
 Glucose Monitor opens (Wi-Fi source, not yet joined) also exits the monitor, because the same Back release is seen by
 the parent on the next frame.
