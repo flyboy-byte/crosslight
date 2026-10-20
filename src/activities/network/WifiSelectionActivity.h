@@ -142,6 +142,7 @@ class WifiSelectionActivity final : public Activity, private UiAppHost {
   void checkConnectionStatus();
   bool tryAutoConnectCredential(const WifiCredential& cred);
   bool tryNextSavedNetworkFromScan();
+  bool tryNextSavedNetworkBlind();
   void handleAutoConnectFailure();
   void showNetworkListFromAutoConnect();
   bool hasAttemptedAutoSsid(const std::string& ssid) const;

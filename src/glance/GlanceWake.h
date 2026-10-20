@@ -58,8 +58,9 @@ struct FaceData {
   int ageMin = 0;
 };
 
-// Draws the face as a framed box centred on whatever is already in the frame
-// buffer (the sleep screen). Does not refresh the display.
+// Draws the face as a slim header (time, battery) and footer (glucose) over
+// whatever is already in the frame buffer (the sleep screen), leaving the middle
+// of the wallpaper clear. Does not refresh the display.
 void drawOverlay(GfxRenderer& renderer, const FaceData& data);
 
 }  // namespace glance

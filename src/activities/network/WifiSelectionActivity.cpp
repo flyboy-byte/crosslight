@@ -277,7 +277,8 @@ void WifiSelectionActivity::processWifiScanResults() {
 
   WiFi.scanDelete();
 
-  if (autoConnecting && !manualNetworkListRequested && tryNextSavedNetworkFromScan()) {
+  if (autoConnecting && !manualNetworkListRequested &&
+      (tryNextSavedNetworkFromScan() || tryNextSavedNetworkBlind())) {
     return;
   }
 
@@ -439,12 +440,25 @@ bool WifiSelectionActivity::tryNextSavedNetworkFromScan() {
   return false;
 }
 
+bool WifiSelectionActivity::tryNextSavedNetworkBlind() {
+  // A weak network can drop out of the scan list yet still be joinable:
+  // attemptConnection() runs its own all-channel scan with retries. So before
+  // giving up and showing the list, try each saved network that has not been
+  // attempted, whether or not it appeared in the scan.
+  const size_t count = WIFI_STORE.getCredentialCount();
+  for (size_t i = 0; i < count; ++i) {
+    const auto cred = WIFI_STORE.getCredentialAt(i);
+    if (cred && tryAutoConnectCredential(*cred)) return true;
+  }
+  return false;
+}
+
 void WifiSelectionActivity::handleAutoConnectFailure() {
   LOG_DBG("WIFI", "Saved network failed: %s", selectedSSID.c_str());
   WiFi.disconnect();
 
   if (!networks.empty()) {
-    if (tryNextSavedNetworkFromScan()) {
+    if (tryNextSavedNetworkFromScan() || tryNextSavedNetworkBlind()) {
       return;
     }
     autoConnecting = false;

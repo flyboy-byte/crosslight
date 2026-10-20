@@ -442,6 +442,22 @@ void HomeActivity::loop() {
     return;
   }
 
+  {
+    // A tap on the Watch tag toggles Watch Face on Sleep instead of opening the row.
+    int tx = 0;
+    int ty = 0;
+    if (mappedInput.wasScreenTapped(tx, ty)) {
+      const Rect tag = watchTagRect(renderer);
+      if (tx >= tag.x && tx < tag.x + tag.width && ty >= tag.y && ty < tag.y + tag.height) {
+        SETTINGS.glanceOnSleep = SETTINGS.glanceOnSleep ? 0 : 1;
+        SETTINGS.saveToFile();
+        haptic_feedback::touchAction();
+        requestUpdate();
+        return;
+      }
+    }
+  }
+
   const int menuTop = metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.homeMenuTopOffset;
   const int renderedMenuCount =
       menuCount - (metrics.homeContinueReadingInMenu ? 0 : static_cast<int>(recentBooks.size()));
@@ -559,6 +575,19 @@ void HomeActivity::render(RenderLock&&) {
       [&menuItems](int index) { return std::string(menuItems[index]); },
       [&menuIcons](int index) { return menuIcons[index]; });
 
+  {
+    // Watch Face on Sleep switch on the right of the Glucose Monitor row.
+    const Rect tag = watchTagRect(renderer);
+    const bool on = SETTINGS.glanceOnSleep != 0;
+    const int tagLineH = renderer.getLineHeight(UI_10_FONT_ID);
+    renderer.fillRect(tag.x, tag.y, tag.width, tag.height, on);
+    if (!on) renderer.drawRect(tag.x, tag.y, tag.width, tag.height, 2, true);
+    const char* label = I18n::getInstance().get(on ? StrId::STR_WATCH_ON : StrId::STR_WATCH_OFF);
+    const int tw = renderer.getTextWidth(UI_10_FONT_ID, label, EpdFontFamily::BOLD);
+    renderer.drawText(UI_10_FONT_ID, tag.x + (tag.width - tw) / 2, tag.y + (tag.height - tagLineH) / 2, label, !on,
+                      EpdFontFamily::BOLD);
+  }
+
   const auto labels = mappedInput.mapLabels(recentBooks.empty() ? "" : tr(STR_RESUME), tr(STR_SELECT), tr(STR_DIR_UP),
                                             tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
@@ -573,6 +602,20 @@ void HomeActivity::render(RenderLock&&) {
     const int themeThumbHeight = GUI.homeCoverThumbHeight(renderer);
     loadRecentCovers(themeThumbHeight > 0 ? themeThumbHeight : metrics.homeCoverHeight);
   }
+}
+
+Rect HomeActivity::watchTagRect(const GfxRenderer& r) const {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const Rect content = UITheme::getInstance().getContentArea(r);
+  const int rowH = GUI.getMenuRowHeight(r);
+  // Same ordering as render(): Browse, Library, [Plugins/OPDS], Glucose; a
+  // Continue Reading row goes first when the theme lists it in the menu.
+  const int row = 2 + (hasLibrarySlot() ? 1 : 0) + (metrics.homeContinueReadingInMenu && !recentBooks.empty() ? 1 : 0);
+  const int top = metrics.homeTopPadding + metrics.homeCoverTileHeight + metrics.homeMenuTopOffset;
+  const int tileRight = content.x + content.width - metrics.contentSidePadding;
+  constexpr int kTagW = 120;
+  const int tagH = rowH - 14;
+  return Rect{tileRight - kTagW - 10, top + row * (rowH + metrics.menuSpacing) + 7, kTagW, tagH};
 }
 
 void HomeActivity::onSelectBook(const std::string& path) { activityManager.goToReader(path); }

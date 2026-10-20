@@ -228,7 +228,9 @@ GlucoseMonitorActivity::Layout GlucoseMonitorActivity::computeLayout() const {
   l.infoY = y;
   // The line under the switch is the auto/manual mode on Wi-Fi (tappable) and
   // the forget-phone hint on BLE (text only), so it takes the same space either way.
-  if (source == Source::Wifi) l.mode = {pad, y - 6, pageWidth - 2 * pad, lineH + 12};
+  constexpr int kWatchW = 210;
+  l.watch = {pageWidth - pad - kWatchW, y - 8, kWatchW, lineH + 16};
+  if (source == Source::Wifi) l.mode = {pad, y - 6, pageWidth - 2 * pad - kWatchW - 12, lineH + 12};
   y += lineH + 28;
   l.bodyTop = y + 16;
   const int readH = 64;
@@ -273,6 +275,14 @@ void GlucoseMonitorActivity::loop() {
       switchSource(Source::Ble);
       return;
     }
+  }
+  // Watch Face on Sleep: works on either source, before the connected gate.
+  if (mappedInput.wasReleased(MappedInputManager::Button::Right) || (tapped && layout.watch.contains(x, y))) {
+    SETTINGS.glanceOnSleep = SETTINGS.glanceOnSleep ? 0 : 1;
+    SETTINGS.saveToFile();
+    RenderLock lock(*this);
+    requestUpdate();
+    return;
   }
   if (source == Source::Wifi && !connected) {
     if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) || (tapped && layout.read.contains(x, y))) {
@@ -475,6 +485,19 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
         I18n::getInstance().get(autoRefresh ? StrId::STR_GLUCOSE_AUTO_60S : StrId::STR_GLUCOSE_MANUAL);
     renderer.drawText(UI_10_FONT_ID, pad, layout.infoY, modeText);
   }
+  {
+    // Outline pill, filled when the watch face is on. A tap (or the Right button) toggles it.
+    const bool on = SETTINGS.glanceOnSleep != 0;
+    const Box& b = layout.watch;
+    if (on) {
+      renderer.fillRect(b.x, b.y, b.w, b.h, true);
+    } else {
+      renderer.drawRect(b.x, b.y, b.w, b.h, 2, true);
+    }
+    const char* label = I18n::getInstance().get(on ? StrId::STR_WATCH_FACE_ON : StrId::STR_WATCH_FACE_OFF);
+    const int tw = renderer.getTextWidth(UI_10_FONT_ID, label, EpdFontFamily::BOLD);
+    renderer.drawText(UI_10_FONT_ID, b.x + (b.w - tw) / 2, b.y + (b.h - lineH) / 2, label, !on, EpdFontFamily::BOLD);
+  }
   int y = layout.bodyTop;
 
   // Values that show HI/LO/no-number states (agent-api.md "Status") never
@@ -522,7 +545,8 @@ void GlucoseMonitorActivity::render(RenderLock&&) {
 
   // Confirm is Read on both sources. Source is only ever changed on the on-screen switch.
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_GLUCOSE_READ),
-                                             source == Source::Wifi ? tr(STR_GLUCOSE_MODE_HINT) : "", "");
+                                             source == Source::Wifi ? tr(STR_GLUCOSE_MODE_HINT) : "",
+                                             tr(STR_WATCH_FACE));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }

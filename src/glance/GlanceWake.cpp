@@ -56,44 +56,43 @@ bool isGlanceWake() {
 }
 
 void drawOverlay(GfxRenderer& renderer, const FaceData& d) {
+  // Two slim strips, time on top and glucose on the bottom, so the middle of the
+  // sleep wallpaper stays clear whatever wallpaper is chosen.
   const int w = renderer.getScreenWidth();
   const int h = renderer.getScreenHeight();
-  const int boxW = w - 80;
-  const int timeH = renderer.getLineHeight(NOTOSANS_14_FONT_ID);
-  const int smallH = renderer.getLineHeight(UI_12_FONT_ID);
-  const int boxH = timeH * 2 + smallH * 2 + 90;
-  const int bx = (w - boxW) / 2;
-  const int by = (h - boxH) / 2;
+  const int lineH = renderer.getLineHeight(UI_12_FONT_ID);
+  const int stripH = lineH + 20;
+  const int pad = 18;
 
-  renderer.fillRect(bx, by, boxW, boxH, false);
-  renderer.drawRect(bx, by, boxW, boxH, 3, true);
-
-  auto center = [&](int fontId, int y, const char* text, bool bold) {
-    const EpdFontFamily::Style style = bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
-    const int tw = renderer.getTextWidth(fontId, text, style);
-    renderer.drawText(fontId, bx + (boxW - tw) / 2, y, text, true, style);
+  auto strip = [&](const int y) {
+    renderer.fillRect(0, y, w, stripH, false);
   };
+  const int textY = (stripH - lineH) / 2;
 
-  int y = by + 22;
-  center(NOTOSANS_14_FONT_ID, y, d.time, true);
-  y += timeH + 6;
-
-  char line[48];
-  snprintf(line, sizeof(line), "%s  %u%%", d.date, static_cast<unsigned>(d.batteryPct));
-  center(UI_12_FONT_ID, y, line, false);
-  y += smallH + 18;
-  renderer.drawLine(bx + 20, y, bx + boxW - 20, y, 2, true);
-  y += 18;
-
-  if (d.hasGlucose) {
-    snprintf(line, sizeof(line), "%d %s", d.value, d.trend);
-    center(NOTOSANS_14_FONT_ID, y, line, true);
-    y += timeH + 6;
-    snprintf(line, sizeof(line), "mg/dL  -  %d min ago", d.ageMin);
-    center(UI_12_FONT_ID, y, line, false);
-  } else {
-    center(UI_12_FONT_ID, y, "no recent reading", false);
+  // Header: time centred, battery at the right edge.
+  strip(0);
+  renderer.drawLine(0, stripH, w, stripH, 2, true);
+  {
+    const int tw = renderer.getTextWidth(UI_12_FONT_ID, d.time, EpdFontFamily::BOLD);
+    renderer.drawText(UI_12_FONT_ID, (w - tw) / 2, textY, d.time, true, EpdFontFamily::BOLD);
+    char batt[8];
+    snprintf(batt, sizeof(batt), "%u%%", static_cast<unsigned>(d.batteryPct));
+    const int bw = renderer.getTextWidth(UI_12_FONT_ID, batt);
+    renderer.drawText(UI_12_FONT_ID, w - pad - bw, textY, batt);
   }
+
+  // Footer: latest glucose, trend and age, centred.
+  const int footY = h - stripH;
+  strip(footY);
+  renderer.drawLine(0, footY, w, footY, 2, true);
+  char line[48];
+  if (d.hasGlucose) {
+    snprintf(line, sizeof(line), "%d mg/dL %s  -  %d min ago", d.value, d.trend, d.ageMin);
+  } else {
+    snprintf(line, sizeof(line), "no recent reading");
+  }
+  const int lw = renderer.getTextWidth(UI_12_FONT_ID, line, EpdFontFamily::BOLD);
+  renderer.drawText(UI_12_FONT_ID, (w - lw) / 2, footY + textY + 2, line, true, EpdFontFamily::BOLD);
 }
 
 }  // namespace glance

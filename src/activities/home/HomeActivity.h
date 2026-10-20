@@ -21,6 +21,7 @@ class HomeActivity final : public Activity {
   bool hasPlugins = false;
   // The home "library" slot (index 2) shows Plugins when any plugin is
   // installed, otherwise OPDS. The index converters gate on its presence.
+  Rect watchTagRect(const GfxRenderer& r) const;
   bool hasLibrarySlot() const { return hasPlugins || hasOpdsServers; }
   bool hasContinueReading = false;
   bool coverRendered = false;      // Track if cover has been rendered once

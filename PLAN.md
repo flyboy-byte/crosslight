@@ -1,3 +1,20 @@
+## ▶ UPDATE 2026-10-19 (evening): release 26.10.19 -- Logan's feedback pass
+Logan verified on hardware: the Wi-Fi/Bluetooth switch works, and the Watch Face on Sleep drew after 5 min (so it works; the BLE
+connect-per-wake part and battery cost are still unmeasured). Changes in 26.10.19 (builds clean; simulator screenshots checked for Home
+and the monitor; NOT yet on the reader):
+- Watch Face toggle: a "Watch ON/OFF" tag at the right of the Glucose Monitor row on Home (tap it; the rest of the row still opens
+  the monitor) and a "Watch face: ON/OFF" pill on the monitor screen (tap, or the Right button). Setting is `glanceOnSleep`; it takes
+  effect at the NEXT sleep (the timer is armed on sleep entry). Off = ordinary full sleep, never wakes.
+- Face is now a slim header (time centre, battery right) and footer (glucose, trend, age) so the wallpaper's middle stays clear.
+- Wi-Fi weak signal: when the scan does not list a saved network, auto-connect now still tries each saved network directly
+  (`tryNextSavedNetworkBlind`) because `attemptConnection()` does its own all-channel scan. Plus the earlier 7 s -> 15 s timeout.
+  Both are reasoned from the code, not reproduced.
+- Claude via the phone: ASKED extraction (2026-10-19). Facts: Claude features already run over the reader's Wi-Fi through the bridge
+  (`promptViaBridge`); the app has the bridge key and routes but NO BLE notify subscription and no requestMtu. Direction: phone is the
+  central, so reader->phone requests go as NOTIFY, replies as WRITES to a second characteristic. Gate limits: 4000 chars, 1 request at a
+  time, 10 s gap, 100/day. Extraction's frame preferences: type, request id, status, flags with a "more" bit, 2-byte total length.
+  NOTHING built; next step is to draft the frame format and have extraction confirm. Logan's "status" wish is unspecified; ask him.
+
 ## ▶ UPDATE 2026-10-19 (later): release 26.10.18 -- the "whole system" pass (NOT hardware-verified)
 Logan confirmed 26.10.17's Wi-Fi->Bluetooth switch works. Then asked for the rest of the plan and a release. Shipped in 26.10.18,
 all built clean (x4pro + simulator, host tests 884/884) but **none of it has run on the reader**:

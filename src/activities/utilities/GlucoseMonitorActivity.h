@@ -47,6 +47,7 @@ class GlucoseMonitorActivity final : public Activity {
     Box wifi;      // left half of the source switch
     Box ble;       // right half of the source switch
     Box mode;      // Wi-Fi only: "Auto 60s" / "Manual" line (tap toggles); empty on BLE
+    Box watch;     // Watch Face on Sleep on/off, right of the mode line
     Box read;      // Read button
     int infoY = 0;    // text baseline of the line under the switch (mode on Wi-Fi, forget hint on BLE)
     int bodyTop = 0;  // first y below the controls
