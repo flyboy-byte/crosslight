@@ -3,6 +3,7 @@
 #include <Logging.h>
 
 #include <atomic>
+#include <utility>
 #include <cstring>
 
 #if defined(ARDUINO_ARCH_ESP32)
@@ -23,6 +24,18 @@ struct RawWrite {
   uint8_t bytes[kBlePacketSize];
   uint16_t len;
 };
+
+// Relay RX: whole ATT payloads from the phone (up to MTU 517 - 3).
+struct RelayFrameBuf {
+  uint8_t bytes[514];
+  uint16_t len;
+};
+constexpr size_t RELAY_QUEUE_DEPTH = 8;
+QueueHandle_t g_relayQueue = nullptr;
+NimBLECharacteristic* g_relayTx = nullptr;
+std::atomic<bool> g_relaySubscribed{false};
+std::atomic<uint16_t> g_mtu{23};
+relay::Reassembler g_reassembler;
 
 constexpr size_t QUEUE_DEPTH = 4;  // writes land ~once a minute; never a flood
 QueueHandle_t g_queue = nullptr;
@@ -48,7 +61,13 @@ class ServerCallbacks final : public NimBLEServerCallbacks {
   }
   void onDisconnect(NimBLEServer* /*server*/, NimBLEConnInfo& /*connInfo*/, int reason) override {
     g_connected = false;
+    g_relaySubscribed = false;
+    g_mtu = 23;
     LOG_INF("LIBRE_BLE", "Companion disconnected (reason=%d)", reason);
+  }
+  void onMTUChange(uint16_t mtu, NimBLEConnInfo& /*connInfo*/) override {
+    g_mtu = mtu;
+    LOG_INF("LIBRE_BLE", "MTU %u", static_cast<unsigned>(mtu));
   }
 };
 
@@ -95,6 +114,27 @@ class TimeCallbacks final : public NimBLECharacteristicCallbacks {
 
 TimeCallbacks g_timeCallbacks;
 
+class RelayRxCallbacks final : public NimBLECharacteristicCallbacks {
+  void onWrite(NimBLECharacteristic* chr, NimBLEConnInfo& /*connInfo*/) override {
+    if (!g_relayQueue) return;
+    const NimBLEAttValue value = chr->getValue();
+    RelayFrameBuf f;
+    f.len = value.size() > sizeof(f.bytes) ? static_cast<uint16_t>(sizeof(f.bytes)) : static_cast<uint16_t>(value.size());
+    std::memcpy(f.bytes, value.data(), f.len);
+    xQueueSend(g_relayQueue, &f, 0);
+  }
+};
+
+class RelayTxCallbacks final : public NimBLECharacteristicCallbacks {
+  void onSubscribe(NimBLECharacteristic* /*chr*/, NimBLEConnInfo& /*connInfo*/, uint16_t subValue) override {
+    g_relaySubscribed = (subValue & 1) != 0;  // bit0 = notifications
+    LOG_INF("LIBRE_BLE", "relay TX subscribe value=%u", static_cast<unsigned>(subValue));
+  }
+};
+
+RelayRxCallbacks g_relayRxCallbacks;
+RelayTxCallbacks g_relayTxCallbacks;
+
 }  // namespace
 #endif  // ARDUINO_ARCH_ESP32
 
@@ -102,6 +142,7 @@ bool LibreBleServer::begin() {
   if (active) return true;
 
 #if defined(ARDUINO_ARCH_ESP32)
+  if (!g_relayQueue) g_relayQueue = xQueueCreate(RELAY_QUEUE_DEPTH, sizeof(RelayFrameBuf));
   if (!g_queue) g_queue = xQueueCreate(QUEUE_DEPTH, sizeof(RawWrite));
   if (!g_queue) {
     LOG_ERR("LIBRE_BLE", "Failed to create write queue");
@@ -110,6 +151,7 @@ bool LibreBleServer::begin() {
 
   if (!NimBLEDevice::isInitialized()) {
     NimBLEDevice::init("CrossLight");
+    NimBLEDevice::setMTU(517);  // preferred ATT MTU; the phone's request decides the actual one
     // Bring-up: NO encryption/bonding yet. The held-connection + WRITE_ENC
     // design failed on hardware (2026-10-18); this rebuild confirms the plain
     // write path end to end first, then Just-Works bonding comes back as a
@@ -160,6 +202,15 @@ bool LibreBleServer::begin() {
       return false;
     }
     timeChr->setCallbacks(&g_timeCallbacks);
+    NimBLECharacteristic* relayRx = service->createCharacteristic(
+        kBleRelayRxUuid, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
+    g_relayTx = service->createCharacteristic(kBleRelayTxUuid, NIMBLE_PROPERTY::NOTIFY);
+    if (!relayRx || !g_relayTx) {
+      LOG_ERR("LIBRE_BLE", "Could not create relay characteristics");
+      return false;
+    }
+    relayRx->setCallbacks(&g_relayRxCallbacks);
+    g_relayTx->setCallbacks(&g_relayTxCallbacks);
     service->start();
   }
 
@@ -199,6 +250,7 @@ void LibreBleServer::end() {
     }
   }
   if (g_queue) xQueueReset(g_queue);
+  g_relaySubscribed = false;
   g_connected = false;
 #endif
   active = false;
@@ -209,6 +261,58 @@ bool LibreBleServer::connected() const {
   return g_connected;
 #else
   return false;
+#endif
+}
+
+bool LibreBleServer::relaySubscribed() const {
+#if defined(ARDUINO_ARCH_ESP32)
+  return g_connected && g_relaySubscribed.load();
+#else
+  return false;
+#endif
+}
+
+bool LibreBleServer::relaySend(const relay::Message& msg) {
+#if defined(ARDUINO_ARCH_ESP32)
+  if (!relaySubscribed() || !g_relayTx) return false;
+  const size_t maxFrame = g_mtu.load() > 3 ? g_mtu.load() - 3 : 20;
+  const auto frames = relay::encode(msg, maxFrame);
+  if (frames.empty()) return false;
+  for (const auto& f : frames) {
+    if (!g_relayTx->notify(reinterpret_cast<const uint8_t*>(f.data()), f.size())) {
+      LOG_ERR("LIBRE_BLE", "relay notify failed");
+      return false;
+    }
+    delay(8);  // let the controller drain; notifies are not flow-controlled here
+  }
+  return true;
+#else
+  (void)msg;
+  return false;
+#endif
+}
+
+bool LibreBleServer::relayTake(relay::Message& out) {
+#if defined(ARDUINO_ARCH_ESP32)
+  if (!g_relayQueue) return false;
+  RelayFrameBuf f;
+  while (xQueueReceive(g_relayQueue, &f, 0) == pdTRUE) {
+    if (g_reassembler.feed(f.bytes, f.len)) {
+      out = g_reassembler.take();
+      return true;
+    }
+  }
+  return false;
+#else
+  (void)out;
+  return false;
+#endif
+}
+
+void LibreBleServer::relayReset() {
+#if defined(ARDUINO_ARCH_ESP32)
+  if (g_relayQueue) xQueueReset(g_relayQueue);
+  g_reassembler.reset();
 #endif
 }
 

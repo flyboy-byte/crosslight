@@ -8,10 +8,12 @@
 #include <algorithm>
 #include <cstdio>
 
+#include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "SilentRestart.h"
 #include "TrustedTime.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "claude/ClaudePhoneRelay.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -48,6 +50,10 @@ void ClaudePanelActivity::onEnter() {
   Activity::onEnter();
   statusLine = tr(STR_CLAUDE_CHECKING);
   requestUpdate();
+  if (SETTINGS.claudePanelViaPhone) {  // the phone does the network work; no Wi-Fi join
+    onWifiSelectionComplete(true);
+    return;
+  }
   if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
     onWifiSelectionComplete(true);
     return;
@@ -81,7 +87,7 @@ void ClaudePanelActivity::onWifiSelectionComplete(const bool ok) {
 }
 
 void ClaudePanelActivity::refresh() {
-  if (WiFi.status() != WL_CONNECTED) {
+  if (!SETTINGS.claudePanelViaPhone && WiFi.status() != WL_CONNECTED) {
     RenderLock lock(*this);
     statusLine = tr(STR_CLAUDE_NO_WIFI);
     stale = haveUsage;
@@ -95,7 +101,8 @@ void ClaudePanelActivity::refresh() {
   }
   requestUpdateAndWait();
   claude::BridgeUsage fresh;
-  const claude::UsageResult r = claude::fetchUsageViaBridge(fresh);
+  const claude::UsageResult r =
+      SETTINGS.claudePanelViaPhone ? claude::fetchUsageViaPhone(fresh) : claude::fetchUsageViaBridge(fresh);
   RenderLock lock(*this);
   lastFetchMs = millis();
   switch (r.error) {
@@ -106,12 +113,12 @@ void ClaudePanelActivity::refresh() {
       statusLine.clear();
       break;
     case claude::BridgeError::NoConfig:
-      statusLine = tr(STR_CLAUDE_NO_BRIDGE_CONFIG);
+      statusLine = r.errorCode == "via_phone" ? tr(STR_CLAUDE_PHONE_NO_KEY) : tr(STR_CLAUDE_NO_BRIDGE_CONFIG);
       stale = haveUsage;
       break;
     case claude::BridgeError::Unauthorized:
     case claude::BridgeError::Forbidden:
-      statusLine = tr(STR_CLAUDE_TOKEN_REJECTED);
+      statusLine = r.errorCode == "via_phone" ? tr(STR_CLAUDE_PHONE_KEY_REJECTED) : tr(STR_CLAUDE_TOKEN_REJECTED);
       stale = haveUsage;
       break;
     case claude::BridgeError::LowMemory:
@@ -127,7 +134,7 @@ void ClaudePanelActivity::refresh() {
       stale = haveUsage;
       break;
     default:
-      statusLine = tr(STR_CLAUDE_REQUEST_FAILED);
+      statusLine = r.errorCode == "no_phone" ? tr(STR_CLAUDE_NO_PHONE) : tr(STR_CLAUDE_REQUEST_FAILED);
       stale = haveUsage;
       break;
   }

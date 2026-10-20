@@ -400,6 +400,11 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // Watch face on sleep: timer-wake every few minutes and draw time + glucose
   // over the sleep screen (src/glance). Off by default; battery cost unmeasured.
   uint8_t glanceOnSleep = 0;
+  // Per-utility transport: 1 = served by the companion app over Bluetooth, 0 =
+  // on-demand Wi-Fi straight to the bridge. (Glucose's switch is glucoseSource above.)
+  uint8_t askClaudeViaPhone = 0;
+  uint8_t bibleQaViaPhone = 0;
+  uint8_t claudePanelViaPhone = 0;
   // Quick Resume: keep current content visible with moon icon instead of showing a static sleep screen.
   uint8_t quickResumeSleepScreen = QUICK_RESUME_NEVER;
 

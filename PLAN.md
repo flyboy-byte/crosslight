@@ -1,3 +1,14 @@
+## ▶ UPDATE 2026-10-19 (night): Claude over BLE, reader side BUILT (uncommitted, unreleased, untested on hardware)
+Format v1 agreed with extraction: `docs/crosslight/ble-claude-relay.md`. Reader side: `src/libre/RelayFrame.*` (codec, 6 host tests),
+relay TX (notify) / RX (write) characteristics in `LibreBleServer` (create-once, onSubscribe/onMTUChange tracked, `setMTU(517)`),
+`src/claude/ClaudePhoneRelay.*` (`promptViaPhone`, `fetchUsageViaPhone`: advertise, wait <=30 s for the phone to subscribe, send one
+request, wait <=60 s, cancel on timeout). Per-utility transport switches (Settings > System, all default to Wi-Fi): `glucoseSource`, `askClaudeViaPhone`, `bibleQaViaPhone`,
+`claudePanelViaPhone`. ON = served by the phone over Bluetooth (skips the Wi-Fi join); OFF = on-demand Wi-Fi. (Logan 2026-10-20: tune which
+utilities are a phone "service" vs on-demand Wi-Fi; a dedicated Connections screen is a possible next step.) Usage older than 10 min
+or age 0xFFFFFFFF shows as unknown. Phone side (extraction) is built too, not released. NEXT: Logan flashes it, opens a Claude screen
+with the setting on, the phone app is running; extraction measures latency. Known limits: blocking calls (no Back-to-cancel while
+waiting); BLE link is unencrypted so replies are readable nearby (accepted for glucose; flag for Claude text); 429s inside 10 s.
+
 ## ▶ UPDATE 2026-10-19 (evening): release 26.10.19 -- Logan's feedback pass
 Logan verified on hardware: the Wi-Fi/Bluetooth switch works, and the Watch Face on Sleep drew after 5 min (so it works; the BLE
 connect-per-wake part and battery cost are still unmeasured). Changes in 26.10.19 (builds clean; simulator screenshots checked for Home

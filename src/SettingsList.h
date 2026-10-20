@@ -314,6 +314,16 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         SettingInfo::Toggle(StrId::STR_RESTORE_LIGHT_ON_WAKE, &CrossPointSettings::frontlightRestoreOnWake,
                             "frontlightRestoreOnWake", StrId::STR_CAT_DISPLAY),
 #endif
+        // Per-utility transport. ON = served by the companion app over Bluetooth
+        // (no Wi-Fi needed); OFF = on-demand Wi-Fi to the bridge.
+        SettingInfo::Toggle(StrId::STR_GLUCOSE_VIA_PHONE, &CrossPointSettings::glucoseSource, "glucoseSource",
+                            StrId::STR_CAT_SYSTEM),
+        SettingInfo::Toggle(StrId::STR_ASK_CLAUDE_VIA_PHONE, &CrossPointSettings::askClaudeViaPhone,
+                            "askClaudeViaPhone", StrId::STR_CAT_SYSTEM),
+        SettingInfo::Toggle(StrId::STR_BIBLE_QA_VIA_PHONE, &CrossPointSettings::bibleQaViaPhone, "bibleQaViaPhone",
+                            StrId::STR_CAT_SYSTEM),
+        SettingInfo::Toggle(StrId::STR_CLAUDE_PANEL_VIA_PHONE, &CrossPointSettings::claudePanelViaPhone,
+                            "claudePanelViaPhone", StrId::STR_CAT_SYSTEM),
         SettingInfo::Toggle(StrId::STR_GLANCE_ON_SLEEP, &CrossPointSettings::glanceOnSleep, "glanceOnSleep",
                             StrId::STR_CAT_DISPLAY),
         // Night mode = inverted output polarity everywhere (ActivityManager

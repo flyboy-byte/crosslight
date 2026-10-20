@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LibreBlePacket.h"
+#include "RelayFrame.h"
 
 // NimBLE GATT peripheral/server for the companion app's glucose relay
 // (frozen contract + UUIDs: extraction repo docs/pinetime.md, DECISIONS.md
@@ -29,6 +30,10 @@ constexpr char kBleCharacteristicUuid[] = "4e9715ab-ed4d-4a77-b8e7-f70fb5e26fc5"
 // Time sync (minted 2026-10-19, same service): write 4 bytes, u32 little-endian
 // unix UTC seconds. The reader sets its clock from it; no response data.
 constexpr char kBleTimeCharacteristicUuid[] = "84b38d8a-686e-4663-bbe8-73ba7d3e1774";
+// Claude relay (docs/crosslight/ble-claude-relay.md): TX = reader -> phone NOTIFY,
+// RX = phone -> reader WRITE. Frame format in RelayFrame.h.
+constexpr char kBleRelayTxUuid[] = "a65f2d9a-0d09-4190-a32b-63ba6c91daac";
+constexpr char kBleRelayRxUuid[] = "b9e7080d-9fd5-4a71-ad1e-67186b5b2d9d";
 
 class LibreBleServer {
  public:
@@ -51,6 +56,18 @@ class LibreBleServer {
   // Returns true with the phone's UTC epoch if a time-sync write arrived since
   // the last call. Range-checked (2025-2100); out-of-range writes are dropped.
   bool takeTimeSync(int64_t& epochOut);
+
+  // --- Claude relay ---
+  // True once the phone has enabled notifications on the relay TX characteristic
+  // (the reader must not notify a request before that).
+  bool relaySubscribed() const;
+  // Sends one message as notify frames sized to the negotiated MTU. False if
+  // not subscribed or a notify failed.
+  bool relaySend(const relay::Message& msg);
+  // Drains received frames; true with a completed message in `out`.
+  bool relayTake(relay::Message& out);
+  // Drops any half-assembled message and queued frames (start of a new request).
+  void relayReset();
 
  private:
   bool active = false;

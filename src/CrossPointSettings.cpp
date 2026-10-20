@@ -120,7 +120,6 @@ void CrossPointSettings::toJson(JsonDocument& doc) const {
 
   bleturner::writeJson(ble, doc);
 
-  doc["glucoseSource"] = glucoseSource;
 }
 
 bool CrossPointSettings::fromJson(JsonVariantConst doc) {
@@ -295,7 +294,6 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
     needsResave = true;
   }
 
-  glucoseSource = clamp(doc["glucoseSource"] | (uint8_t)0, 2, (uint8_t)0);
 
   if (needsResave) {
     LOG_DBG("CPS", "Resaving settings to update format");

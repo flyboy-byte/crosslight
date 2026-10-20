@@ -12,7 +12,9 @@
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
 #include "activities/util/KeyboardEntryActivity.h"
+#include "CrossPointSettings.h"
 #include "claude/ClaudeBridgeClient.h"
+#include "claude/ClaudePhoneRelay.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -71,7 +73,7 @@ void AskClaudeActivity::sendQuestion(const std::string& question) {
   statusLine = tr(STR_BIBLE_ASK_ASKING);
   requestUpdate();
 
-  if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
+  if (SETTINGS.askClaudeViaPhone || (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0))) {
     doAsk();
     return;
   }
@@ -92,7 +94,8 @@ void AskClaudeActivity::sendQuestion(const std::string& question) {
 
 void AskClaudeActivity::doAsk() {
   requestUpdateAndWait();
-  const claude::PromptResult r = claude::promptViaBridge(pendingQuestion);
+  const claude::PromptResult r =
+      SETTINGS.askClaudeViaPhone ? claude::promptViaPhone(pendingQuestion) : claude::promptViaBridge(pendingQuestion);
   LOG_INF("CLAUDE", "ask: error=%d http=%d code=%s", static_cast<int>(r.error), r.httpCode, r.errorCode.c_str());
   RenderLock lock(*this);
   switch (r.error) {
@@ -109,12 +112,12 @@ void AskClaudeActivity::doAsk() {
       break;
     }
     case claude::BridgeError::NoConfig:
-      statusLine = tr(STR_CLAUDE_NO_BRIDGE_CONFIG);
+      statusLine = r.errorCode == "via_phone" ? tr(STR_CLAUDE_PHONE_NO_KEY) : tr(STR_CLAUDE_NO_BRIDGE_CONFIG);
       state = State::Menu;
       break;
     case claude::BridgeError::Unauthorized:
     case claude::BridgeError::Forbidden:
-      statusLine = tr(STR_CLAUDE_TOKEN_REJECTED);
+      statusLine = r.errorCode == "via_phone" ? tr(STR_CLAUDE_PHONE_KEY_REJECTED) : tr(STR_CLAUDE_TOKEN_REJECTED);
       state = State::Menu;
       break;
     case claude::BridgeError::LowMemory:
@@ -134,7 +137,7 @@ void AskClaudeActivity::doAsk() {
       state = State::Menu;
       break;
     default:
-      statusLine = tr(STR_CLAUDE_REQUEST_FAILED);
+      statusLine = r.errorCode == "no_phone" ? tr(STR_CLAUDE_NO_PHONE) : tr(STR_CLAUDE_REQUEST_FAILED);
       state = State::Menu;
       break;
   }
