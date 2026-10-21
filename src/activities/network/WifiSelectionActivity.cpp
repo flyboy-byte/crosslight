@@ -519,6 +519,21 @@ void WifiSelectionActivity::attemptConnection() {
     LOG_ERR("WIFI", "Failed to read station MAC for hostname (err=%d)", static_cast<int>(macResult));
   }
 
+  // Fast path: the network we last joined, at the access point we last joined
+  // it on. Pinning BSSID + channel skips the all-channel scan, which is most of
+  // the connect time. Falls back to the full scan if it does not come up quickly.
+#if defined(ARDUINO_ARCH_ESP32)  // the desktop simulator's WiFi stub has no BSSID/channel begin()
+  uint8_t fastBssid[6] = {};
+  uint8_t fastChannel = 0;
+  if (!fastDisabled && selectedSSID == WIFI_STORE.getLastConnectedSsid() &&
+      WIFI_STORE.getLastAccessPoint(fastBssid, fastChannel)) {
+    fastAttempt = true;
+    WiFi.begin(selectedSSID.c_str(), (selectedRequiresPassword && !enteredPassword.empty()) ? enteredPassword.c_str() : nullptr,
+               fastChannel, fastBssid, true);
+    return;
+  }
+#endif
+  fastAttempt = false;
   if (selectedRequiresPassword && !enteredPassword.empty()) {
     WiFi.begin(selectedSSID.c_str(), enteredPassword.c_str());
   } else {
@@ -570,7 +585,10 @@ void WifiSelectionActivity::checkConnectionStatus() {
     {
       RenderLock lock(*this);
       WIFI_STORE.setLastConnectedSsid(selectedSSID);
+      uint8_t joinedBssid[6] = {};
+      if (WiFi.BSSID(joinedBssid) != nullptr) WIFI_STORE.setLastAccessPoint(joinedBssid, static_cast<uint8_t>(WiFi.channel()));
     }
+    fastAttempt = false;
 
     // Every station join is a window where plugin senders are deliverable, so
     // drain the plugin outboxes here (web server up and sleep entry are the
@@ -590,6 +608,18 @@ void WifiSelectionActivity::checkConnectionStatus() {
               "completing immediately");
       onComplete(true);
     }
+    return;
+  }
+
+  // The pinned-AP attempt did not work (AP moved, or out of range): retry once
+  // the slow, thorough way before treating it as a failure.
+  if (fastAttempt &&
+      (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL || millis() - connectionStartTime > kFastAttemptMs)) {
+    LOG_DBG("WIFI", "Fast join failed, retrying with a full scan");
+    fastAttempt = false;
+    fastDisabled = true;
+    WiFi.disconnect();
+    attemptConnection();
     return;
   }
 

@@ -9,6 +9,8 @@
 void WifiCredentialStore::toJson(JsonDocument& doc) const {
   std::lock_guard<std::mutex> lock(credentialMutex);
   doc["lastConnectedSsid"] = lastConnectedSsid;
+  doc["lastBssid"] = lastBssid;
+  doc["lastChannel"] = lastChannel;
 
   JsonArray arr = doc["credentials"].to<JsonArray>();
   for (const auto& cred : credentials) {
@@ -26,6 +28,8 @@ void WifiCredentialStore::toJson(JsonDocument& doc) const {
 bool WifiCredentialStore::fromJson(JsonVariantConst doc) {
   std::lock_guard<std::mutex> lock(credentialMutex);
   lastConnectedSsid = doc["lastConnectedSsid"] | "";
+  lastBssid = doc["lastBssid"] | "";
+  lastChannel = doc["lastChannel"] | 0;
 
   // Tolerate a missing/invalid 'credentials' key (treat as empty list); only
   // a JSON parse error is fatal. A null JsonArray iterates zero times.
@@ -207,4 +211,28 @@ void WifiCredentialStore::setLastConnectedSsid(const std::string& ssid) {
 std::string WifiCredentialStore::getLastConnectedSsid() const {
   std::lock_guard<std::mutex> lock(credentialMutex);
   return lastConnectedSsid;
+}
+
+void WifiCredentialStore::setLastAccessPoint(const uint8_t bssid[6], const uint8_t channel) {
+  char hex[13];
+  snprintf(hex, sizeof(hex), "%02x%02x%02x%02x%02x%02x", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
+  {
+    std::lock_guard<std::mutex> lock(credentialMutex);
+    if (lastBssid == hex && lastChannel == channel) return;
+    lastBssid = hex;
+    lastChannel = channel;
+  }
+  saveToFile();
+}
+
+bool WifiCredentialStore::getLastAccessPoint(uint8_t bssidOut[6], uint8_t& channelOut) const {
+  std::lock_guard<std::mutex> lock(credentialMutex);
+  if (lastBssid.size() != 12 || lastChannel == 0) return false;
+  for (int i = 0; i < 6; ++i) {
+    unsigned v = 0;
+    if (sscanf(lastBssid.c_str() + i * 2, "%2x", &v) != 1) return false;
+    bssidOut[i] = static_cast<uint8_t>(v);
+  }
+  channelOut = lastChannel;
+  return true;
 }

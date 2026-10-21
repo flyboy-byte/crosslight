@@ -97,7 +97,7 @@ void ClaudePanelActivity::refresh() {
   }
   {
     RenderLock lock(*this);
-    statusLine = tr(STR_CLAUDE_CHECKING);
+    statusLine = SETTINGS.claudePanelViaPhone ? tr(STR_GLUCOSE_BLE_WAITING) : tr(STR_CLAUDE_CHECKING);
   }
   requestUpdateAndWait();
   claude::BridgeUsage fresh;

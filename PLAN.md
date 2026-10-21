@@ -1,3 +1,13 @@
+## ▶ UPDATE 2026-10-21: release 26.10.21 (NOT hardware-verified)
+Logan reported: Claude Panel via phone waited 30 s then "Phone not connected" while Ask Claude via phone worked (so the link works;
+cause UNCONFIRMED, likely Android's autoConnect backoff up to 120 s per extraction); Wi-Fi find/connect is slow; icons missing
+because his theme is RoundedRaff/Classic (those themes draw no menu icons by design, Lyra does); sleep wallpaper loses grays on glance
+redraw (known: base frame is the BW buffer; left for now pending battery numbers).
+Changes: relay connect wait 30 -> 60 s, advertising interval 20-30 ms, Panel shows "Waiting for phone..."; Wi-Fi joins pin the last BSSID +
+channel (stored in wifi.json, `setLastAccessPoint`) and fall back to the full scan after 5 s (`fastAttempt`/`fastDisabled`). Asked extraction
+(queued, its machine offline) what the app saw for the usage request. Open: measure real Wi-Fi join time before/after; Connections screen
+idea; icons for RoundedRaff/Classic if Logan wants them.
+
 ## ▶ UPDATE 2026-10-19 (night): Claude over BLE, reader side BUILT (uncommitted, unreleased, untested on hardware)
 Format v1 agreed with extraction: `docs/crosslight/ble-claude-relay.md`. Reader side: `src/libre/RelayFrame.*` (codec, 6 host tests),
 relay TX (notify) / RX (write) characteristics in `LibreBleServer` (create-once, onSubscribe/onMTUChange tracked, `setMTU(517)`),

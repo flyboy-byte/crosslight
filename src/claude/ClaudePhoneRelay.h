@@ -13,7 +13,9 @@
 // the reply and tears the server down again. Blocking, like the HTTP calls.
 namespace claude {
 
-constexpr unsigned long kPhoneConnectWaitMs = 30000;
+// Android's autoConnect re-issue backs off up to 120 s on the phone side (extraction,
+// 2026-10-19); 60 s gives a pending connect a fair chance to land.
+constexpr unsigned long kPhoneConnectWaitMs = 60000;
 constexpr unsigned long kPhoneReplyWaitMs = 60000;
 
 // errorCode "no_phone" when no phone connected in time (error is Network).

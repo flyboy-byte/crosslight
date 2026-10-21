@@ -81,6 +81,9 @@ class WifiSelectionActivity final : public Activity, private UiAppHost {
 
   // Whether network was connected using a saved password (skip save prompt)
   bool usedSavedPassword = false;
+  bool fastAttempt = false;   // current attempt pins the last BSSID + channel
+  bool fastDisabled = false;  // the pinned attempt failed once; use the full scan from here
+  static constexpr unsigned long kFastAttemptMs = 5000;
 
   // Whether to attempt auto-connect on entry
   const bool allowAutoConnect;

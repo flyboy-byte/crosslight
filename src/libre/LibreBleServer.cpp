@@ -223,6 +223,10 @@ bool LibreBleServer::begin() {
     adv->addServiceUUID(kBleServiceUuid);
     g_advertisedUuid = true;
   }
+  // Fast advertising (20-30 ms): the windows here are short (a screen open, an
+  // 8 s wake), so a phone doing a background connect should see us quickly.
+  adv->setMinInterval(32);  // units of 0.625 ms
+  adv->setMaxInterval(48);
   if (!adv->start()) {
     LOG_ERR("LIBRE_BLE", "Could not start advertising");
     return false;
